@@ -1,0 +1,39 @@
+{
+ "add_total_row": 0,
+ "columns": [],
+ "creation": "2026-05-25 00:00:00",
+ "doctype": "Report",
+ "filters": [
+  {
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "label": "Building",
+   "options": "Item Group"
+  },
+  {
+   "fieldname": "unit_status",
+   "fieldtype": "Select",
+   "label": "Unit Status",
+   "options": "\nAvailable\nBooked\nSold\nReserved\nUnder Maintenance"
+  }
+ ],
+ "is_standard": "Yes",
+ "javascript": "",
+ "json": "",
+ "modified": "2026-05-25 00:00:00",
+ "module": "Real Estate",
+ "name": "Unit Availability Report",
+ "owner": "Administrator",
+ "query": "",
+ "ref_doctype": "Item",
+ "report_name": "Unit Availability Report",
+ "report_script": "",
+ "report_type": "Script Report",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "Misk Admin"},
+  {"role": "Misk Finance"},
+  {"role": "Misk Sales"},
+  {"role": "Misk Management"}
+ ]
+}

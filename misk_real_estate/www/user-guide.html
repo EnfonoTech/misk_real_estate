@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Misk Real Estate ERP — User Guide</title>
+  <style>
+    /* ── Reset & Base ──────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      font-size: 15px;
+      line-height: 1.7;
+      color: #1a1a2e;
+      background: #f5f6fa;
+      display: flex;
+      min-height: 100vh;
+    }
+
+    /* ── Sidebar ────────────────────────────────────────────────────────── */
+    .sidebar {
+      width: 260px;
+      min-height: 100vh;
+      background: #1a1a2e;
+      color: #c8cfe8;
+      position: fixed;
+      top: 0; left: 0;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+    }
+    .sidebar-brand {
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+    .sidebar-brand .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 4px;
+    }
+    .sidebar-brand .logo-icon {
+      width: 36px; height: 36px;
+      background: linear-gradient(135deg, #2563eb, #7c3aed);
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .sidebar-brand .logo-icon svg { width: 20px; height: 20px; stroke: #fff; fill: none; }
+    .sidebar-brand h1 { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+    .sidebar-brand p  { font-size: 11px; color: #6b7299; margin-top: 2px; }
+
+    .sidebar-nav { padding: 12px 0; flex: 1; }
+    .nav-group-label {
+      font-size: 10px; font-weight: 700; letter-spacing: 1.2px;
+      text-transform: uppercase; color: #4a5180;
+      padding: 12px 20px 4px;
+    }
+    .nav-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 20px;
+      color: #9ba3c8;
+      text-decoration: none;
+      font-size: 13.5px;
+      border-left: 3px solid transparent;
+      transition: all 0.15s;
+    }
+    .nav-item:hover, .nav-item.active {
+      background: rgba(255,255,255,0.06);
+      color: #fff;
+      border-left-color: #2563eb;
+    }
+    .nav-item svg { width: 16px; height: 16px; stroke: currentColor; fill: none; flex-shrink: 0; }
+
+    .sidebar-footer {
+      padding: 16px 20px;
+      border-top: 1px solid rgba(255,255,255,0.08);
+      font-size: 11px;
+      color: #4a5180;
+    }
+    .sidebar-footer a { color: #6b7299; text-decoration: none; }
+
+    /* ── Main Content ───────────────────────────────────────────────────── */
+    .main {
+      margin-left: 260px;
+      flex: 1;
+      padding: 0;
+      min-height: 100vh;
+    }
+
+    .page-header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      color: #fff;
+      padding: 48px 48px 40px;
+      position: relative;
+      overflow: hidden;
+    }
+    .page-header::after {
+      content: '';
+      position: absolute;
+      right: -60px; top: -60px;
+      width: 300px; height: 300px;
+      background: radial-gradient(circle, rgba(37,99,235,0.3) 0%, transparent 70%);
+      border-radius: 50%;
+    }
+    .page-header .tag {
+      display: inline-block;
+      background: rgba(37,99,235,0.3);
+      border: 1px solid rgba(37,99,235,0.5);
+      color: #93c5fd;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding: 3px 10px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+    }
+    .page-header h1 { font-size: 32px; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 8px; }
+    .page-header p  { font-size: 15px; color: #93afd4; max-width: 560px; }
+    .page-header .meta {
+      display: flex; gap: 20px; margin-top: 20px; flex-wrap: wrap;
+    }
+    .page-header .meta-item {
+      display: flex; align-items: center; gap: 6px;
+      font-size: 12px; color: #64748b;
+    }
+    .page-header .meta-item svg { width: 14px; height: 14px; stroke: #4a7fb5; fill: none; }
+
+    .content-body { padding: 40px 48px; max-width: 900px; }
+
+    /* ── Section ───────────────────────────────────────────────────────── */
+    .section { margin-bottom: 56px; scroll-margin-top: 24px; }
+    .section-title {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 22px; font-weight: 800;
+      color: #1a1a2e; margin-bottom: 6px;
+      letter-spacing: -0.3px;
+    }
+    .section-title .icon-wrap {
+      width: 38px; height: 38px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .section-title .icon-wrap svg { width: 20px; height: 20px; stroke: #fff; fill: none; }
+    .section-subtitle {
+      color: #64748b; font-size: 14px; margin-bottom: 24px;
+      padding-left: 50px;
+    }
+
+    /* ── Flow Steps ─────────────────────────────────────────────────────── */
+    .steps { position: relative; }
+    .step {
+      display: flex; gap: 20px;
+      margin-bottom: 8px;
+      position: relative;
+    }
+    .step-left {
+      display: flex; flex-direction: column; align-items: center;
+      flex-shrink: 0; width: 36px;
+    }
+    .step-num {
+      width: 36px; height: 36px;
+      border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 13px; font-weight: 800;
+      flex-shrink: 0; position: relative; z-index: 1;
+    }
+    .step-line {
+      width: 2px; flex: 1; min-height: 20px;
+      background: #e2e8f0; margin-top: 4px; margin-bottom: 4px;
+    }
+    .step:last-child .step-line { display: none; }
+    .step-body {
+      background: #fff;
+      border: 1px solid #e8ecf4;
+      border-radius: 12px;
+      padding: 16px 20px;
+      flex: 1;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .step-body h3 {
+      font-size: 14px; font-weight: 700;
+      color: #1a1a2e; margin-bottom: 8px;
+    }
+    .step-body p { font-size: 13.5px; color: #475569; margin-bottom: 6px; }
+    .step-body ul { padding-left: 18px; }
+    .step-body li { font-size: 13.5px; color: #475569; margin-bottom: 3px; }
+    .step-body li strong { color: #1e293b; }
+
+    /* ── Info box ───────────────────────────────────────────────────────── */
+    .info-box {
+      border-radius: 10px;
+      padding: 14px 16px;
+      margin: 12px 0;
+      font-size: 13px;
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .info-box svg { width: 16px; height: 16px; flex-shrink: 0; margin-top: 1px; }
+    .info-box.blue  { background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; }
+    .info-box.blue svg { stroke: #2563eb; fill: none; }
+    .info-box.green { background: #f0fdf4; border: 1px solid #bbf7d0; color: #166534; }
+    .info-box.green svg { stroke: #16a34a; fill: none; }
+    .info-box.amber { background: #fffbeb; border: 1px solid #fde68a; color: #92400e; }
+    .info-box.amber svg { stroke: #d97706; fill: none; }
+    .info-box.red   { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+    .info-box.red svg { stroke: #dc2626; fill: none; }
+
+    /* ── Field Table ─────────────────────────────────────────────────────── */
+    .field-table { width: 100%; border-collapse: collapse; font-size: 13px; margin: 12px 0; }
+    .field-table th {
+      background: #f1f5f9;
+      padding: 8px 12px;
+      text-align: left;
+      font-weight: 700;
+      color: #475569;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .field-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid #f1f5f9;
+      vertical-align: top;
+    }
+    .field-table tr:last-child td { border-bottom: none; }
+    .field-table tr:hover td { background: #f8fafc; }
+    .field-table .field-name { font-weight: 600; color: #1e293b; }
+    .field-table .field-auto {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #eff6ff; color: #1d4ed8;
+      font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+      padding: 2px 6px; border-radius: 4px; text-transform: uppercase;
+    }
+    .field-table .field-req {
+      display: inline-flex; align-items: center; gap: 4px;
+      background: #fef2f2; color: #dc2626;
+      font-size: 10px; font-weight: 700;
+      padding: 2px 6px; border-radius: 4px;
+    }
+
+    /* ── Status Badges ───────────────────────────────────────────────────── */
+    .badge-grid { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0; }
+    .badge {
+      display: inline-flex; align-items: center; gap: 7px;
+      padding: 6px 14px; border-radius: 20px;
+      font-size: 13px; font-weight: 600;
+    }
+    .badge .dot { width: 8px; height: 8px; border-radius: 50%; }
+    .badge.grey   { background: #f1f5f9; color: #475569; }
+    .badge.grey .dot   { background: #94a3b8; }
+    .badge.blue   { background: #eff6ff; color: #1e40af; }
+    .badge.blue .dot   { background: #3b82f6; }
+    .badge.purple { background: #f5f3ff; color: #5b21b6; }
+    .badge.purple .dot { background: #7c3aed; }
+    .badge.orange { background: #fffbeb; color: #92400e; }
+    .badge.orange .dot { background: #f59e0b; }
+    .badge.green  { background: #f0fdf4; color: #166534; }
+    .badge.green .dot  { background: #16a34a; }
+    .badge.red    { background: #fef2f2; color: #991b1b; }
+    .badge.red .dot    { background: #ef4444; }
+
+    /* ── Report Cards ────────────────────────────────────────────────────── */
+    .report-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 16px; margin: 16px 0; }
+    .report-card {
+      background: #fff;
+      border: 1px solid #e8ecf4;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .report-card .report-icon {
+      width: 40px; height: 40px;
+      border-radius: 10px;
+      display: flex; align-items: center; justify-content: center;
+      margin-bottom: 12px;
+    }
+    .report-card .report-icon svg { width: 22px; height: 22px; stroke: #fff; fill: none; }
+    .report-card h3 { font-size: 15px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
+    .report-card p  { font-size: 13px; color: #64748b; line-height: 1.5; margin-bottom: 10px; }
+    .report-card .filters-label { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .filter-tag {
+      display: inline-block;
+      background: #f1f5f9;
+      color: #475569;
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin: 2px;
+    }
+
+    /* ── Navigation table ────────────────────────────────────────────────── */
+    .nav-table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+    .nav-table td { padding: 10px 14px; border-bottom: 1px solid #f1f5f9; }
+    .nav-table tr:last-child td { border-bottom: none; }
+    .nav-table .path {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 12px;
+      color: #2563eb;
+      background: #eff6ff;
+      padding: 3px 8px;
+      border-radius: 5px;
+    }
+    .nav-table tr:hover td { background: #f8fafc; }
+
+    /* ── Flow Diagram ────────────────────────────────────────────────────── */
+    .flow-diagram {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex-wrap: wrap;
+      margin: 16px 0;
+    }
+    .flow-node {
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .flow-arrow {
+      font-size: 18px;
+      color: #94a3b8;
+    }
+
+    /* ── Callout blocks ──────────────────────────────────────────────────── */
+    .callout {
+      border-left: 4px solid;
+      padding: 14px 18px;
+      border-radius: 0 10px 10px 0;
+      margin: 16px 0;
+      font-size: 13.5px;
+    }
+    .callout.blue  { border-color: #3b82f6; background: #eff6ff; color: #1e3a8a; }
+    .callout.green { border-color: #16a34a; background: #f0fdf4; color: #14532d; }
+    .callout h4    { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+
+    /* ── Code ────────────────────────────────────────────────────────────── */
+    code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      background: #f1f5f9;
+      color: #0f172a;
+      font-size: 12.5px;
+      padding: 1px 6px;
+      border-radius: 4px;
+    }
+
+    /* ── Access box ──────────────────────────────────────────────────────── */
+    .access-box {
+      background: #1a1a2e;
+      border-radius: 12px;
+      padding: 24px;
+      color: #e2e8f0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0;
+    }
+    .access-box .access-item label {
+      display: block;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: #4a5180;
+      margin-bottom: 4px;
+    }
+    .access-box .access-item value {
+      display: block;
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 14px;
+      color: #93c5fd;
+    }
+    .access-box .access-item value.url { color: #34d399; text-decoration: none; }
+
+    /* ── Roles table ────────────────────────────────────────────────────── */
+    .roles-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .roles-table th {
+      background: #1a1a2e; color: #9ba3c8;
+      padding: 10px 14px;
+      text-align: left;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .roles-table td { padding: 9px 14px; border-bottom: 1px solid #f1f5f9; }
+    .roles-table tr:hover td { background: #f8fafc; }
+    .perm-yes { color: #16a34a; font-weight: 700; }
+    .perm-no  { color: #d1d5db; }
+
+    /* ── Divider ─────────────────────────────────────────────────────────── */
+    .divider { border: none; border-top: 1px solid #e8ecf4; margin: 40px 0; }
+
+    /* ── Color coding for section icons ─────────────────────────────────── */
+    .ic-blue   { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+    .ic-purple { background: linear-gradient(135deg, #7c3aed, #4c1d95); }
+    .ic-teal   { background: linear-gradient(135deg, #0891b2, #0e7490); }
+    .ic-green  { background: linear-gradient(135deg, #16a34a, #14532d); }
+    .ic-amber  { background: linear-gradient(135deg, #d97706, #92400e); }
+    .ic-rose   { background: linear-gradient(135deg, #e11d48, #9f1239); }
+    .ic-indigo { background: linear-gradient(135deg, #4f46e5, #312e81); }
+
+    /* ── Print ───────────────────────────────────────────────────────────── */
+    @media print {
+      .sidebar { display: none; }
+      .main { margin-left: 0; }
+      .page-header { background: #1a1a2e !important; -webkit-print-color-adjust: exact; }
+    }
+
+    /* ── Responsive ──────────────────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      .sidebar { width: 100%; min-height: auto; position: relative; }
+      .main { margin-left: 0; }
+      .content-body { padding: 24px 20px; }
+      .page-header { padding: 32px 24px; }
+      .access-box { grid-template-columns: 1fr; }
+      .report-cards { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════════════════
+     SIDEBAR
+═══════════════════════════════════════════════════════════ -->
+<aside class="sidebar">
+  <div class="sidebar-brand">
+    <div class="logo-row">
+      <div class="logo-icon">
+        <svg viewBox="0 0 24 24" stroke-width="1.8">
+          <path d="M5 22V5a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v17"/>
+          <path d="M3 22h18" stroke-linecap="round"/>
+          <rect x="7" y="8" width="3" height="3" rx="0.4"/>
+          <rect x="14" y="8" width="3" height="3" rx="0.4"/>
+          <rect x="7" y="14" width="3" height="3" rx="0.4"/>
+          <rect x="14" y="14" width="3" height="3" rx="0.4"/>
+          <path d="M10.5 22v-4h3v4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <h1>Misk Real Estate</h1>
+    </div>
+    <p>ERP User Guide · v1.0</p>
+  </div>
+
+  <nav class="sidebar-nav">
+    <div class="nav-group-label">Getting Started</div>
+    <a href="#access" class="nav-item">
+      <svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      System Access
+    </a>
+    <a href="#navigation" class="nav-item">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      Navigation
+    </a>
+
+    <div class="nav-group-label">Workflows</div>
+    <a href="#booking" class="nav-item">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+      Property Booking
+    </a>
+    <a href="#unit-management" class="nav-item">
+      <svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      Unit Management
+    </a>
+    <a href="#pdc-entry" class="nav-item">
+      <svg viewBox="0 0 24 24" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      PDC Entry
+    </a>
+    <a href="#pdc-batch" class="nav-item">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+      PDC Batch
+    </a>
+    <a href="#manual-payment" class="nav-item">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 22V12m0 0l-4 4m4-4l4 4"/><path d="M20 12a8 8 0 1 0-16 0"/></svg>
+      PDC Manual Payment
+    </a>
+
+    <div class="nav-group-label">Reports</div>
+    <a href="#reports" class="nav-item">
+      <svg viewBox="0 0 24 24" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      PDC Reports
+    </a>
+
+    <div class="nav-group-label">Reference</div>
+    <a href="#statuses" class="nav-item">
+      <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      Status Reference
+    </a>
+    <a href="#roles" class="nav-item">
+      <svg viewBox="0 0 24 24" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      Roles &amp; Permissions
+    </a>
+  </nav>
+
+  <div class="sidebar-footer">
+    Powered by ERPNext v15<br>
+    Developed by <a href="#">Enfono Technologies</a>
+  </div>
+</aside>
+
+
+<!-- ════════════════════════════════════════════════════════
+     MAIN CONTENT
+═══════════════════════════════════════════════════════════ -->
+<main class="main">
+
+  <!-- Page Header -->
+  <div class="page-header">
+    <div class="tag">User Guide</div>
+    <h1>Misk Real Estate ERP</h1>
+    <p>Complete guide to managing property bookings, PDC cheques, batches, and financial reports.</p>
+    <div class="meta">
+      <div class="meta-item">
+        <svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        May 2026
+      </div>
+      <div class="meta-item">
+        <svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        ERPNext v15 · misk_real_estate v0.0.1
+      </div>
+      <div class="meta-item">
+        <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="2" y1="12" x2="22" y2="12"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
+        Misk Group · Oman
+      </div>
+    </div>
+  </div>
+
+  <div class="content-body">
+
+    <!-- ── SECTION: System Access ──────────────────────────────── -->
+    <section class="section" id="access">
+      <div class="section-title">
+        <div class="icon-wrap ic-blue">
+          <svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        </div>
+        System Access
+      </div>
+      <div class="section-subtitle">Login credentials and site URL for the production system.</div>
+
+      <div class="access-box">
+        <div class="access-item">
+          <label>Site URL</label>
+          <value class="url">http://misk.localhost:8000</value>
+        </div>
+        <div class="access-item">
+          <label>Username</label>
+          <value>Administrator</value>
+        </div>
+        <div class="access-item">
+          <label>Password</label>
+          <value>Misk@2024</value>
+        </div>
+        <div class="access-item">
+          <label>Database</label>
+          <value>misk_production</value>
+        </div>
+      </div>
+
+      <div class="info-box blue">
+        <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        After login, click <strong>Misk Real Estate</strong> on the home workspace to access all modules.
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ── SECTION: Navigation ──────────────────────────────────── -->
+    <section class="section" id="navigation">
+      <div class="section-title">
+        <div class="icon-wrap ic-indigo">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </div>
+        Navigation Quick Reference
+      </div>
+      <div class="section-subtitle">Where to find each document type in the system.</div>
+
+      <table class="nav-table">
+        <tbody>
+          <tr><td><strong>All Property Bookings</strong></td><td><span class="path">Real Estate → Property Booking</span></td></tr>
+          <tr><td><strong>All PDC Entries</strong></td><td><span class="path">PDC Management → PDC Entry</span></td></tr>
+          <tr><td><strong>All PDC Batches</strong></td><td><span class="path">PDC Management → PDC Batch</span></td></tr>
+          <tr><td><strong>Customers</strong></td><td><span class="path">Accounting → Customer</span></td></tr>
+          <tr><td><strong>Unit Master</strong></td><td><span class="path">Stock → Item</span> (filter by Item Group)</td></tr>
+          <tr><td><strong>PDC Status Report</strong></td><td><span class="path">Misk Real Estate Workspace → Reports</span></td></tr>
+          <tr><td><strong>PDC Aging Report</strong></td><td><span class="path">Misk Real Estate Workspace → Reports</span></td></tr>
+          <tr><td><strong>PDC Monthly Forecast</strong></td><td><span class="path">Misk Real Estate Workspace → Reports</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ── SECTION: Property Booking ───────────────────────────── -->
+    <section class="section" id="booking">
+      <div class="section-title">
+        <div class="icon-wrap ic-blue">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        </div>
+        Property Booking
+      </div>
+      <div class="section-subtitle">Full lifecycle: Draft → Submit → PDC Entries → Invoices → Converted.</div>
+
+      <!-- Flow -->
+      <div class="flow-diagram">
+        <div class="flow-node badge grey"><span class="dot"></span>Draft</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node badge blue"><span class="dot"></span>Submitted</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node badge purple"><span class="dot"></span>PDC Created</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node badge green"><span class="dot"></span>Converted</div>
+      </div>
+
+      <div class="steps">
+
+        <!-- Step 1 -->
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#eff6ff;color:#1d4ed8;">1</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Create New Booking</h3>
+            <p>Go to <strong>Real Estate → Property Booking → New</strong></p>
+            <table class="field-table" style="margin-top:10px;">
+              <thead><tr><th>Field</th><th>Description</th><th>Note</th></tr></thead>
+              <tbody>
+                <tr><td class="field-name">Customer</td><td>Link to existing customer record</td><td><span class="field-req">Required</span></td></tr>
+                <tr><td class="field-name">Building</td><td>Al Misk Tower or Al Misk Residences</td><td><span class="field-req">Required</span></td></tr>
+                <tr><td class="field-name">Unit</td><td>Auto-filters to selected building's units</td><td><span class="field-req">Required</span></td></tr>
+                <tr><td class="field-name">Unit Price</td><td>Auto-fetched from the unit's standard rate when a unit is selected. Editable — type a value manually if the unit has no standard rate set.</td><td><span class="field-auto">Auto / Manual</span></td></tr>
+                <tr><td class="field-name">Booking Date</td><td>Date of booking agreement</td><td><span class="field-req">Required</span></td></tr>
+                <tr><td class="field-name">Booking Amount</td><td>Token/reservation amount (e.g. 5,000 OMR)</td><td><span class="field-req">Required</span></td></tr>
+                <tr><td class="field-name">Payment Plan</td><td>Full Payment / Installment 12M / 24M / 36M</td><td><span class="field-req">Required</span></td></tr>
+                <tr><td class="field-name">Enter Fixed Down Payment Amount</td><td>Checkbox. <strong>Unticked (default):</strong> enter Down Payment % — the OMR amount is calculated automatically. <strong>Ticked:</strong> enter the Down Payment Amount directly as a fixed OMR value — the percentage is back-calculated for reference.</td><td></td></tr>
+                <tr><td class="field-name">Down Payment %</td><td>Visible when checkbox is unticked. Default 50%, adjustable. Amount auto-calculates from Unit Price × %.</td><td></td></tr>
+                <tr><td class="field-name">Down Payment Amount</td><td>Auto-calculated (Unit Price × Down Payment %) when checkbox is OFF. Enter directly as a fixed OMR amount when checkbox is ON — % back-calculates automatically.</td><td><span class="field-auto">Auto / Manual</span></td></tr>
+                <tr><td class="field-name">Monthly Installment</td><td>Calculated: (Remaining − Down Payment) ÷ Months. Recalculates live in both modes.</td><td><span class="field-auto">Auto</span></td></tr>
+              </tbody>
+            </table>
+            <div class="info-box blue">
+              <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="9 11 12 14 22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+              Amounts recalculate live as you change Unit Price, Booking Amount, Down Payment %, or Payment Plan. Monthly installment also recalculates immediately when switching between percentage mode and fixed amount mode.
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2 -->
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#eff6ff;color:#1d4ed8;">2</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Save and Submit</h3>
+            <p>Click <strong>Save</strong> to review, then click <strong>Submit</strong> to confirm the booking.</p>
+            <div class="info-box green">
+              <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="9 11 12 14 22 4"/></svg>
+              On submit, the system <strong>automatically generates the PDC Schedule</strong> — a table of all future cheques with dates and amounts.
+            </div>
+            <p style="margin-top:8px;font-size:13px;color:#475569;">For a <strong>12M plan</strong> starting May 2026:</p>
+            <ul style="margin-top:6px;">
+              <li><strong>Row 1</strong> — Booking cheque (today)</li>
+              <li><strong>Row 2</strong> — Down payment cheque</li>
+              <li><strong>Rows 3–14</strong> — 12 monthly installment cheques</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Step 3 -->
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#eff6ff;color:#1d4ed8;">3</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Create PDC Entries</h3>
+            <p>After submit, a button appears: <strong>PDC → Create PDC Entries</strong></p>
+            <ul>
+              <li>Click the button</li>
+              <li>Confirm the dialog (shows count of schedule rows)</li>
+              <li>System creates one <strong>PDC Entry</strong> record per schedule row</li>
+              <li>Each PDC Entry has: cheque number, customer, amount, due date, status = <span class="badge orange" style="font-size:11px;padding:2px 8px;"><span class="dot"></span>Pending</span></li>
+            </ul>
+            <div class="info-box amber">
+              <svg viewBox="0 0 24 24" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              This button appears only <strong>once</strong>. Once PDC Entries are created, the button is hidden. Use <strong>View → PDC Entries</strong> to see them.
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 4 -->
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#eff6ff;color:#1d4ed8;">4</div>
+          </div>
+          <div class="step-body">
+            <h3>Buttons After Submit</h3>
+            <p>After submission, the following dropdowns appear on the booking form:</p>
+
+            <p style="margin-top:12px;font-size:13px;font-weight:700;color:#1e293b;">View dropdown — 3 items</p>
+            <ul>
+              <li><strong>PDC Entries</strong> — opens the PDC Entry list filtered to this booking</li>
+              <li><strong>Sales Invoices</strong> — opens the Sales Invoice list filtered to this booking</li>
+              <li><strong>Payment Entries</strong> — opens the Payment Entry list filtered to this booking</li>
+            </ul>
+
+            <p style="margin-top:12px;font-size:13px;font-weight:700;color:#1e293b;">Actions dropdown</p>
+            <ul>
+              <li><strong>Generate Invoices Now</strong> — only visible for <em>All at Once</em> bookings where Sales Invoices have not yet been created; re-queues invoice generation as a background job</li>
+              <li><strong>Mark Unit Sold</strong> — only visible when all PDC schedule rows are Cleared or Cancelled; marks the unit as Sold and the booking as Converted</li>
+            </ul>
+
+            <p style="margin-top:12px;font-size:13px;font-weight:700;color:#1e293b;">PDC group</p>
+            <ul>
+              <li><strong>Create PDC Entries</strong> — only visible when no PDC Entries have been created yet; creates one PDC Entry record per schedule row</li>
+            </ul>
+          </div>
+        </div>
+
+      </div><!-- /steps -->
+
+      <!-- ── Invoice Generation ────────────────────────────────────── -->
+      <div style="margin-top:32px;">
+        <p style="font-size:16px;font-weight:800;color:#1a1a2e;margin-bottom:6px;">Invoice Generation</p>
+        <p style="font-size:13.5px;color:#475569;margin-bottom:14px;">
+          Select field (required) that controls <em>how and when</em> Sales Invoices are created for this booking's PDC schedule rows.
+          The field is <strong>locked after the booking is submitted</strong> and cannot be changed.
+          Default: <strong>Monthly (Cron)</strong>.
+        </p>
+
+        <table class="field-table">
+          <thead><tr><th>Option</th><th>Behaviour</th></tr></thead>
+          <tbody>
+            <tr>
+              <td class="field-name">Monthly (Cron)<br><span style="font-weight:400;font-size:12px;color:#64748b;">default — best for ongoing tracking</span></td>
+              <td>
+                A scheduled job runs on the <strong>1st of each month</strong>. For every PDC schedule row where
+                <code>cheque_date</code> falls in the current month and no Sales Invoice exists yet, the system
+                auto-creates one Sales Invoice. Finance team reconciles as invoices appear — no manual creation
+                needed. Best for bookings where you want invoices to match each payment period.
+              </td>
+            </tr>
+            <tr>
+              <td class="field-name">All at Once<br><span style="font-weight:400;font-size:12px;color:#64748b;">full invoice register from day one</span></td>
+              <td>
+                On booking <strong>submit</strong>, a background job creates <em>all</em> Sales Invoices immediately —
+                one per PDC schedule row. Each invoice gets <code>posting_date = booking date</code> and
+                <code>due_date = that row's cheque_date</code>. If the background job fails (e.g. timeout),
+                use the <strong>Actions → Generate Invoices Now</strong> button on the booking to re-queue generation.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="info-box amber" style="margin-top:10px;">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <strong>Invoice Generation cannot be changed after submit.</strong> Choose the correct mode before submitting the booking.
+        </div>
+      </div>
+
+      <!-- ── Mark Unit Sold button ─────────────────────────────────── -->
+      <div style="margin-top:28px;">
+        <p style="font-size:16px;font-weight:800;color:#1a1a2e;margin-bottom:6px;">Mark Unit Sold</p>
+        <p style="font-size:13.5px;color:#475569;margin-bottom:14px;">Finalises the property transaction once every cheque in the PDC schedule has been cleared by the bank.</p>
+
+        <div class="steps">
+          <div class="step">
+            <div class="step-left">
+              <div class="step-num" style="background:#f0fdf4;color:#065f46;">1</div>
+              <div class="step-line"></div>
+            </div>
+            <div class="step-body">
+              <h3>Prerequisite — All PDC Rows Cleared</h3>
+              <p>The button is visible in <strong>Actions</strong> only when <em>every</em> row in the PDC Schedule table has status <span class="badge green" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Cleared</span> or <span class="badge red" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Cancelled</span>. If any row is still Pending, Deposited, Bounced, or In Batch, the button remains hidden.</p>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-left">
+              <div class="step-num" style="background:#f0fdf4;color:#065f46;">2</div>
+              <div class="step-line"></div>
+            </div>
+            <div class="step-body">
+              <h3>Click Actions → Mark Unit Sold</h3>
+              <p>Opens a confirmation dialog. Confirm to proceed.</p>
+              <div class="info-box green">
+                <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="9 11 12 14 22 4"/></svg>
+                Two things happen simultaneously: the <strong>Unit's status</strong> is set to <span class="badge green" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Sold</span> in the Item master, and the <strong>Booking status</strong> moves to <span class="badge green" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Converted</span>.
+              </div>
+            </div>
+          </div>
+          <div class="step">
+            <div class="step-left">
+              <div class="step-num" style="background:#f0fdf4;color:#065f46;">3</div>
+            </div>
+            <div class="step-body">
+              <h3>After Mark Unit Sold</h3>
+              <ul>
+                <li>Unit is no longer bookable — system blocks any new booking against it</li>
+                <li>Unit appears as <strong>Sold</strong> in the Unit Management list and the unit availability filter</li>
+                <li>Booking record is read-only; no further PDC or invoice actions are needed</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ── SECTION: Unit Management ─────────────────────────────── -->
+    <section class="section" id="unit-management">
+      <div class="section-title">
+        <div class="icon-wrap ic-green">
+          <svg viewBox="0 0 24 24" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        </div>
+        Unit Management
+      </div>
+      <div class="section-subtitle">Units (Items) represent individual apartments or commercial spaces. The system tracks their availability automatically.</div>
+
+      <!-- Unit Status flow -->
+      <div class="flow-diagram">
+        <div class="flow-node badge grey"><span class="dot"></span>Available</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node badge blue"><span class="dot"></span>Booked</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node badge green"><span class="dot"></span>Sold</div>
+      </div>
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:20px;">
+        Side states: <span class="badge orange" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Reserved</span> &nbsp; <span class="badge red" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Under Maintenance</span>
+      </div>
+
+      <!-- Unit Status field table -->
+      <p style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:10px;">Unit Status — Values &amp; Transitions</p>
+      <table class="field-table">
+        <thead><tr><th>Status</th><th>Meaning</th><th>How it is set</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><span class="badge grey" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Available</span></td>
+            <td>Unit is free to be booked</td>
+            <td>Default when unit is created, or automatically when a booking is <strong>cancelled</strong></td>
+          </tr>
+          <tr>
+            <td><span class="badge blue" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Booked</span></td>
+            <td>Unit has an active booking</td>
+            <td>Automatically on <strong>Booking Submit</strong></td>
+          </tr>
+          <tr>
+            <td><span class="badge green" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Sold</span></td>
+            <td>All cheques cleared; ownership transferred</td>
+            <td>Automatically via <strong>Actions → Mark Unit Sold</strong> (available only when all PDC schedule rows are Cleared or Cancelled)</td>
+          </tr>
+          <tr>
+            <td><span class="badge orange" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Reserved</span></td>
+            <td>Unit is held but not formally booked</td>
+            <td>Set manually by Admin on the Item record</td>
+          </tr>
+          <tr>
+            <td><span class="badge red" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Under Maintenance</span></td>
+            <td>Unit is temporarily unavailable</td>
+            <td>Set manually by Admin on the Item record</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Double-booking guard -->
+      <div class="info-box red" style="margin-top:16px;">
+        <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        <div><strong>Double-booking protection:</strong> the system blocks submission of a Property Booking if the selected unit's status is <strong>Booked</strong> or <strong>Sold</strong>. An error message is shown and the booking cannot be submitted until a different unit is selected.</div>
+      </div>
+
+      <!-- Additional unit fields -->
+      <p style="font-size:14px;font-weight:700;color:#1a1a2e;margin:24px 0 10px;">Additional Fields on Unit (Item)</p>
+      <table class="field-table">
+        <thead><tr><th>Field</th><th>Description</th></tr></thead>
+        <tbody>
+          <tr><td class="field-name">Unit Status</td><td>Available / Booked / Sold / Reserved / Under Maintenance — auto-managed by booking workflow</td></tr>
+          <tr><td class="field-name">Area (Sq Ft)</td><td>Net area of the unit in square feet — used for reporting and pricing calculations</td></tr>
+          <tr><td class="field-name">Floor No.</td><td>Floor number within the building — used for unit filtering and display</td></tr>
+        </tbody>
+      </table>
+
+      <div class="callout blue" style="margin-top:16px;">
+        <h4>Where to find Units</h4>
+        Go to <strong>Stock → Item</strong> and filter by Item Group (e.g. <em>Al Misk Tower</em> or <em>Al Misk Residences</em>). The <strong>unit_status</strong> column is visible in the list view.
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ── SECTION: PDC Entry ───────────────────────────────────── -->
+    <section class="section" id="pdc-entry">
+      <div class="section-title">
+        <div class="icon-wrap ic-purple">
+          <svg viewBox="0 0 24 24" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        </div>
+        PDC Entry — Cheque Lifecycle
+      </div>
+      <div class="section-subtitle">Each PDC Entry represents one post-dated cheque. Finance team manages these.</div>
+
+      <!-- Flow -->
+      <div class="flow-diagram">
+        <div class="flow-node badge orange"><span class="dot"></span>Pending</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node badge blue"><span class="dot"></span>In Batch</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node badge purple"><span class="dot"></span>Deposited</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node badge green"><span class="dot"></span>Cleared</div>
+      </div>
+      <div style="font-size:12px;color:#94a3b8;margin-bottom:20px;">Also possible: Deposited → <span class="badge red" style="font-size:11px;padding:2px 8px;"><span class="dot"></span>Bounced</span></div>
+
+      <!-- ── Actions Available by Status ─────────────────────────── -->
+      <div style="margin-bottom:28px;">
+        <p style="font-size:15px;font-weight:800;color:#1a1a2e;margin-bottom:8px;">Actions Available by Status</p>
+        <p style="font-size:13.5px;color:#475569;margin-bottom:14px;">
+          The action buttons visible on a PDC Entry depend strictly on its current <strong>Status</strong> value.
+          Refer to this table before taking any action.
+        </p>
+
+        <table class="field-table" style="font-size:12.5px;">
+          <thead>
+            <tr>
+              <th style="width:22%;">Status</th>
+              <th style="text-align:center;">Mark Cleared</th>
+              <th style="text-align:center;">Mark Bounced</th>
+              <th style="text-align:center;">Record Manual Payment</th>
+              <th style="text-align:center;">Post GL Entry</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="badge orange" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Pending</span></td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;font-size:12px;color:#166534;">✅ <span style="color:#64748b;">(only if SI linked)</span></td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+            </tr>
+            <tr>
+              <td><span class="badge blue" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>In Batch</span></td>
+              <td style="text-align:center;font-size:15px;">✅</td>
+              <td style="text-align:center;font-size:15px;">✅</td>
+              <td style="text-align:center;font-size:12px;color:#166534;">✅ <span style="color:#64748b;">(only if SI linked)</span></td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+            </tr>
+            <tr>
+              <td><span class="badge purple" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Deposited</span></td>
+              <td style="text-align:center;font-size:15px;">✅</td>
+              <td style="text-align:center;font-size:15px;">✅</td>
+              <td style="text-align:center;font-size:12px;color:#166534;">✅ <span style="color:#64748b;">(only if SI linked)</span></td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+            </tr>
+            <tr>
+              <td><span class="badge green" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Cleared <span style="font-weight:400;margin-left:4px;">(GL posted)</span></span></td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+            </tr>
+            <tr>
+              <td><span class="badge green" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Cleared <span style="font-weight:400;margin-left:4px;">(GL NOT posted)</span></span></td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;font-size:15px;">✅</td>
+            </tr>
+            <tr>
+              <td><span class="badge red" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Bounced</span></td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+            </tr>
+            <tr>
+              <td><span class="badge grey" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Cancelled</span></td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+              <td style="text-align:center;color:#d1d5db;font-size:15px;">❌</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- Action notes -->
+        <ul style="margin-top:14px;font-size:13.5px;color:#475569;padding-left:20px;line-height:1.9;">
+          <li><strong>Mark Cleared:</strong> Creates a Payment Entry (GL posts here). Sets <em>GL Posted</em> = ✓. Can only run when status is <strong>In Batch</strong> or <strong>Deposited</strong>.</li>
+          <li><strong>Mark Bounced:</strong> Marks cheque as returned. Invoice stays outstanding. User must follow up with the customer for a replacement cheque or alternative payment.</li>
+          <li><strong>Record Manual Payment:</strong> Use when customer cancels their cheque and pays by cash or bank transfer instead. Requires a Sales Invoice to be linked to this PDC Entry. Creates a Payment Entry, cancels the PDC entry, and marks the PDC schedule row on the booking as Cleared.</li>
+          <li><strong>Post GL Entry:</strong> Appears <em>only</em> when status is Cleared but <em>GL Posted</em> is unchecked — this happens when status was set manually instead of using <strong>Actions → Mark Cleared</strong>. Use this button to create the missing Payment Entry and post GL.</li>
+        </ul>
+
+        <!-- Warning box -->
+        <div class="info-box red" style="margin-top:16px;">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <div>
+            <strong>⚠️ Never manually change the Status dropdown to "Cleared".</strong> Always use <strong>Actions → Mark Cleared</strong>.
+            Manual status change skips Payment Entry creation and leaves GL unposted — visible as an unchecked <em>GL Posted</em> checkbox on the record.
+            Use <strong>Actions → Post GL Entry</strong> to recover if this has already happened.
+          </div>
+        </div>
+      </div>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#f5f3ff;color:#5b21b6;">1</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Mark Cleared (on clearance day)</h3>
+            <p>Used by <strong>Finance team</strong> when the bank confirms a cheque has cleared.</p>
+            <ol style="padding-left:18px;font-size:13.5px;color:#475569;">
+              <li>Open the PDC Entry record</li>
+              <li>Click <strong>Actions → Mark Cleared</strong></li>
+              <li>In the dialog: enter the <strong>Clearance Date</strong></li>
+              <li>Click <strong>Mark Cleared</strong> to confirm</li>
+            </ol>
+            <div class="info-box green">
+              <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="9 11 12 14 22 4"/></svg>
+              System automatically creates a <strong>Payment Entry</strong> and posts GL entries. This is the only point where accounting entries are created (B7 compliance).
+            </div>
+            <p style="font-size:13px;color:#475569;margin-top:8px;">Available when status is <strong>Deposited</strong> or <strong>In Batch</strong>.</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#f5f3ff;color:#5b21b6;">2</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Mark Bounced (returned cheque)</h3>
+            <p>Used when the bank returns a cheque due to insufficient funds or account issues.</p>
+            <ol style="padding-left:18px;font-size:13.5px;color:#475569;">
+              <li>Open the PDC Entry record</li>
+              <li>Click <strong>Actions → Mark Bounced</strong></li>
+              <li>In the dialog: enter reason/notes (optional)</li>
+              <li>Click <strong>Mark Bounced</strong> to confirm</li>
+            </ol>
+            <div class="info-box red">
+              <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+              No GL entries are created. The invoice remains outstanding. Follow up with customer for replacement cheque.
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#f5f3ff;color:#5b21b6;">3</div>
+          </div>
+          <div class="step-body">
+            <h3>View Links on PDC Entry</h3>
+            <p>Navigation buttons available on every PDC Entry form:</p>
+            <ul>
+              <li><strong>View → Property Booking</strong> — go to the parent booking</li>
+              <li><strong>View → PDC Batch</strong> — go to the linked batch (if batched)</li>
+              <li><strong>View → Sales Invoice</strong> — linked invoice (when generated)</li>
+              <li><strong>View → Payment Entry</strong> — linked payment (after clearing)</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ── SECTION: PDC Batch ───────────────────────────────────── -->
+    <section class="section" id="pdc-batch">
+      <div class="section-title">
+        <div class="icon-wrap ic-teal">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        </div>
+        PDC Batch — Bank Deposit Run
+      </div>
+      <div class="section-subtitle">Group multiple pending cheques into one physical bank deposit run.</div>
+
+      <div class="flow-diagram">
+        <div class="flow-node badge orange"><span class="dot"></span>Draft</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node badge blue"><span class="dot"></span>Sent to Bank</div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-node badge green"><span class="dot"></span>Completed</div>
+      </div>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#ecfdf5;color:#065f46;">1</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Create a New Batch</h3>
+            <p>Go to <strong>PDC Management → PDC Batch → New</strong></p>
+            <ul>
+              <li>Set <strong>Batch Date</strong> — date of bank visit</li>
+              <li>Set <strong>Bank Account</strong> — the target bank account</li>
+              <li>Add PDC Entries in the <strong>Items</strong> table (only Pending entries allowed)</li>
+              <li><strong>Total Cheques</strong> and <strong>Total Amount</strong> auto-calculate</li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#ecfdf5;color:#065f46;">2</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Submit the Batch</h3>
+            <p>Click <strong>Submit</strong> to lock the batch.</p>
+            <div class="info-box blue">
+              <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="9 11 12 14 22 4"/></svg>
+              On submit, all PDC Entries in the batch automatically move from <strong>Pending → In Batch</strong>.
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#ecfdf5;color:#065f46;">3</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Mark Sent to Bank</h3>
+            <p>After physically delivering cheques to the bank:</p>
+            <ol style="padding-left:18px;font-size:13.5px;color:#475569;">
+              <li>Open the submitted PDC Batch</li>
+              <li>Click <strong>Actions → Mark Sent to Bank</strong></li>
+              <li>Confirm the dialog</li>
+            </ol>
+            <div class="info-box green">
+              <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="9 11 12 14 22 4"/></svg>
+              All cheques in the batch move to <strong>Deposited</strong> status. Finance team can then mark each as Cleared when bank confirms.
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#ecfdf5;color:#065f46;">4</div>
+          </div>
+          <div class="step-body">
+            <h3>Clear Individual Cheques</h3>
+            <p>After bank sends clearance confirmation for each cheque:</p>
+            <ul>
+              <li>Click <strong>View → PDC Entries</strong> on the batch</li>
+              <li>Open each Deposited PDC Entry</li>
+              <li>Click <strong>Actions → Mark Cleared</strong> (see PDC Entry section above)</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ── SECTION: PDC Manual Payment ───────────────────────────── -->
+    <section class="section" id="manual-payment">
+      <div class="section-title">
+        <div class="icon-wrap ic-amber">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M12 22V12m0 0l-4 4m4-4l4 4"/><path d="M20 12a8 8 0 1 0-16 0"/></svg>
+        </div>
+        PDC Entry — Manual Payment
+      </div>
+      <div class="section-subtitle">When a customer cancels a PDC cheque and pays instead by cash or bank transfer.</div>
+
+      <div class="callout blue">
+        <h4>When to Use This</h4>
+        Use this when a customer calls to say they cannot honour a specific cheque and will pay the same amount by cash or bank transfer instead. This cancels the cheque record and immediately settles the linked Sales Invoice.
+      </div>
+
+      <div class="steps">
+
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#fffbeb;color:#92400e;">1</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Prerequisites</h3>
+            <p>The <strong>Record Manual Payment</strong> action is visible only when:</p>
+            <ul>
+              <li>PDC Entry status is <strong>Pending</strong>, <strong>Deposited</strong>, or <strong>In Batch</strong></li>
+              <li>A <strong>Sales Invoice is linked</strong> to the PDC Entry</li>
+            </ul>
+            <div class="info-box amber">
+              <svg viewBox="0 0 24 24" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+              If the PDC Entry has no linked Sales Invoice yet, generate invoices first via the booking (View → Sales Invoices, or Actions → Generate Invoices Now).
+            </div>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#fffbeb;color:#92400e;">2</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Open the PDC Entry</h3>
+            <p>From the Property Booking form: click <strong>View → PDC Entries</strong>, then open the specific PDC Entry for the cheque to be replaced.</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#fffbeb;color:#92400e;">3</div>
+            <div class="step-line"></div>
+          </div>
+          <div class="step-body">
+            <h3>Click Actions → Record Manual Payment</h3>
+            <p>A dialog opens. Fill in:</p>
+            <table class="field-table" style="margin-top:8px;">
+              <thead><tr><th>Field</th><th>Description</th></tr></thead>
+              <tbody>
+                <tr><td class="field-name">Mode of Payment</td><td>Cash, Bank Transfer, or any other mode configured in ERPNext</td></tr>
+                <tr><td class="field-name">Payment Date</td><td>Date the cash/transfer was received</td></tr>
+                <tr><td class="field-name">Amount</td><td>Amount received (defaults to the PDC Entry amount)</td></tr>
+                <tr><td class="field-name">Notes</td><td>Optional — reason for PDC cancellation or reference number</td></tr>
+              </tbody>
+            </table>
+            <p style="margin-top:8px;">Click <strong>Create Payment Entry &amp; Cancel PDC</strong> to confirm.</p>
+          </div>
+        </div>
+
+        <div class="step">
+          <div class="step-left">
+            <div class="step-num" style="background:#fffbeb;color:#92400e;">4</div>
+          </div>
+          <div class="step-body">
+            <h3>What Happens After Confirmation</h3>
+            <div class="info-box green">
+              <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="9 11 12 14 22 4"/></svg>
+              All four updates happen atomically:
+            </div>
+            <ul style="margin-top:8px;">
+              <li>A <strong>Payment Entry</strong> is created against the linked Sales Invoice — the SI outstanding balance goes to zero</li>
+              <li>The <strong>PDC Entry status</strong> changes to <span class="badge red" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Cancelled</span></li>
+              <li>The corresponding <strong>PDC Schedule row</strong> on the booking changes to <span class="badge green" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Cleared</span> with the Payment Entry reference</li>
+              <li>The Payment Entry is linked via the <code>property_booking</code> field for full traceability</li>
+            </ul>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ── SECTION: Reports ─────────────────────────────────────── -->
+    <section class="section" id="reports">
+      <div class="section-title">
+        <div class="icon-wrap ic-indigo">
+          <svg viewBox="0 0 24 24" stroke-width="2"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+        </div>
+        PDC Reports
+      </div>
+      <div class="section-subtitle">Three built-in reports for monitoring cheque status, aging, and monthly cash flow.</div>
+
+      <div class="callout blue">
+        <h4>How to Run a Report</h4>
+        Open the Misk Real Estate workspace → click the report name → set filters in the top bar → press <strong>Run</strong> (or Enter).
+      </div>
+
+      <div class="report-cards">
+
+        <!-- PDC Status Report -->
+        <div class="report-card">
+          <div class="report-icon" style="background:linear-gradient(135deg,#3b82f6,#1d4ed8);">
+            <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg>
+          </div>
+          <h3>PDC Status Report</h3>
+          <p>Full list of all PDC Entries. Shows cheque details, status, booking, batch, and payment entry links. Includes a pie chart of amounts by status.</p>
+          <div class="filters-label">Filters</div>
+          <span class="filter-tag">Customer</span>
+          <span class="filter-tag">Building</span>
+          <span class="filter-tag">Status</span>
+          <span class="filter-tag">From Cheque Date</span>
+          <span class="filter-tag">To Cheque Date</span>
+        </div>
+
+        <!-- PDC Aging Report -->
+        <div class="report-card">
+          <div class="report-icon" style="background:linear-gradient(135deg,#e11d48,#9f1239);">
+            <svg viewBox="0 0 24 24" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <h3>PDC Aging Report</h3>
+          <p>Shows outstanding (non-cleared) cheques grouped by how overdue they are. Bar chart by aging bucket. Used for collections follow-up.</p>
+          <div class="filters-label">Aging Buckets</div>
+          <span class="filter-tag">Not Yet Due</span>
+          <span class="filter-tag">1–30 Days</span>
+          <span class="filter-tag">31–60 Days</span>
+          <span class="filter-tag">61–90 Days</span>
+          <span class="filter-tag">90+ Days</span>
+          <div class="filters-label" style="margin-top:10px;">Filters</div>
+          <span class="filter-tag">As of Date ✱</span>
+          <span class="filter-tag">Customer</span>
+          <span class="filter-tag">Building</span>
+          <span class="filter-tag">Status</span>
+        </div>
+
+        <!-- PDC Monthly Forecast -->
+        <div class="report-card">
+          <div class="report-icon" style="background:linear-gradient(135deg,#16a34a,#14532d);">
+            <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+          </div>
+          <h3>PDC Monthly Forecast</h3>
+          <p>Monthly cash flow forecast from PDC cheques. Stacked bar chart showing Pending, Deposited, Cleared, and Bounced amounts per month.</p>
+          <div class="filters-label">Filters</div>
+          <span class="filter-tag">From Date ✱</span>
+          <span class="filter-tag">To Date ✱</span>
+          <span class="filter-tag">Building</span>
+          <span class="filter-tag">Customer</span>
+        </div>
+
+      </div>
+
+      <p style="font-size:12px;color:#94a3b8;margin-top:8px;">✱ Required filter</p>
+
+      <div class="info-box blue" style="margin-top:20px;">
+        <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        All reports support <strong>Export to Excel</strong> using the download button at the top right of the report page.
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ── SECTION: Status Reference ───────────────────────────── -->
+    <section class="section" id="statuses">
+      <div class="section-title">
+        <div class="icon-wrap ic-teal">
+          <svg viewBox="0 0 24 24" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        </div>
+        Status Reference
+      </div>
+      <div class="section-subtitle">Color-coded status badges used throughout the system.</div>
+
+      <p style="font-size:14px;font-weight:700;color:#1a1a2e;margin-bottom:10px;">Property Booking</p>
+      <div class="badge-grid">
+        <div class="badge grey"><span class="dot"></span>Draft — saved, not confirmed</div>
+        <div class="badge blue"><span class="dot"></span>Confirmed — submitted</div>
+        <div class="badge green"><span class="dot"></span>Converted — all PDC rows cleared, unit marked Sold</div>
+        <div class="badge red"><span class="dot"></span>Cancelled</div>
+      </div>
+
+      <p style="font-size:14px;font-weight:700;color:#1a1a2e;margin:20px 0 10px;">Unit Status (Item)</p>
+      <div class="badge-grid">
+        <div class="badge grey"><span class="dot"></span>Available — free to book</div>
+        <div class="badge blue"><span class="dot"></span>Booked — active booking exists</div>
+        <div class="badge green"><span class="dot"></span>Sold — all cheques cleared</div>
+        <div class="badge orange"><span class="dot"></span>Reserved — held manually</div>
+        <div class="badge red"><span class="dot"></span>Under Maintenance — temporarily unavailable</div>
+      </div>
+
+      <p style="font-size:14px;font-weight:700;color:#1a1a2e;margin:20px 0 10px;">PDC Entry (Cheque)</p>
+      <div class="badge-grid">
+        <div class="badge orange"><span class="dot"></span>Pending — awaiting deposit</div>
+        <div class="badge blue"><span class="dot"></span>In Batch — grouped for bank run</div>
+        <div class="badge purple"><span class="dot"></span>Deposited — sent to bank</div>
+        <div class="badge green"><span class="dot"></span>Cleared — bank confirmed, GL posted</div>
+        <div class="badge red"><span class="dot"></span>Bounced — cheque returned</div>
+      </div>
+
+      <p style="font-size:14px;font-weight:700;color:#1a1a2e;margin:20px 0 10px;">PDC Batch</p>
+      <div class="badge-grid">
+        <div class="badge orange"><span class="dot"></span>Draft — being assembled</div>
+        <div class="badge blue"><span class="dot"></span>Sent to Bank — cheques deposited</div>
+        <div class="badge green"><span class="dot"></span>Completed</div>
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ── SECTION: Roles ───────────────────────────────────────── -->
+    <section class="section" id="roles">
+      <div class="section-title">
+        <div class="icon-wrap ic-rose">
+          <svg viewBox="0 0 24 24" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        Roles &amp; Permissions
+      </div>
+      <div class="section-subtitle">What each Misk role can do in the system.</div>
+
+      <table class="roles-table">
+        <thead>
+          <tr>
+            <th>Role</th>
+            <th>Property Booking</th>
+            <th>PDC Entry</th>
+            <th>PDC Batch</th>
+            <th>Reports</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Misk Sales</strong></td>
+            <td class="perm-yes">Create, Submit</td>
+            <td>Read only</td>
+            <td class="perm-no">—</td>
+            <td>Status Report</td>
+          </tr>
+          <tr>
+            <td><strong>Misk Finance</strong></td>
+            <td>Read only</td>
+            <td class="perm-yes">Create, Mark Cleared/Bounced</td>
+            <td class="perm-yes">Create, Submit, Send to Bank</td>
+            <td>All Reports</td>
+          </tr>
+          <tr>
+            <td><strong>Misk Management</strong></td>
+            <td>Read only</td>
+            <td>Read only</td>
+            <td>Read only</td>
+            <td>All Reports</td>
+          </tr>
+          <tr>
+            <td><strong>Misk Admin</strong></td>
+            <td class="perm-yes">Full access</td>
+            <td class="perm-yes">Full access</td>
+            <td class="perm-yes">Full access</td>
+            <td>All Reports</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="info-box amber" style="margin-top:16px;">
+        <svg viewBox="0 0 24 24" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        New users must be assigned a Misk role by the Administrator. Go to <strong>Settings → User</strong> to manage roles.
+      </div>
+    </section>
+
+    <hr class="divider" />
+
+    <!-- ── Footer ───────────────────────────────────────────────── -->
+    <div style="text-align:center;color:#94a3b8;font-size:12px;padding-bottom:48px;">
+      <p>Misk Real Estate ERP · Developed by <strong style="color:#64748b;">Enfono Technologies</strong></p>
+      <p style="margin-top:4px;">ERPNext v15 · misk_real_estate v0.0.1 · May 2026</p>
+    </div>
+
+  </div><!-- /content-body -->
+</main>
+
+<!-- ── Sidebar active state on scroll ─────────────────────────── -->
+<script>
+  const sections = document.querySelectorAll('section[id]');
+  const navItems = document.querySelectorAll('.nav-item');
+
+  const observer = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        navItems.forEach(n => n.classList.remove('active'));
+        const active = document.querySelector(`.nav-item[href="#${e.target.id}"]`);
+        if (active) active.classList.add('active');
+      }
+    });
+  }, { rootMargin: '-20% 0px -70% 0px' });
+
+  sections.forEach(s => observer.observe(s));
+</script>
+
+</body>
+</html>

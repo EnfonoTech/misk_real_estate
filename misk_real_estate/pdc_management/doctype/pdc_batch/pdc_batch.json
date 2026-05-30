@@ -1,0 +1,160 @@
+{
+ "actions": [],
+ "autoname": "PDCB-.YYYY.-.####",
+ "creation": "2026-05-24 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "batch_date",
+  "company",
+  "bank_account",
+  "batch_status",
+  "column_break_1",
+  "total_cheques",
+  "total_amount",
+  "section_break_items",
+  "items",
+  "section_break_notes",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "batch_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Batch Date",
+   "reqd": 1,
+   "default": "Today"
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1,
+   "default": "Misk Real Estate"
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Bank Account",
+   "options": "Account",
+   "reqd": 1
+  },
+  {
+   "fieldname": "batch_status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nSent to Bank\nPartially Cleared\nCompleted\nCancelled",
+   "default": "Draft",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_cheques",
+   "fieldtype": "Int",
+   "label": "Total Cheques",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "label": "Total Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_items",
+   "fieldtype": "Section Break",
+   "label": "Cheques in Batch"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Cheques",
+   "options": "PDC Batch Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_notes",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 0,
+ "links": [],
+ "modified": "2026-05-24 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "PDC Management",
+ "name": "PDC Batch",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "Misk Finance",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 0,
+   "report": 1,
+   "email": 1,
+   "print": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "Misk Admin",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "report": 1,
+   "email": 1,
+   "print": 1,
+   "export": 1,
+   "share": 1
+  },
+  {
+   "role": "Misk Management",
+   "read": 1,
+   "write": 0,
+   "create": 0,
+   "report": 1,
+   "export": 1
+  },
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "delete": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "report": 1,
+   "email": 1,
+   "print": 1,
+   "export": 1,
+   "share": 1
+  }
+ ],
+ "sort_field": "batch_date",
+ "sort_order": "DESC",
+ "title_field": "name",
+ "allow_import": 1,
+ "track_changes": 1,
+ "is_submittable": 1
+}

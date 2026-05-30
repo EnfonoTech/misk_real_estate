@@ -1,0 +1,11 @@
+[project]
+name = "misk_real_estate"
+version = "0.1.0"
+description = "Misk real estate booking and PDC management"
+authors = [{ name = "Enfono Technologies", email = "sayanth@enfono.com" }]
+license = { text = "MIT" }
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"

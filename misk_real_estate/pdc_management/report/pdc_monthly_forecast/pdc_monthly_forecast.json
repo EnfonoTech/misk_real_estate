@@ -1,0 +1,50 @@
+{
+ "add_total_row": 1,
+ "columns": [],
+ "creation": "2026-05-24 00:00:00",
+ "doctype": "Report",
+ "filters": [
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "label": "Building",
+   "options": "Item Group"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer"
+  }
+ ],
+ "is_standard": "Yes",
+ "javascript": "frappe.query_reports[\"PDC Monthly Forecast\"] = {\n\tonload: function(report) {\n\t\tvar today = frappe.datetime.get_today();\n\t\treport.set_filter_value(\"from_date\", today);\n\t\treport.set_filter_value(\"to_date\", frappe.datetime.add_days(today, 30));\n\t}\n};",
+ "json": "",
+ "modified": "2026-05-24 00:00:00",
+ "module": "PDC Management",
+ "name": "PDC Monthly Forecast",
+ "owner": "Administrator",
+ "query": "",
+ "ref_doctype": "PDC Entry",
+ "report_name": "PDC Monthly Forecast",
+ "report_script": "",
+ "report_type": "Script Report",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "Misk Admin"},
+  {"role": "Misk Finance"},
+  {"role": "Misk Management"}
+ ]
+}

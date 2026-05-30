@@ -1,0 +1,55 @@
+{
+ "add_total_row": 0,
+ "columns": [],
+ "creation": "2026-05-12 10:30:00",
+ "doctype": "Report",
+ "filters": [
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer"
+  },
+  {
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "label": "Building",
+   "options": "Item Group"
+  },
+  {
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "\nPending\nIn Batch\nDeposited\nCleared\nBounced"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Cheque Date"
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Cheque Date"
+  }
+ ],
+ "is_standard": "Yes",
+ "javascript": "",
+ "json": "",
+ "modified": "2026-05-24 00:00:00",
+ "module": "Real Estate",
+ "name": "PDC Status Report",
+ "owner": "Administrator",
+ "query": "",
+ "ref_doctype": "PDC Entry",
+ "report_name": "PDC Status Report",
+ "report_script": "",
+ "report_type": "Script Report",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "Misk Admin"},
+  {"role": "Misk Finance"},
+  {"role": "Misk Management"},
+  {"role": "Misk Sales"}
+ ]
+}
