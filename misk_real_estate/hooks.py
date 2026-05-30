@@ -46,6 +46,10 @@ fixtures = [
         "dt": "Role",
         "filters": [["name", "like", "Misk%"]]
     },
+    {
+        "dt": "Workspace",
+        "filters": [["name", "=", "Misk Real Estate"]]
+    },
 ]
 
 override_doctype_class = {}
