@@ -2,6 +2,14 @@
 
 frappe.ui.form.on("Property Booking", {
 
+	onload(frm) {
+		if (frm.is_new() && !frm.doc.company) {
+			const company = frappe.defaults.get_user_default("company")
+				|| frappe.defaults.get_global_default("company");
+			if (company) frm.set_value("company", company);
+		}
+	},
+
 	// ── Refresh — build action buttons based on state ─────────────────────────
 	refresh(frm) {
 		frm.trigger("set_unit_filter");

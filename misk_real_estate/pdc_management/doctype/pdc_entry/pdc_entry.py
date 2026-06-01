@@ -94,8 +94,13 @@ def _create_payment_entry(pdc_entry, payment_date):
     receivable_account = frappe.db.get_value(
         "Company", company, "default_receivable_account"
     )
-    # Get the bank account linked to the PDC Entry's batch (or company default)
+    # Get the bank account linked to the PDC Entry's batch (or entry field or company default)
     bank_account = _get_bank_account(pdc_entry, company)
+    account_currency = (
+        frappe.db.get_value("Account", bank_account, "account_currency")
+        if bank_account
+        else None
+    ) or getattr(pdc_entry, "currency", None) or "OMR"
 
     pe = frappe.get_doc({
         "doctype": "Payment Entry",
@@ -109,6 +114,7 @@ def _create_payment_entry(pdc_entry, payment_date):
         "source_exchange_rate": 1,
         "target_exchange_rate": 1,
         "paid_to": bank_account,
+        "paid_to_account_currency": account_currency,
         "paid_from": receivable_account,
         "mode_of_payment": "Cheque",
         "reference_no": pdc_entry.cheque_no,
@@ -117,15 +123,23 @@ def _create_payment_entry(pdc_entry, payment_date):
         "property_booking": pdc_entry.booking or "",
     })
 
-    # Link to Sales Invoice if available
-    if pdc_entry.sales_invoice:
-        outstanding = frappe.db.get_value(
-            "Sales Invoice", pdc_entry.sales_invoice, "outstanding_amount"
+    # Resolve Sales Invoice — from entry directly, or look up from PDC Schedule row
+    si_name = pdc_entry.sales_invoice
+    if not si_name and pdc_entry.booking:
+        row_name = frappe.db.get_value(
+            "PDC Schedule",
+            {"pdc_entry": pdc_entry.name, "parent": pdc_entry.booking},
+            "name",
         )
+        if row_name:
+            si_name = frappe.db.get_value("PDC Schedule", row_name, "sales_invoice")
+
+    if si_name:
+        outstanding = frappe.db.get_value("Sales Invoice", si_name, "outstanding_amount")
         if outstanding and flt(outstanding) > 0:
             pe.append("references", {
                 "reference_doctype": "Sales Invoice",
-                "reference_name": pdc_entry.sales_invoice,
+                "reference_name": si_name,
                 "allocated_amount": min(flt(pdc_entry.amount), flt(outstanding)),
             })
 
@@ -171,6 +185,11 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
         {"parent": mode_of_payment, "company": company},
         "default_account",
     ) or _get_bank_account(entry, company)
+    paid_to_currency = (
+        frappe.db.get_value("Account", mop_account, "account_currency")
+        if mop_account
+        else None
+    ) or getattr(entry, "currency", None) or "OMR"
 
     outstanding = flt(
         frappe.db.get_value("Sales Invoice", entry.sales_invoice, "outstanding_amount") or 0
@@ -189,6 +208,7 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
         "source_exchange_rate": 1,
         "target_exchange_rate": 1,
         "paid_to": mop_account,
+        "paid_to_account_currency": paid_to_currency,
         "paid_from": receivable_account,
         "mode_of_payment": mode_of_payment,
         "reference_no": f"Manual-{pdc_entry_name}",
@@ -234,10 +254,11 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
 
 
 def _get_bank_account(pdc_entry, company):
-    """Get bank account from linked batch, or fall back to company default."""
+    """Get bank account from linked batch, PDC Entry's own field, or company default."""
     if pdc_entry.batch:
         bank_account = frappe.db.get_value("PDC Batch", pdc_entry.batch, "bank_account")
         if bank_account:
             return bank_account
-    # Fall back to company default bank account
+    if getattr(pdc_entry, "bank_account", None):
+        return pdc_entry.bank_account
     return frappe.db.get_value("Company", company, "default_bank_account")

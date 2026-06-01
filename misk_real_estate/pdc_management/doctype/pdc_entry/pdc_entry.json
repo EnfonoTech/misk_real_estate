@@ -8,7 +8,9 @@
   "cheque_no",
   "cheque_date",
   "amount",
+  "currency",
   "company",
+  "bank_account",
   "column_break_1",
   "customer",
   "building",
@@ -54,12 +56,25 @@
    "in_list_view": 1
   },
   {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "default": "OMR"
+  },
+  {
    "fieldname": "company",
    "fieldtype": "Link",
    "label": "Company",
    "options": "Company",
    "reqd": 1,
    "default": "Misk Real Estate"
+  },
+  {
+   "fieldname": "bank_account",
+   "fieldtype": "Link",
+   "label": "Bank Account (Paid To)",
+   "options": "Account"
   },
   {
    "fieldname": "column_break_1",

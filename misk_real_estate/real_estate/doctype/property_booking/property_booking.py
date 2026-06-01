@@ -258,6 +258,7 @@ def create_pdc_entries(booking_name):
     if booking.docstatus != 1:
         frappe.throw(_("Booking must be submitted before creating PDC Entries."))
 
+    company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
     created = []
     for row in booking.pdc_schedule:
         if row.pdc_entry:
@@ -271,7 +272,8 @@ def create_pdc_entries(booking_name):
             "building": booking.building,
             "unit": booking.unit,
             "booking": booking_name,
-            "company": frappe.defaults.get_user_default("company") or "Misk Real Estate",
+            "company": company,
+            "sales_invoice": row.sales_invoice or "",
             "status": "Pending",
         })
         entry.insert(ignore_permissions=True)
@@ -294,7 +296,7 @@ def generate_invoices_for_booking(booking_name):
     """
     from frappe.utils import add_days, formatdate
     booking = frappe.get_doc("Property Booking", booking_name)
-    company = frappe.defaults.get_user_default("company") or "Misk Real Estate"
+    company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
 
     for row in booking.pdc_schedule:
         if row.sales_invoice:
@@ -390,7 +392,7 @@ def create_sales_order(booking_name):
     if booking.docstatus != 1:
         frappe.throw(_("Submit the booking first."))
 
-    company = frappe.defaults.get_user_default("company") or "Misk Real Estate"
+    company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
     so = frappe.get_doc({
         "doctype": "Sales Order",
         "customer": booking.customer,

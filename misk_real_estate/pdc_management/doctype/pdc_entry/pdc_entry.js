@@ -2,6 +2,22 @@
 
 frappe.ui.form.on("PDC Entry", {
 
+	// ── On load — set defaults for new docs ────────────────────────────────────
+	onload(frm) {
+		if (frm.is_new()) {
+			if (frm.doc.company && !frm.doc.bank_account) _fetch_bank_account(frm);
+			if (frm.doc.customer) _fetch_currency(frm);
+		}
+	},
+
+	company(frm) {
+		if (!frm.doc.bank_account) _fetch_bank_account(frm);
+	},
+
+	customer(frm) {
+		_fetch_currency(frm);
+	},
+
 	// ── Refresh — build action buttons based on status ─────────────────────────
 	refresh(frm) {
 		const status = frm.doc.status;
@@ -77,6 +93,24 @@ frappe.ui.form.on("PDC Entry", {
 	},
 });
 
+
+// ── Field fetch helpers ───────────────────────────────────────────────────────
+
+function _fetch_bank_account(frm) {
+	if (!frm.doc.company) return;
+	frappe.db.get_value("Company", frm.doc.company, "default_bank_account", (r) => {
+		if (r && r.default_bank_account) {
+			frm.set_value("bank_account", r.default_bank_account);
+		}
+	});
+}
+
+function _fetch_currency(frm) {
+	if (!frm.doc.customer) return;
+	frappe.db.get_value("Customer", frm.doc.customer, "default_currency", (r) => {
+		frm.set_value("currency", (r && r.default_currency) || "OMR");
+	});
+}
 
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
