@@ -1,0 +1,50 @@
+{
+ "actions": [],
+ "creation": "2026-06-03 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "section_pdc",
+  "down_payment_days",
+  "installment_start_months"
+ ],
+ "fields": [
+  {
+   "fieldname": "section_pdc",
+   "fieldtype": "Section Break",
+   "label": "PDC Schedule Defaults"
+  },
+  {
+   "fieldname": "down_payment_days",
+   "fieldtype": "Int",
+   "label": "Down Payment Cheque — Days After Booking",
+   "default": "2",
+   "reqd": 1,
+   "description": "Number of days after the booking date that the down payment cheque is dated (BRD 3.2: 2 days)"
+  },
+  {
+   "fieldname": "installment_start_months",
+   "fieldtype": "Int",
+   "label": "Installments Start — Months After Booking",
+   "default": "1",
+   "reqd": 1,
+   "description": "Month offset for the first monthly installment cheque (1 = one month after booking date)"
+  }
+ ],
+ "issingle": 1,
+ "links": [],
+ "modified": "2026-06-04 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Real Estate",
+ "name": "Misk Real Estate Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {"role": "System Manager", "read": 1, "write": 1},
+  {"role": "Misk Admin",     "read": 1, "write": 1},
+  {"role": "Misk Finance",   "read": 1},
+  {"role": "Misk Sales",     "read": 1}
+ ],
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "track_changes": 1
+}

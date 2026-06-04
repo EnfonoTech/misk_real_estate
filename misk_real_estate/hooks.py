@@ -12,12 +12,14 @@ app_include_css = ["/assets/misk_real_estate/css/misk_real_estate.css"]
 app_include_js  = ["/assets/misk_real_estate/js/misk_icons.js"]
 
 # ── B3: PDC Auto-Invoice Scheduler ────────────────────────────────────────────
-# Runs monthly_long (1st of every month).
+# Runs on the 5th of every month at midnight (BRD requirement).
 # Creates Sales Invoice for each PDC Schedule row due this month.
 scheduler_events = {
-    "monthly_long": [
-        "misk_real_estate.pdc_management.cron.auto_invoice.run"
-    ]
+    "cron": {
+        "0 0 5 * *": [
+            "misk_real_estate.pdc_management.cron.auto_invoice.run"
+        ]
+    }
 }
 
 # ── Doc Events ────────────────────────────────────────────────────────────────
@@ -31,25 +33,53 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Employee", "Item"]]
+            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Employee", "Item", "Quotation", "Quotation Item"]]
         ]
     },
     {
         "dt": "Property Setter",
-        "filters": [["doc_type", "in", ["Sales Order", "Property Booking", "Item"]]]
+        "filters": [["doc_type", "in", ["Sales Order", "Property Booking", "Item", "Quotation Item"]]]
+    },
+    {
+        "dt": "Workflow State",
+        "filters": [["workflow_state_name", "in", [
+            "Draft", "Pending Sales Approval", "Pending Finance Approval", "Confirmed", "Rejected"
+        ]]]
     },
     {
         "dt": "Workflow",
-        "filters": [["document_type", "in", ["Property Booking"]]]
+        "filters": [["document_type", "in", ["Quotation"]]]
     },
     {
         "dt": "Role",
         "filters": [["name", "like", "Misk%"]]
     },
     {
+        "dt": "Number Card",
+        "filters": [["name", "like", "Misk%"]]
+    },
+    {
+        "dt": "Payment Plan"
+    },
+    {
+        "dt": "Unit Type"
+    },
+    {
+        "dt": "Floor"
+    },
+    {
         "dt": "Workspace",
         "filters": [["name", "=", "Misk Real Estate"]]
     },
 ]
+
+doctype_js = {
+    "Quotation": "real_estate/custom/quotation.js",
+    "Item":      "real_estate/custom/item.js",
+}
+
+doctype_list_js = {
+    "Item": "real_estate/custom/item_list.js",
+}
 
 override_doctype_class = {}

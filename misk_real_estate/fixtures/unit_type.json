@@ -1,0 +1,9 @@
+[
+ {"doctype": "Unit Type", "name": "SHOP",    "type_name": "SHOP"},
+ {"doctype": "Unit Type", "name": "1 BHK",   "type_name": "1 BHK"},
+ {"doctype": "Unit Type", "name": "2 BHK",   "type_name": "2 BHK"},
+ {"doctype": "Unit Type", "name": "3 BHK",   "type_name": "3 BHK"},
+ {"doctype": "Unit Type", "name": "STUDIO",  "type_name": "STUDIO"},
+ {"doctype": "Unit Type", "name": "OFFICE",  "type_name": "OFFICE"},
+ {"doctype": "Unit Type", "name": "WAREHOUSE", "type_name": "WAREHOUSE"}
+]

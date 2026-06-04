@@ -45,20 +45,27 @@ frappe.ui.form.on("Property Booking", {
 			}, __("PDC"));
 		}
 
-		// View PDC Entries — always show after submission
+		// View PDC Entries
 		frm.add_custom_button(__("PDC Entries"), () => {
 			frappe.set_route("List", "PDC Entry", { booking: frm.doc.name });
 		}, __("View"));
 
-		// View Sales Invoices linked to this booking
+		// View Sales Invoices
 		frm.add_custom_button(__("Sales Invoices"), () => {
 			frappe.set_route("List", "Sales Invoice", { custom_property_booking: frm.doc.name });
 		}, __("View"));
 
-		// View Payment Entries linked to this booking
+		// View Payment Entries
 		frm.add_custom_button(__("Payment Entries"), () => {
 			frappe.set_route("List", "Payment Entry", { property_booking: frm.doc.name });
 		}, __("View"));
+
+		// View source Quotation
+		if (frm.doc.quotation) {
+			frm.add_custom_button(__("Quotation"), () => {
+				frappe.set_route("Form", "Quotation", frm.doc.quotation);
+			}, __("View"));
+		}
 
 		// Generate Invoices Now — All at Once mode, no SIs created yet
 		const has_si = (frm.doc.pdc_schedule || []).some(r => r.sales_invoice);
@@ -117,11 +124,11 @@ frappe.ui.form.on("Property Booking", {
 
 	// ── Unit filter — only show units in selected building ───────────────────
 	set_unit_filter(frm) {
-		if (frm.doc.building) {
-			frm.set_query("unit", () => ({
-				filters: { item_group: frm.doc.building }
-			}));
-		}
+		frm.set_query("unit", () => {
+			const filters = { unit_status: "Available" };
+			if (frm.doc.building) filters["item_group"] = frm.doc.building;
+			return { filters };
+		});
 	},
 
 	building(frm) {
@@ -131,14 +138,11 @@ frappe.ui.form.on("Property Booking", {
 	},
 
 	unit(frm) {
-		// Fetch standard_rate from Item when unit selected
-		if (frm.doc.unit) {
-			frappe.db.get_value("Item", frm.doc.unit, "standard_rate", (r) => {
-				if (r && r.standard_rate) {
-					frm.set_value("unit_price", r.standard_rate);
-				}
-			});
-		}
+		_fetch_unit_price(frm);
+	},
+
+	price_list(frm) {
+		_fetch_unit_price(frm);
 	},
 
 	// ── Live calculation ──────────────────────────────────────────────────────
@@ -155,61 +159,90 @@ frappe.ui.form.on("Property Booking", {
 	},
 
 	recalculate_from_fixed(frm) {
-		const price = flt(frm.doc.unit_price);
-		const booking = flt(frm.doc.booking_amount);
-		const dp = flt(frm.doc.down_payment_amount);
-		const plan = frm.doc.payment_plan || "";
-		let n = 0;
-		if (plan.includes("12M")) n = 12;
-		else if (plan.includes("24M")) n = 24;
-		else if (plan.includes("36M")) n = 36;
-		if (!price || !booking || !dp || !n) return;
-
-		const remaining = price - booking;
-		if (remaining > 0) {
-			frm.set_value("down_payment_percentage", flt((dp / remaining * 100).toFixed(3)));
-		}
-		const after_dp = remaining - dp;
-		if (n > 0 && after_dp > 0) {
-			frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
-		}
+		if (!frm.doc.payment_plan) return;
+		frappe.db.get_value("Payment Plan", frm.doc.payment_plan,
+			["number_of_installments", "is_full_payment"], (r) => {
+			if (!r) return;
+			const n = (!r.is_full_payment && r.number_of_installments) ? r.number_of_installments : 0;
+			const price = flt(frm.doc.unit_price);
+			const booking = flt(frm.doc.booking_amount);
+			const dp = flt(frm.doc.down_payment_amount);
+			if (!price || !booking || !dp || !n) return;
+			const remaining = price - booking;
+			if (remaining > 0) {
+				frm.set_value("down_payment_percentage", flt((dp / remaining * 100).toFixed(3)));
+			}
+			const after_dp = remaining - dp;
+			if (n > 0 && after_dp > 0) {
+				frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
+			}
+		});
 	},
+
+	// ── Lead → Booking button ─────────────────────────────────────────────────
+	// Rendered when opening Property Booking form from CRM Lead context
+	// (see frappe.ui.form.on("CRM Lead") at the bottom of this file)
 
 	recalculate(frm) {
-		const price = flt(frm.doc.unit_price);
-		const booking = flt(frm.doc.booking_amount);
-		if (!price || !booking) return;
+		if (!frm.doc.payment_plan) return;
+		frappe.db.get_value("Payment Plan", frm.doc.payment_plan,
+			["number_of_installments", "is_full_payment"], (r) => {
+			if (!r) return;
+			const price = flt(frm.doc.unit_price);
+			const booking = flt(frm.doc.booking_amount);
+			if (!price || !booking) return;
 
-		const plan = frm.doc.payment_plan || "";
-		let n = 0;
-		if (plan.includes("12M")) n = 12;
-		else if (plan.includes("24M")) n = 24;
-		else if (plan.includes("36M")) n = 36;
+			const n = (!r.is_full_payment && r.number_of_installments) ? r.number_of_installments : 0;
 
-		if (plan === "Full Payment" || n === 0) {
-			frm.set_value("number_of_installments", 0);
-			frm.set_value("down_payment_amount", 0);
-			frm.set_value("down_payment_percentage", 0);
-			frm.set_value("monthly_installment", 0);
-			return;
-		}
+			if (r.is_full_payment || n === 0) {
+				frm.set_value("number_of_installments", 0);
+				frm.set_value("down_payment_amount", 0);
+				frm.set_value("down_payment_percentage", 0);
+				frm.set_value("monthly_installment", 0);
+				return;
+			}
 
-		frm.set_value("number_of_installments", n);
+			frm.set_value("number_of_installments", n);
 
-		// Skip recalculate if user is in Fixed Amount mode (they control the amount)
-		if (frm.doc.down_payment_type) return;
+			// Skip recalculate if user is in Fixed Amount mode (they control the amount)
+			if (frm.doc.down_payment_type) return;
 
-		const remaining = price - booking;
-		const dp_pct = flt(frm.doc.down_payment_percentage) || 50;
-		if (!frm.doc.down_payment_percentage) {
-			frm.set_value("down_payment_percentage", 50);
-		}
-		const dp = flt((remaining * dp_pct / 100).toFixed(3));
-		frm.set_value("down_payment_amount", dp);
+			const remaining = price - booking;
+			const dp_pct = flt(frm.doc.down_payment_percentage) || 50;
+			if (!frm.doc.down_payment_percentage) {
+				frm.set_value("down_payment_percentage", 50);
+			}
+			const dp = flt((remaining * dp_pct / 100).toFixed(3));
+			frm.set_value("down_payment_amount", dp);
 
-		const after_dp = remaining - dp;
-		if (n > 0 && after_dp > 0) {
-			frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
-		}
+			const after_dp = remaining - dp;
+			if (n > 0 && after_dp > 0) {
+				frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
+			}
+		});
 	},
 });
+
+// ── Unit price fetch (price list aware) ──────────────────────────────────────
+function _fetch_unit_price(frm) {
+	if (!frm.doc.unit) return;
+	if (frm.doc.price_list) {
+		frappe.db.get_value(
+			"Item Price",
+			{ item_code: frm.doc.unit, price_list: frm.doc.price_list },
+			"price_list_rate",
+			(r) => {
+				if (r && r.price_list_rate) {
+					frm.set_value("unit_price", r.price_list_rate);
+				}
+			}
+		);
+	} else {
+		frappe.db.get_value("Item", frm.doc.unit, "standard_rate", (r) => {
+			if (r && r.standard_rate) {
+				frm.set_value("unit_price", r.standard_rate);
+			}
+		});
+	}
+}
+

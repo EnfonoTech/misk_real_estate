@@ -1,0 +1,8 @@
+[
+ {"doctype": "Payment Plan", "name": "Full Payment",     "plan_name": "Full Payment",     "is_full_payment": 1, "number_of_installments": 0},
+ {"doctype": "Payment Plan", "name": "Installment 12M",  "plan_name": "Installment 12M",  "is_full_payment": 0, "number_of_installments": 12},
+ {"doctype": "Payment Plan", "name": "Installment 18M",  "plan_name": "Installment 18M",  "is_full_payment": 0, "number_of_installments": 18},
+ {"doctype": "Payment Plan", "name": "Installment 24M",  "plan_name": "Installment 24M",  "is_full_payment": 0, "number_of_installments": 24},
+ {"doctype": "Payment Plan", "name": "Installment 36M",  "plan_name": "Installment 36M",  "is_full_payment": 0, "number_of_installments": 36},
+ {"doctype": "Payment Plan", "name": "Installment 48M",  "plan_name": "Installment 48M",  "is_full_payment": 0, "number_of_installments": 48}
+]

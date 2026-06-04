@@ -121,6 +121,9 @@ def _create_payment_entry(pdc_entry, payment_date):
         "reference_date": pdc_entry.cheque_date,
         "remarks": f"PDC Clearance — {pdc_entry.cheque_no} / Booking: {pdc_entry.booking or 'N/A'}",
         "property_booking": pdc_entry.booking or "",
+        "cheque_no": pdc_entry.cheque_no,
+        "cheque_date": pdc_entry.cheque_date,
+        "cheque_status": "Cleared",
     })
 
     # Resolve Sales Invoice — from entry directly, or look up from PDC Schedule row

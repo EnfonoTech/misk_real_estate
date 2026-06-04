@@ -1,0 +1,64 @@
+{
+ "actions": [],
+ "autoname": "field:plan_name",
+ "creation": "2026-06-03 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "plan_name",
+  "is_full_payment",
+  "number_of_installments"
+ ],
+ "fields": [
+  {
+   "fieldname": "plan_name",
+   "fieldtype": "Data",
+   "label": "Plan Name",
+   "reqd": 1,
+   "unique": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "is_full_payment",
+   "fieldtype": "Check",
+   "label": "Full Payment (No Installments)",
+   "default": 0
+  },
+  {
+   "fieldname": "number_of_installments",
+   "fieldtype": "Int",
+   "label": "Number of Installments",
+   "default": 0,
+   "description": "Set to 0 for full payment plans",
+   "depends_on": "eval:!doc.is_full_payment"
+  }
+ ],
+ "links": [],
+ "modified": "2026-06-03 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Real Estate",
+ "name": "Payment Plan",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1, "write": 1, "create": 1, "delete": 1
+  },
+  {
+   "role": "Misk Admin",
+   "read": 1, "write": 1, "create": 1, "delete": 1
+  },
+  {
+   "role": "Misk Sales",
+   "read": 1
+  },
+  {
+   "role": "Misk Finance",
+   "read": 1
+  }
+ ],
+ "sort_field": "plan_name",
+ "sort_order": "ASC",
+ "title_field": "plan_name",
+ "track_changes": 0
+}

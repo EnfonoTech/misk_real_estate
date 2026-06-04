@@ -13,9 +13,8 @@ class PropertyBooking(Document):
         self._check_unit_availability()
 
     def before_submit(self):
-        if self.status == "Draft":
-            self.status = "Confirmed"
-        self.validate_payment_plan()   # strict check only at submit
+        self.status = "Confirmed"
+        self.validate_payment_plan()
         self.generate_pdc_schedule()
 
     def on_submit(self):
@@ -108,20 +107,22 @@ class PropertyBooking(Document):
         if not unit_price or not booking_amount:
             return  # wait until user fills required fields
 
-        plan = cstr(self.payment_plan)
-        if "12M" in plan:
-            self.number_of_installments = 12
-        elif "24M" in plan:
-            self.number_of_installments = 24
-        elif "36M" in plan:
-            self.number_of_installments = 36
-        else:
+        if not self.payment_plan:
+            return
+        plan_doc = frappe.db.get_value(
+            "Payment Plan", self.payment_plan,
+            ["number_of_installments", "is_full_payment"], as_dict=True
+        )
+        if not plan_doc:
+            return
+        if plan_doc.is_full_payment or not plan_doc.number_of_installments:
             # Full Payment — no down payment, no installments
             self.number_of_installments = 0
             self.down_payment_percentage = 0
             self.down_payment_amount = 0
             self.monthly_installment = 0
             return
+        self.number_of_installments = cint(plan_doc.number_of_installments)
 
         remaining = unit_price - booking_amount
         # down_payment_type is Check: 1 = Fixed Amount, 0 = Percentage
@@ -174,22 +175,31 @@ class PropertyBooking(Document):
         })
         seq += 1
 
-        plan = cstr(self.payment_plan)
-        if "Full" in plan:
+        plan_doc = frappe.db.get_value(
+            "Payment Plan", self.payment_plan,
+            ["number_of_installments", "is_full_payment"], as_dict=True
+        ) if self.payment_plan else None
+        is_full = (not plan_doc) or plan_doc.is_full_payment or not plan_doc.number_of_installments
+
+        if is_full:
             # Full payment — one more row for balance
             balance = flt(self.unit_price) - flt(self.booking_amount)
             if balance > 0:
+                settings = frappe.get_cached_doc("Misk Real Estate Settings")
+                dp_days = cint(settings.down_payment_days) or 2
                 self.append("pdc_schedule", {
                     "sequence_no": seq,
                     "installment_type": "Down Payment",
-                    "cheque_date": add_days(booking_date, 7),
+                    "cheque_date": add_days(booking_date, dp_days),
                     "amount": balance,
                     "status": "Pending",
                 })
             return
 
         # 2. Down Payment row
-        dp_date = add_days(booking_date, 7)
+        settings = frappe.get_cached_doc("Misk Real Estate Settings")
+        dp_days = cint(settings.down_payment_days) or 2
+        dp_date = add_days(booking_date, dp_days)
         self.append("pdc_schedule", {
             "sequence_no": seq,
             "installment_type": "Down Payment",
@@ -380,37 +390,93 @@ def mark_unit_sold(booking_name):
 
 
 @frappe.whitelist()
-def create_sales_order(booking_name):
-    """Create a Sales Order from a confirmed Property Booking (A6)."""
-    frappe.has_permission("Property Booking", "write", throw=True)
+def create_bookings_from_quotation(quotation_name):
+    """
+    Create one Property Booking per line item in an approved Quotation.
+    If party_type is Lead, converts Lead to Customer first.
+    Called from the Quotation form "Create Property Booking" button.
+    """
+    frappe.has_permission("Quotation", "read", throw=True)
+    frappe.has_permission("Property Booking", "create", throw=True)
 
-    booking = frappe.get_doc("Property Booking", booking_name)
-    if booking.status == "Converted" and booking.sales_order:
-        frappe.throw(_("Sales Order already created: {0}").format(booking.sales_order))
-    if booking.status == "Cancelled":
-        frappe.throw(_("Cannot create Sales Order from a cancelled booking."))
-    if booking.docstatus != 1:
-        frappe.throw(_("Submit the booking first."))
+    quotation = frappe.get_doc("Quotation", quotation_name)
 
-    company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
-    so = frappe.get_doc({
-        "doctype": "Sales Order",
-        "customer": booking.customer,
-        "company": company,
-        "transaction_date": today(),
-        "delivery_date": add_months(today(), 1),
-        "items": [{
-            "item_code": booking.unit,
-            "qty": 1,
-            "rate": flt(booking.unit_price),
-        }],
-    })
-    so.insert(ignore_permissions=True)
-    so.submit()
+    if quotation.workflow_state != "Confirmed":
+        frappe.throw(_("Quotation must be fully approved before creating bookings."))
 
-    frappe.db.set_value("Property Booking", booking_name, {
-        "sales_order": so.name,
-        "status": "Converted",
-    })
-    frappe.msgprint(_("Sales Order {0} created.").format(so.name), alert=True)
-    return so.name
+    # Resolve or create customer
+    if quotation.quotation_to == "Lead":
+        customer = _get_or_create_customer_from_lead(quotation.party_name)
+    else:
+        customer = quotation.party_name
+
+    company = quotation.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
+    payment_plan = quotation.get("payment_plan") or ""
+    price_list = quotation.selling_price_list or ""
+
+    created = []
+    skipped = []
+
+    for item in quotation.items:
+        unit = item.item_code
+        unit_status = frappe.db.get_value("Item", unit, "unit_status")
+        if unit_status != "Available":
+            skipped.append(f"{unit} ({unit_status})")
+            continue
+
+        booking_amount = flt(item.get("booking_amount") or 0)
+        if not booking_amount:
+            frappe.throw(
+                _("Booking Amount is missing for unit {0} (row {1}). Please fill it in the Quotation items table.").format(
+                    unit, item.idx
+                )
+            )
+
+        building = frappe.db.get_value("Item", unit, "item_group") or item.get("building") or ""
+
+        dp_pct = flt(item.get("down_payment_percentage") or 0)
+
+        booking = frappe.get_doc({
+            "doctype": "Property Booking",
+            "customer": customer,
+            "quotation": quotation_name,
+            "building": building,
+            "unit": unit,
+            "unit_price": flt(item.rate),
+            "booking_amount": booking_amount,
+            "payment_plan": payment_plan,
+            "price_list": price_list,
+            "down_payment_percentage": dp_pct or None,
+            "booking_date": today(),
+            "company": company,
+            "invoice_generation": "Monthly (Cron)",
+            "status": "Draft",
+        })
+        booking.flags.ignore_permissions = True
+        booking.insert()
+        created.append(booking.name)
+
+    # Mark Quotation as Ordered
+    if created:
+        frappe.db.set_value("Quotation", quotation_name, "status", "Ordered")
+
+    msg_parts = [_("{0} Property Booking(s) created: {1}").format(len(created), ", ".join(created))]
+    if skipped:
+        msg_parts.append(_("Skipped (not Available): {0}").format(", ".join(skipped)))
+
+    frappe.msgprint("<br>".join(msg_parts), title=_("Property Bookings Created"))
+    return created
+
+
+def _get_or_create_customer_from_lead(lead_name):
+    """Convert a Lead to Customer using ERPNext standard mapper, or return existing."""
+    # Check if customer already exists for this lead
+    existing = frappe.db.get_value("Customer", {"lead_name": lead_name}, "name")
+    if existing:
+        return existing
+
+    from erpnext.crm.doctype.lead.lead import make_customer
+    customer_doc = make_customer(lead_name)
+    customer_doc.flags.ignore_permissions = True
+    customer_doc.insert()
+    return customer_doc.name

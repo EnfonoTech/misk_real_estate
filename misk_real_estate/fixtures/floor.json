@@ -1,0 +1,11 @@
+[
+ {"doctype": "Floor", "name": "GROUND",      "floor_name": "GROUND"},
+ {"doctype": "Floor", "name": "MEZZANINE",   "floor_name": "MEZZANINE"},
+ {"doctype": "Floor", "name": "FIRST",       "floor_name": "FIRST"},
+ {"doctype": "Floor", "name": "SECOND",      "floor_name": "SECOND"},
+ {"doctype": "Floor", "name": "THIRD",       "floor_name": "THIRD"},
+ {"doctype": "Floor", "name": "FOURTH",      "floor_name": "FOURTH"},
+ {"doctype": "Floor", "name": "FIFTH",       "floor_name": "FIFTH"},
+ {"doctype": "Floor", "name": "SIXTH",       "floor_name": "SIXTH"},
+ {"doctype": "Floor", "name": "ROOF",        "floor_name": "ROOF"}
+]

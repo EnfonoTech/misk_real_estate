@@ -1,0 +1,103 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"KG42estnm9\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Shortcuts</b></span>\",\"col\":12}},{\"id\":\"espGtU4nfZ\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Property Booking\",\"col\":3}},{\"id\":\"k9autY7kx0\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"PDC Entry\",\"col\":3}},{\"id\":\"gddu8yndmc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"PDC Batch\",\"col\":3}},{\"id\":\"k8CsBfl5aR\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer\",\"col\":3}},{\"id\":\"CiG8gL7ewW\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Unit / Item\",\"col\":3}},{\"id\":\"pdc-status-rpt\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"PDC Status Report\",\"col\":3}},{\"id\":\"pdc-aging-rpt\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"PDC Aging Report\",\"col\":3}},{\"id\":\"pdc-forecast-rpt\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"PDC Monthly Forecast\",\"col\":3}},{\"id\":\"unit-avail-rpt\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Unit Availability\",\"col\":3}},{\"id\":\"user-guide-sc\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"User Guide\",\"col\":3}}]",
+ "creation": "2026-06-03 16:02:14.229241",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "hide_custom": 0,
+ "icon": "misk-tower",
+ "idx": 0,
+ "indicator_color": "blue",
+ "is_hidden": 0,
+ "label": "Misk Real Estate",
+ "links": [],
+ "modified": "2026-06-03 17:32:13.118144",
+ "modified_by": "Administrator",
+ "module": "Real Estate",
+ "name": "Misk Real Estate",
+ "number_cards": [],
+ "owner": "Administrator",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 0.0,
+ "shortcuts": [
+  {
+   "color": "Blue",
+   "doc_view": "",
+   "icon": "fa fa-home",
+   "label": "Property Booking",
+   "link_to": "Property Booking",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "",
+   "icon": "fa fa-money",
+   "label": "PDC Entry",
+   "link_to": "PDC Entry",
+   "type": "DocType"
+  },
+  {
+   "color": "Yellow",
+   "doc_view": "",
+   "icon": "fa fa-folder",
+   "label": "PDC Batch",
+   "link_to": "PDC Batch",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "",
+   "icon": "fa fa-user",
+   "label": "Customer",
+   "link_to": "Customer",
+   "type": "DocType"
+  },
+  {
+   "color": "Purple",
+   "doc_view": "",
+   "icon": "fa fa-building",
+   "label": "Unit / Item",
+   "link_to": "Item",
+   "type": "DocType"
+  },
+  {
+   "doc_view": "",
+   "label": "PDC Status Report",
+   "link_to": "PDC Status Report",
+   "report_ref_doctype": "PDC Entry",
+   "type": "Report"
+  },
+  {
+   "doc_view": "",
+   "label": "PDC Aging Report",
+   "link_to": "PDC Aging Report",
+   "report_ref_doctype": "PDC Entry",
+   "type": "Report"
+  },
+  {
+   "doc_view": "",
+   "label": "PDC Monthly Forecast",
+   "link_to": "PDC Monthly Forecast",
+   "report_ref_doctype": "PDC Entry",
+   "type": "Report"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "",
+   "icon": "book",
+   "label": "User Guide",
+   "type": "URL",
+   "url": "/user-guide"
+  },
+  {
+   "label": "Unit Availability",
+   "link_to": "Unit Availability Report",
+   "report_ref_doctype": "Item",
+   "type": "Report"
+  }
+ ],
+ "title": "Misk Real Estate"
+}

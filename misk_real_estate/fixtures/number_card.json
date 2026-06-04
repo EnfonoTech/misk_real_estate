@@ -1,0 +1,46 @@
+[
+ {
+  "doctype": "Number Card",
+  "name": "Misk Available Units",
+  "label": "Available Units",
+  "document_type": "Item",
+  "function": "Count",
+  "filters_json": "[[\"Item\",\"unit_status\",\"=\",\"Available\"]]",
+  "color": "#4CAF50",
+  "is_public": 1,
+  "module": "Real Estate"
+ },
+ {
+  "doctype": "Number Card",
+  "name": "Misk Active Bookings",
+  "label": "Active Bookings",
+  "document_type": "Property Booking",
+  "function": "Count",
+  "filters_json": "[[\"Property Booking\",\"docstatus\",\"=\",1],[\"Property Booking\",\"status\",\"!=\",\"Cancelled\"]]",
+  "color": "#2196F3",
+  "is_public": 1,
+  "module": "Real Estate"
+ },
+ {
+  "doctype": "Number Card",
+  "name": "Misk Pending PDCs",
+  "label": "Pending PDCs",
+  "document_type": "PDC Entry",
+  "function": "Count",
+  "filters_json": "[[\"PDC Entry\",\"status\",\"=\",\"Pending\"]]",
+  "color": "#FF9800",
+  "is_public": 1,
+  "module": "Real Estate"
+ },
+ {
+  "doctype": "Number Card",
+  "name": "Misk PDCs at Bank",
+  "label": "PDCs at Bank",
+  "document_type": "PDC Entry",
+  "function": "Count",
+  "filters_json": "[[\"PDC Entry\",\"status\",\"in\",\"In Batch,Deposited\"]]",
+  "color": "#9C27B0",
+  "is_public": 1,
+  "module": "Real Estate"
+ }
+]
