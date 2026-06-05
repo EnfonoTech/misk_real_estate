@@ -3,10 +3,17 @@
 frappe.ui.form.on("Property Booking", {
 
 	onload(frm) {
-		if (frm.is_new() && !frm.doc.company) {
-			const company = frappe.defaults.get_user_default("company")
-				|| frappe.defaults.get_global_default("company");
-			if (company) frm.set_value("company", company);
+		if (frm.is_new()) {
+			// Guard: prevent unit/building change handlers from clearing
+			// pre-filled values while route_options are being applied
+			frm._route_loading = true;
+			setTimeout(() => { frm._route_loading = false; }, 800);
+
+			if (!frm.doc.company) {
+				const company = frappe.defaults.get_user_default("company")
+					|| frappe.defaults.get_global_default("company");
+				if (company) frm.set_value("company", company);
+			}
 		}
 	},
 
@@ -154,8 +161,10 @@ frappe.ui.form.on("Property Booking", {
 	},
 
 	building(frm) {
-		frm.set_value("unit", "");
-		frm.set_value("unit_price", "");
+		if (!frm._route_loading) {
+			frm.set_value("unit", "");
+			frm.set_value("unit_price", "");
+		}
 		frm.trigger("set_unit_filter");
 	},
 
@@ -165,8 +174,10 @@ frappe.ui.form.on("Property Booking", {
 			query: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_price_lists_for_unit",
 			filters: { unit: frm.doc.unit },
 		}));
-		frm.set_value("price_list", "");
-		frm.set_value("unit_price", "");
+		if (!frm._route_loading) {
+			frm.set_value("price_list", "");
+			frm.set_value("unit_price", "");
+		}
 		_fetch_unit_price(frm);
 	},
 

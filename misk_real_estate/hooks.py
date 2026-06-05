@@ -22,8 +22,9 @@ scheduler_events = {
 
 # ── Doc Events ────────────────────────────────────────────────────────────────
 doc_events = {
-    # PDC Entry on_update handled inside the controller class directly.
-    # No external doc_events needed — controller's on_update fires automatically.
+    "Quotation": {
+        "validate": "misk_real_estate.real_estate.custom.quotation_hooks.validate",
+    },
 }
 
 # ── Fixtures — run `bench export-fixtures` before every commit ────────────────

@@ -486,11 +486,10 @@ def mark_unit_sold(booking_name):
 
 
 @frappe.whitelist()
-def create_bookings_from_quotation(quotation_name):
+def create_bookings_from_quotation(quotation_name, item_name=None):
     """
-    Create one Property Booking per line item in an approved Quotation.
-    If party_type is Lead, converts Lead to Customer first.
-    Called from the Quotation form "Create Property Booking" button.
+    Create a Property Booking for one specific Quotation line (item_name).
+    If item_name is None, creates for all remaining unconverted lines.
     """
     frappe.has_permission("Quotation", "read", throw=True)
     frappe.has_permission("Property Booking", "create", throw=True)
@@ -513,7 +512,14 @@ def create_bookings_from_quotation(quotation_name):
     created = []
     skipped = []
 
-    for item in quotation.items:
+    # Filter to specific row if provided; skip already-converted rows
+    items_to_process = [
+        item for item in quotation.items
+        if (not item_name or item.name == item_name)
+        and not item.get("property_booking")
+    ]
+
+    for item in items_to_process:
         unit = item.item_code
         unit_status = frappe.db.get_value("Item", unit, "unit_status")
         if unit_status != "Available":
@@ -533,6 +539,10 @@ def create_bookings_from_quotation(quotation_name):
         dp_pct = flt(item.get("down_payment_percentage") or 0)
         oa_fee = flt(item.get("owners_association_fee") or 0)
 
+        # Per-item payment_plan and price_list override quotation header
+        item_payment_plan = item.get("payment_plan") or payment_plan
+        item_price_list   = item.get("price_list")   or price_list
+
         # Tax: add non-print-rate taxes proportionally to unit price
         unit_price = _effective_unit_price(quotation, item)
 
@@ -545,8 +555,8 @@ def create_bookings_from_quotation(quotation_name):
             "unit_price": unit_price,
             "booking_amount": booking_amount,
             "owners_association_fee": oa_fee,
-            "payment_plan": payment_plan,
-            "price_list": price_list,
+            "payment_plan": item_payment_plan,
+            "price_list": item_price_list,
             "down_payment_percentage": dp_pct or None,
             "booking_date": today(),
             "company": company,
@@ -555,10 +565,16 @@ def create_bookings_from_quotation(quotation_name):
         })
         booking.flags.ignore_permissions = True
         booking.insert()
+        # Link booking back to this Quotation Item row
+        frappe.db.set_value("Quotation Item", item.name, "property_booking", booking.name)
         created.append(booking.name)
 
-    # Mark Quotation as Ordered
-    if created:
+    # Mark Quotation as Ordered only when all lines are converted
+    all_converted = all(
+        frappe.db.get_value("Quotation Item", r.name, "property_booking")
+        for r in quotation.items
+    )
+    if all_converted:
         frappe.db.set_value("Quotation", quotation_name, "status", "Ordered")
 
     msg_parts = [_("{0} Property Booking(s) created: {1}").format(len(created), ", ".join(created))]
