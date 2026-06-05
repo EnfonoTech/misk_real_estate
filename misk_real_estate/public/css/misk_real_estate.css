@@ -2,3 +2,12 @@
 .layout-main-section.frappe-card {
     overflow: visible !important;
 }
+
+/* Hide + create button in Property Booking connections */
+[data-doctype="Property Booking"] .form-link .btn-new,
+[data-doctype="Property Booking"] .links-section .btn-new,
+[data-doctype="Property Booking"] .form-link a[href*="/new"],
+[data-doctype="Property Booking"] .form-dashboard .btn-new,
+[data-doctype="Property Booking"] .links-header .btn-new {
+    display: none !important;
+}

@@ -1,6 +1,5 @@
 {
  "actions": [],
- "allow_guest_to_view": 0,
  "allow_import": 1,
  "allow_rename": 1,
  "autoname": "PB-.YYYY.-.####",
@@ -8,31 +7,61 @@
  "doctype": "DocType",
  "document_type": "Document",
  "engine": "InnoDB",
+ "field_order": [
+  "customer",
+  "customer_name",
+  "mobile_no",
+  "status",
+  "column_break_1",
+  "company",
+  "booking_date",
+  "invoice_generation",
+  "quotation",
+  "section_break_property",
+  "building",
+  "unit",
+  "column_break_wkrs",
+  "price_list",
+  "unit_price",
+  "section_break_payment",
+  "payment_plan",
+  "booking_amount",
+  "down_payment_percentage",
+  "down_payment_amount",
+  "column_break_calc",
+  "monthly_installment",
+  "number_of_installments",
+  "owners_association_fee",
+  "total_amount",
+  "section_break_pdc",
+  "pdc_schedule",
+  "amended_from"
+ ],
  "fields": [
   {
    "fieldname": "customer",
    "fieldtype": "Link",
+   "in_global_search": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Customer",
    "options": "Customer",
    "reqd": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "in_global_search": 1,
    "search_index": 1
   },
   {
+   "fetch_from": "customer.customer_name",
    "fieldname": "customer_name",
    "fieldtype": "Data",
+   "in_global_search": 1,
    "label": "Customer Name",
-   "fetch_from": "customer.customer_name",
-   "read_only": 1,
-   "in_global_search": 1
+   "read_only": 1
   },
   {
+   "fetch_from": "customer.mobile_no",
    "fieldname": "mobile_no",
    "fieldtype": "Data",
    "label": "Mobile No",
-   "fetch_from": "customer.mobile_no",
    "read_only": 1
   },
   {
@@ -40,12 +69,12 @@
    "fieldtype": "Column Break"
   },
   {
+   "default": "Today",
    "fieldname": "booking_date",
    "fieldtype": "Date",
+   "in_list_view": 1,
    "label": "Booking Date",
-   "default": "Today",
-   "reqd": 1,
-   "in_list_view": 1
+   "reqd": 1
   },
   {
    "fieldname": "company",
@@ -55,41 +84,31 @@
    "reqd": 1
   },
   {
-   "fieldname": "price_list",
-   "fieldtype": "Link",
-   "label": "Price List",
-   "options": "Price List",
-   "description": "Select the price tier for this unit (e.g. Full Payment, 50% DP Plan)"
-  },
-  {
+   "default": "Draft",
    "fieldname": "status",
    "fieldtype": "Select",
-   "label": "Status",
-   "options": "Draft\nConfirmed\nCancelled\nConverted",
-   "default": "Draft",
-   "reqd": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Draft\nConfirmed\nCancelled\nConverted",
+   "read_only": 1,
+   "reqd": 1,
    "search_index": 1
   },
   {
+   "default": "Monthly (Cron)",
    "fieldname": "invoice_generation",
    "fieldtype": "Select",
-   "label": "Invoice Generation",
+   "label": "Invoice Generation (Installments)",
    "options": "Monthly (Cron)\nAll at Once",
-   "default": "Monthly (Cron)",
-   "reqd": 1,
-   "description": "Monthly: cron creates SI when cheque date is due. All at Once: all SIs created on booking submit (posting date = booking date, due date = each cheque date).",
-   "allow_on_submit": 0
+   "reqd": 1
   },
   {
    "fieldname": "quotation",
    "fieldtype": "Link",
    "label": "Quotation",
    "options": "Quotation",
-   "read_only": 1,
-   "allow_on_submit": 1,
-   "description": "Quotation this booking was created from"
+   "read_only": 1
   },
   {
    "fieldname": "section_break_property",
@@ -99,42 +118,43 @@
   {
    "fieldname": "building",
    "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Building",
    "options": "Item Group",
    "reqd": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1,
    "search_index": 1
   },
   {
    "fieldname": "unit",
    "fieldtype": "Link",
+   "in_global_search": 1,
+   "in_list_view": 1,
    "label": "Apartment / Unit",
    "options": "Item",
    "reqd": 1,
-   "in_list_view": 1,
-   "in_global_search": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "price_list",
+   "fieldtype": "Link",
+   "label": "Price List",
+   "options": "Price List"
   },
   {
    "fieldname": "unit_price",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Unit Price",
-   "reqd": 1,
-   "read_only": 0,
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "column_break_payment",
-   "fieldtype": "Column Break"
+   "reqd": 1
   },
   {
    "fieldname": "payment_plan",
    "fieldtype": "Link",
+   "in_standard_filter": 1,
    "label": "Payment Plan",
    "options": "Payment Plan",
-   "reqd": 1,
-   "in_standard_filter": 1
+   "reqd": 1
   },
   {
    "fieldname": "section_break_payment",
@@ -145,49 +165,46 @@
    "fieldname": "booking_amount",
    "fieldtype": "Currency",
    "label": "Booking Amount",
-   "reqd": 1,
-   "description": "Token amount to reserve the unit"
+   "reqd": 1
   },
   {
-   "fieldname": "down_payment_type",
-   "fieldtype": "Check",
-   "label": "Enter Fixed Down Payment Amount",
-   "default": 0,
    "depends_on": "eval:doc.payment_plan !== 'Full Payment'",
-   "description": "Tick to enter a fixed amount instead of percentage"
-  },
-  {
    "fieldname": "down_payment_percentage",
    "fieldtype": "Percent",
-   "label": "Down Payment %",
-   "description": "Percentage of remaining amount after booking",
-   "depends_on": "eval:doc.payment_plan !== 'Full Payment'",
-   "read_only_depends_on": "eval:doc.down_payment_type == 1"
+   "label": "Down Payment %"
   },
   {
    "fieldname": "column_break_calc",
    "fieldtype": "Column Break"
   },
   {
+   "depends_on": "eval:doc.payment_plan !== 'Full Payment'",
    "fieldname": "down_payment_amount",
    "fieldtype": "Currency",
-   "label": "Down Payment Amount",
-   "read_only": 0,
-   "description": "Fixed amount or calculated from %",
-   "depends_on": "eval:doc.payment_plan !== 'Full Payment'",
-   "read_only_depends_on": "eval:!doc.down_payment_type"
+   "label": "Down Payment Amount"
   },
   {
    "fieldname": "monthly_installment",
    "fieldtype": "Currency",
    "label": "Monthly Installment",
-   "read_only": 1,
-   "description": "Calculated monthly installment"
+   "read_only": 1
   },
   {
    "fieldname": "number_of_installments",
    "fieldtype": "Int",
    "label": "No. of Installments",
+   "read_only": 1
+  },
+  {
+   "fieldname": "owners_association_fee",
+   "fieldtype": "Currency",
+   "label": "Owners Association Fee"
+  },
+  {
+   "bold": 1,
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "label": "Total (Unit Price + OA Fee)",
    "read_only": 1
   },
   {
@@ -199,8 +216,7 @@
    "fieldname": "pdc_schedule",
    "fieldtype": "Table",
    "label": "PDC Schedule",
-   "options": "PDC Schedule",
-   "description": "Auto-generated on submission. Each row = one cheque."
+   "options": "PDC Schedule"
   },
   {
    "fieldname": "amended_from",
@@ -208,80 +224,96 @@
    "label": "Amended From",
    "options": "Property Booking",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_wkrs",
+   "fieldtype": "Column Break"
   }
  ],
  "is_submittable": 1,
- "modified": "2026-05-12 10:30:00",
+ "links": [
+  {
+   "link_doctype": "PDC Entry",
+   "link_fieldname": "booking",
+   "label": "PDC Entries"
+  },
+  {
+   "link_doctype": "Sales Invoice",
+   "link_fieldname": "custom_property_booking",
+   "label": "Sales Invoices"
+  },
+  {
+   "link_doctype": "Payment Entry",
+   "link_fieldname": "property_booking",
+   "label": "Payment Entries"
+  }
+ ],
+ "modified": "2026-06-05 10:28:10.404613",
+ "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Property Booking",
  "naming_rule": "Expression",
  "owner": "Administrator",
  "permissions": [
   {
+   "amend": 1,
+   "cancel": 1,
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
    "role": "System Manager",
-   "read": 1,
-   "write": 1,
-   "create": 1,
-   "delete": 1,
+   "share": 1,
    "submit": 1,
-   "cancel": 1,
-   "amend": 1,
-   "report": 1,
-   "email": 1,
-   "print": 1,
-   "export": 1,
-   "share": 1
+   "write": 1
   },
   {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
    "role": "Misk Sales",
-   "read": 1,
-   "write": 1,
-   "create": 1,
    "submit": 1,
-   "cancel": 0,
-   "amend": 0,
-   "report": 1,
+   "write": 1
+  },
+  {
    "email": 1,
-   "print": 1,
    "export": 1,
-   "share": 0
-  },
-  {
-   "role": "Misk Finance",
-   "read": 1,
-   "write": 0,
-   "create": 0,
-   "report": 1,
-   "email": 1,
    "print": 1,
-   "export": 1
+   "read": 1,
+   "report": 1,
+   "role": "Misk Finance"
   },
   {
-   "role": "Misk Admin",
-   "read": 1,
-   "write": 1,
+   "amend": 1,
+   "cancel": 1,
    "create": 1,
    "delete": 1,
-   "submit": 1,
-   "cancel": 1,
-   "amend": 1,
-   "report": 1,
    "email": 1,
-   "print": 1,
    "export": 1,
-   "share": 1
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Misk Admin",
+   "share": 1,
+   "submit": 1,
+   "write": 1
   },
   {
-   "role": "Misk Management",
-   "read": 1,
-   "write": 0,
-   "create": 0,
-   "report": 1,
    "email": 1,
+   "export": 1,
    "print": 1,
-   "export": 1
+   "read": 1,
+   "report": 1,
+   "role": "Misk Management"
   }
  ],
+ "row_format": "Dynamic",
  "sort_field": "creation",
  "sort_order": "DESC",
  "states": [],

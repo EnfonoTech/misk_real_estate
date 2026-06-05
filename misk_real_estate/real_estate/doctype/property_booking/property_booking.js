@@ -120,6 +120,11 @@ frappe.ui.form.on("Property Booking", {
 			"Draft": "grey", "Confirmed": "blue", "Converted": "green", "Cancelled": "red"
 		};
 		frm.page.set_indicator(frm.doc.status, colors[frm.doc.status] || "grey");
+
+		// Hide + buttons in connection cards
+		setTimeout(() => {
+			frm.$wrapper.find(".form-link .btn-new, .links-header .btn-new, .form-link a.btn-new-doc, [class*='form-link'] .btn-new").hide();
+		}, 500);
 	},
 
 	// ── Unit filter — only show units in selected building ───────────────────
@@ -138,6 +143,13 @@ frappe.ui.form.on("Property Booking", {
 	},
 
 	unit(frm) {
+		// Filter price_list to only those that have a price for this unit
+		frm.set_query("price_list", () => ({
+			query: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_price_lists_for_unit",
+			filters: { unit: frm.doc.unit },
+		}));
+		frm.set_value("price_list", "");
+		frm.set_value("unit_price", "");
 		_fetch_unit_price(frm);
 	},
 
@@ -146,50 +158,47 @@ frappe.ui.form.on("Property Booking", {
 	},
 
 	// ── Live calculation ──────────────────────────────────────────────────────
-	unit_price(frm) { frm.trigger("recalculate"); },
-	booking_amount(frm) { frm.trigger("recalculate"); },
-	down_payment_percentage(frm) { frm.trigger("recalculate"); },
-	down_payment_type(frm) { frm.trigger("recalculate"); },
-	payment_plan(frm) { frm.trigger("recalculate"); },
+	unit_price(frm)    { frm.trigger("recalculate"); },
+	booking_amount(frm){ frm.trigger("recalculate"); },
+	payment_plan(frm)  { frm.trigger("recalculate"); },
 
-	// When user edits fixed amount directly — back-calculate %
+	down_payment_percentage(frm) {
+		// % edited → calculate amount, then recalc installment
+		const price = flt(frm.doc.unit_price), booking = flt(frm.doc.booking_amount);
+		const pct = flt(frm.doc.down_payment_percentage);
+		if (!price || !booking || !pct) return;
+		const dp = flt(((price - booking) * pct / 100).toFixed(3));
+		frm.set_value("down_payment_amount", dp);
+		frm.trigger("_recalc_installment");
+	},
+
 	down_payment_amount(frm) {
-		if (!frm.doc.down_payment_type) return;
-		frm.trigger("recalculate_from_fixed");
+		// Amount edited → back-calculate %, then recalc installment
+		const price = flt(frm.doc.unit_price), booking = flt(frm.doc.booking_amount);
+		const dp = flt(frm.doc.down_payment_amount);
+		if (!price || !booking || !dp) return;
+		const remaining = price - booking;
+		if (remaining > 0) {
+			frm.set_value("down_payment_percentage", flt((dp / remaining * 100).toFixed(3)));
+		}
+		frm.trigger("_recalc_installment");
 	},
 
-	recalculate_from_fixed(frm) {
-		if (!frm.doc.payment_plan) return;
-		frappe.db.get_value("Payment Plan", frm.doc.payment_plan,
-			["number_of_installments", "is_full_payment"], (r) => {
-			if (!r) return;
-			const n = (!r.is_full_payment && r.number_of_installments) ? r.number_of_installments : 0;
-			const price = flt(frm.doc.unit_price);
-			const booking = flt(frm.doc.booking_amount);
-			const dp = flt(frm.doc.down_payment_amount);
-			if (!price || !booking || !dp || !n) return;
-			const remaining = price - booking;
-			if (remaining > 0) {
-				frm.set_value("down_payment_percentage", flt((dp / remaining * 100).toFixed(3)));
-			}
-			const after_dp = remaining - dp;
-			if (n > 0 && after_dp > 0) {
-				frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
-			}
-		});
+	_recalc_installment(frm) {
+		const n = cint(frm.doc.number_of_installments);
+		const price = flt(frm.doc.unit_price), booking = flt(frm.doc.booking_amount);
+		const dp = flt(frm.doc.down_payment_amount);
+		if (!n || !price || !booking) return;
+		const after_dp = (price - booking) - dp;
+		if (after_dp > 0) frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
 	},
-
-	// ── Lead → Booking button ─────────────────────────────────────────────────
-	// Rendered when opening Property Booking form from CRM Lead context
-	// (see frappe.ui.form.on("CRM Lead") at the bottom of this file)
 
 	recalculate(frm) {
 		if (!frm.doc.payment_plan) return;
 		frappe.db.get_value("Payment Plan", frm.doc.payment_plan,
 			["number_of_installments", "is_full_payment"], (r) => {
 			if (!r) return;
-			const price = flt(frm.doc.unit_price);
-			const booking = flt(frm.doc.booking_amount);
+			const price = flt(frm.doc.unit_price), booking = flt(frm.doc.booking_amount);
 			if (!price || !booking) return;
 
 			const n = (!r.is_full_payment && r.number_of_installments) ? r.number_of_installments : 0;
@@ -203,22 +212,13 @@ frappe.ui.form.on("Property Booking", {
 			}
 
 			frm.set_value("number_of_installments", n);
-
-			// Skip recalculate if user is in Fixed Amount mode (they control the amount)
-			if (frm.doc.down_payment_type) return;
-
 			const remaining = price - booking;
 			const dp_pct = flt(frm.doc.down_payment_percentage) || 50;
-			if (!frm.doc.down_payment_percentage) {
-				frm.set_value("down_payment_percentage", 50);
-			}
+			if (!frm.doc.down_payment_percentage) frm.set_value("down_payment_percentage", 50);
 			const dp = flt((remaining * dp_pct / 100).toFixed(3));
 			frm.set_value("down_payment_amount", dp);
-
 			const after_dp = remaining - dp;
-			if (n > 0 && after_dp > 0) {
-				frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
-			}
+			if (n > 0 && after_dp > 0) frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
 		});
 	},
 });

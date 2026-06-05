@@ -564,6 +564,18 @@
  {
   "doctype": "Custom Field",
   "dt": "Quotation Item",
+  "fieldname": "owners_association_fee",
+  "fieldtype": "Currency",
+  "label": "OA Fee",
+  "insert_after": "down_payment_percentage",
+  "in_list_view": 0,
+  "description": "Owners Association Fee for this unit",
+  "name": "Quotation Item-owners_association_fee",
+  "modified": "2026-06-04 00:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Quotation Item",
   "fieldname": "booking_amount",
   "fieldtype": "Currency",
   "label": "Booking Amount",
@@ -583,9 +595,20 @@
   "insert_after": "booking_amount",
   "in_list_view": 1,
   "columns": 2,
-  "description": "Down payment % of remaining amount (after booking amount). Leave blank to use default 50%.",
   "name": "Quotation Item-down_payment_percentage",
-  "modified": "2026-06-03 00:00:00.000000"
+  "modified": "2026-06-04 00:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
+  "dt": "Quotation Item",
+  "fieldname": "down_payment_amount",
+  "fieldtype": "Currency",
+  "label": "Down Payment Amount",
+  "insert_after": "down_payment_percentage",
+  "in_list_view": 1,
+  "columns": 2,
+  "name": "Quotation Item-down_payment_amount",
+  "modified": "2026-06-04 00:00:00.000000"
  },
  {
   "doctype": "Custom Field",

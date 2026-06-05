@@ -11,16 +11,60 @@ class PropertyBooking(Document):
         self.calculate_payment_schedule()
         self.validate_duplicate_booking()
         self._check_unit_availability()
+        self._compute_and_validate_total()
+        if self.docstatus == 0 and self.unit_price and self.booking_amount and self.payment_plan:
+            current_installment_rows = sum(
+                1 for r in self.pdc_schedule if r.installment_type == "Installment"
+            )
+            expected_installments = cint(self.number_of_installments)
+
+            if not self.pdc_schedule or current_installment_rows != expected_installments:
+                # First save or payment plan changed — regenerate full schedule
+                self.pdc_schedule = []
+                self.generate_pdc_schedule()
+            else:
+                # Same structure — only update amounts, preserve user-edited dates/cheque nos
+                self._update_schedule_amounts()
 
     def before_submit(self):
         self.status = "Confirmed"
         self.validate_payment_plan()
-        self.generate_pdc_schedule()
+        # Generate if somehow still empty (e.g. created programmatically)
+        if not self.pdc_schedule:
+            self.generate_pdc_schedule()
 
     def on_submit(self):
         self._set_unit_status("Booked")
+        # Always create SIs immediately for Booking Amount and Down Payment
+        self._create_upfront_invoices()
+        # Installments follow invoice_generation setting
         if self.invoice_generation == "All at Once":
             self._generate_all_invoices_now()
+
+    def _create_upfront_invoices(self):
+        """Create Sales Invoices immediately on submit for Booking Amount and Down Payment rows."""
+        from misk_real_estate.pdc_management.cron.auto_invoice import _create_invoice
+        company = self.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
+        for row in self.pdc_schedule:
+            if row.installment_type in ("Booking Amount", "Down Payment") and not row.sales_invoice:
+                try:
+                    row_data = frappe._dict({
+                        "schedule_row": row.name,
+                        "booking": self.name,
+                        "cheque_date": row.cheque_date or today(),
+                        "amount": row.amount,
+                        "cheque_no": row.cheque_no or "",
+                        "installment_type": row.installment_type,
+                        "customer": self.customer,
+                        "unit": self.unit,
+                        "company": company,
+                        "status": row.status,
+                    })
+                    si_name = _create_invoice(row_data)
+                    frappe.db.set_value("PDC Schedule", row.name, "sales_invoice", si_name)
+                except Exception:
+                    frappe.log_error(frappe.get_traceback(),
+                        f"Upfront SI failed: {row.installment_type} — {self.name}")
 
     def on_cancel(self):
         self.status = "Cancelled"
@@ -125,22 +169,20 @@ class PropertyBooking(Document):
         self.number_of_installments = cint(plan_doc.number_of_installments)
 
         remaining = unit_price - booking_amount
-        # down_payment_type is Check: 1 = Fixed Amount, 0 = Percentage
-        if cint(self.down_payment_type):
-            dp_amount = flt(self.down_payment_amount)
-            if not dp_amount:
-                dp_amount = round(remaining * 0.50, 3)
-                self.down_payment_amount = dp_amount
-            # Back-calculate percentage for reference
+        dp_amount = flt(self.down_payment_amount)
+        dp_pct = flt(self.down_payment_percentage)
+
+        if dp_amount > 0:
+            # Amount entered — back-calculate percentage
             if remaining > 0:
                 self.down_payment_percentage = round(dp_amount / remaining * 100, 3)
-        else:
-            # Percentage mode
-            dp_pct = flt(self.down_payment_percentage)
-            if not dp_pct:
-                dp_pct = 50
-                self.down_payment_percentage = dp_pct
+        elif dp_pct > 0:
+            # Percentage entered — calculate amount
             self.down_payment_amount = round(remaining * dp_pct / 100, 3)
+        else:
+            # Neither set — default to 50%
+            self.down_payment_percentage = 50
+            self.down_payment_amount = round(remaining * 0.50, 3)
 
         after_dp = remaining - flt(self.down_payment_amount)
         n = cint(self.number_of_installments)
@@ -158,10 +200,6 @@ class PropertyBooking(Document):
           3. Monthly Installments (n rows)
         No GL, no Payment Entry — only the plan (B7 requirement).
         """
-        if self.pdc_schedule:
-            # Already generated (e.g. amendment)
-            return
-
         booking_date = getdate(self.booking_date)
         seq = 1
 
@@ -194,6 +232,16 @@ class PropertyBooking(Document):
                     "amount": balance,
                     "status": "Pending",
                 })
+                seq += 1
+            # OA fee for full payment — default date = balance cheque date
+            if flt(self.owners_association_fee) > 0:
+                self.append("pdc_schedule", {
+                    "sequence_no": seq,
+                    "installment_type": "Owners Association Fee",
+                    "cheque_date": add_days(booking_date, dp_days),
+                    "amount": flt(self.owners_association_fee),
+                    "status": "Pending",
+                })
             return
 
         # 2. Down Payment row
@@ -221,6 +269,33 @@ class PropertyBooking(Document):
                 "status": "Pending",
             })
             seq += 1
+
+        # 4. Owners Association Fee row — default date = last installment date
+        if flt(self.owners_association_fee) > 0:
+            last_inst_date = add_months(booking_date, n)
+            self.append("pdc_schedule", {
+                "sequence_no": seq,
+                "installment_type": "Owners Association Fee",
+                "cheque_date": last_inst_date,
+                "amount": flt(self.owners_association_fee),
+                "status": "Pending",
+            })
+
+    def _compute_and_validate_total(self):
+        self.total_amount = flt(self.unit_price) + flt(self.owners_association_fee)
+
+    def _update_schedule_amounts(self):
+        """Recalculate amounts in existing PDC Schedule rows without touching dates or cheque numbers."""
+        amount_map = {
+            "Booking Amount":       flt(self.booking_amount),
+            "Down Payment":         flt(self.down_payment_amount),
+            "Installment":          flt(self.monthly_installment),
+            "Owners Association Fee": flt(self.owners_association_fee),
+        }
+        for row in self.pdc_schedule:
+            new_amount = amount_map.get(row.installment_type)
+            if new_amount is not None:
+                row.amount = new_amount
 
     def _cancel_pdc_entries(self):
         """Cancel linked PDC Entries that haven't been cleared."""
@@ -435,6 +510,10 @@ def create_bookings_from_quotation(quotation_name):
         building = frappe.db.get_value("Item", unit, "item_group") or item.get("building") or ""
 
         dp_pct = flt(item.get("down_payment_percentage") or 0)
+        oa_fee = flt(item.get("owners_association_fee") or 0)
+
+        # Tax: add non-print-rate taxes proportionally to unit price
+        unit_price = _effective_unit_price(quotation, item)
 
         booking = frappe.get_doc({
             "doctype": "Property Booking",
@@ -442,8 +521,9 @@ def create_bookings_from_quotation(quotation_name):
             "quotation": quotation_name,
             "building": building,
             "unit": unit,
-            "unit_price": flt(item.rate),
+            "unit_price": unit_price,
             "booking_amount": booking_amount,
+            "owners_association_fee": oa_fee,
             "payment_plan": payment_plan,
             "price_list": price_list,
             "down_payment_percentage": dp_pct or None,
@@ -466,6 +546,47 @@ def create_bookings_from_quotation(quotation_name):
 
     frappe.msgprint("<br>".join(msg_parts), title=_("Property Bookings Created"))
     return created
+
+
+@frappe.whitelist()
+@frappe.validate_and_sanitize_search_inputs
+def get_price_lists_for_unit(doctype, txt, searchfield, start, page_len, filters):
+    """Return Price Lists that have at least one Item Price for the given unit."""
+    unit = (filters or {}).get("unit") or ""
+    if not unit:
+        return []
+    return frappe.db.sql("""
+        SELECT DISTINCT ip.price_list, pl.name
+        FROM `tabItem Price` ip
+        JOIN `tabPrice List` pl ON pl.name = ip.price_list
+        WHERE ip.item_code = %(unit)s
+          AND pl.selling = 1
+          AND pl.enabled = 1
+          AND ip.price_list LIKE %(txt)s
+        LIMIT %(page_len)s OFFSET %(start)s
+    """, {"unit": unit, "txt": f"%{txt}%", "page_len": page_len, "start": start})
+
+
+def _effective_unit_price(quotation, item):
+    """
+    Return item rate + proportional share of any non-included taxes.
+    If a tax row has included_in_print_rate = True, the rate already contains it.
+    If included_in_print_rate = False, we add the proportional tax on top.
+    """
+    base_rate = flt(item.rate)
+    total = flt(quotation.total) or 1
+    item_amount = flt(item.amount) or 0
+    qty = flt(item.qty) or 1
+
+    if not quotation.get("taxes"):
+        return base_rate
+
+    extra_tax = 0
+    for tax in quotation.taxes:
+        if not tax.included_in_print_rate:
+            extra_tax += (item_amount / total) * flt(tax.tax_amount)
+
+    return round(base_rate + extra_tax / qty, 3)
 
 
 def _get_or_create_customer_from_lead(lead_name):

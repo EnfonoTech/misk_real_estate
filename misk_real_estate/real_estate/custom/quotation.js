@@ -11,6 +11,22 @@ frappe.ui.form.on("Quotation", {
 });
 
 frappe.ui.form.on("Quotation Item", {
+	down_payment_percentage(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		const remaining = flt(row.rate) - flt(row.booking_amount);
+		if (!remaining || !row.down_payment_percentage) return;
+		const dp = flt((remaining * flt(row.down_payment_percentage) / 100).toFixed(3));
+		frappe.model.set_value(cdt, cdn, "down_payment_amount", dp);
+	},
+
+	down_payment_amount(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		const remaining = flt(row.rate) - flt(row.booking_amount);
+		if (!remaining || !row.down_payment_amount) return;
+		const pct = flt((flt(row.down_payment_amount) / remaining * 100).toFixed(3));
+		frappe.model.set_value(cdt, cdn, "down_payment_percentage", pct);
+	},
+
 	building(frm, cdt, cdn) {
 		frappe.model.set_value(cdt, cdn, "item_code", "");
 		frappe.model.set_value(cdt, cdn, "item_name", "");
