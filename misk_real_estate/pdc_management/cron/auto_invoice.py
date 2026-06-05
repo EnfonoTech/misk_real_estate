@@ -41,7 +41,8 @@ def _generate_due_invoices():
             ps.status,
             pb.customer,
             pb.unit,
-            pb.company
+            pb.company,
+            pb.taxes_and_charges
         FROM `tabPDC Schedule` ps
         INNER JOIN `tabProperty Booking` pb ON pb.name = ps.parent
         WHERE pb.docstatus = 1
@@ -91,8 +92,13 @@ def _create_invoice(row):
     """Create and submit a Sales Invoice for one PDC Schedule row."""
     company = row.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
 
-    # Get or create a generic real estate item for invoice lines if unit item not available
-    item_code = row.unit or _get_default_item(company)
+    # Use OA-FEE item for Owners Association Fee rows
+    settings = frappe.get_cached_doc("Misk Real Estate Settings")
+    oa_item = getattr(settings, "oa_fee_item", None)
+    if row.get("installment_type") == "Owners Association Fee" and oa_item:
+        item_code = oa_item
+    else:
+        item_code = row.unit or _get_default_item(company)
 
     si = frappe.get_doc({
         "doctype": "Sales Invoice",
@@ -100,6 +106,7 @@ def _create_invoice(row):
         "company": company,
         "posting_date": row.cheque_date,
         "due_date": add_days(row.cheque_date, 0),
+        "taxes_and_charges": row.get("taxes_and_charges") or "",
         "items": [
             {
                 "item_code": item_code,

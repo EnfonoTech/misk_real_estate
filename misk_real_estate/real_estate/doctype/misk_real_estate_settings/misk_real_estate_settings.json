@@ -6,7 +6,9 @@
  "field_order": [
   "section_pdc",
   "down_payment_days",
-  "installment_start_months"
+  "installment_start_months",
+  "section_items",
+  "oa_fee_item"
  ],
  "fields": [
   {
@@ -27,6 +29,18 @@
    "label": "Installments Start — Months After Booking",
    "default": "1",
    "reqd": 1
+  },
+  {
+   "fieldname": "section_items",
+   "fieldtype": "Section Break",
+   "label": "Item Configuration"
+  },
+  {
+   "fieldname": "oa_fee_item",
+   "fieldtype": "Link",
+   "label": "Owners Association Fee Item",
+   "options": "Item",
+   "description": "Item used for the OA Fee line auto-added to Quotations. Must be a non-stock service item."
   }
  ],
  "issingle": 1,

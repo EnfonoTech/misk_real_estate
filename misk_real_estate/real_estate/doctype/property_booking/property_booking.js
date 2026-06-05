@@ -4,8 +4,6 @@ frappe.ui.form.on("Property Booking", {
 
 	onload(frm) {
 		if (frm.is_new()) {
-			// Guard: prevent unit/building change handlers from clearing
-			// pre-filled values while route_options are being applied
 			frm._route_loading = true;
 			setTimeout(() => { frm._route_loading = false; }, 800);
 
@@ -15,6 +13,8 @@ frappe.ui.form.on("Property Booking", {
 				if (company) frm.set_value("company", company);
 			}
 		}
+		// Cache tax rate from existing taxes_and_charges
+		if (frm.doc.taxes_and_charges) _cache_tax_rate(frm);
 	},
 
 	// ── Refresh — build action buttons based on state ─────────────────────────
@@ -145,10 +145,30 @@ frappe.ui.form.on("Property Booking", {
 		};
 		frm.page.set_indicator(frm.doc.status, colors[frm.doc.status] || "grey");
 
+		// PDC Schedule — color-code rows by installment type
+		_style_pdc_schedule(frm);
+
 		// Hide + buttons in connection cards
 		setTimeout(() => {
 			frm.$wrapper.find(".form-link .btn-new, .links-header .btn-new, .form-link a.btn-new-doc, [class*='form-link'] .btn-new").hide();
 		}, 500);
+	},
+
+	company(frm) {
+		if (frm.doc.company && !frm.doc.taxes_and_charges) {
+			frappe.call({
+				method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_default_taxes_for_company",
+				args: { company: frm.doc.company },
+				callback(r) {
+					if (r.message) frm.set_value("taxes_and_charges", r.message);
+				},
+			});
+		}
+	},
+
+	taxes_and_charges(frm) {
+		frm._tax_rate = undefined;  // reset cache so next edit re-fetches
+		_cache_tax_rate(frm);
 	},
 
 	// ── Unit filter — only show units in selected building ───────────────────
@@ -254,6 +274,30 @@ frappe.ui.form.on("Property Booking", {
 	},
 });
 
+// ── PDC Schedule: recalc net/tax when user edits Total Amount ────────────────
+frappe.ui.form.on("PDC Schedule", {
+	amount(frm, cdt, cdn) {
+		const apply = (rate) => {
+			const total = flt(locals[cdt][cdn].amount);
+			if (!rate) {
+				frappe.model.set_value(cdt, cdn, "net_amount", total);
+				frappe.model.set_value(cdt, cdn, "tax_amount", 0);
+			} else {
+				const net = flt((total / (1 + rate / 100)).toFixed(3));
+				frappe.model.set_value(cdt, cdn, "net_amount", net);
+				frappe.model.set_value(cdt, cdn, "tax_amount", flt((total - net).toFixed(3)));
+			}
+			_check_pdc_total(frm);
+		};
+
+		if (frm._tax_rate !== undefined) {
+			apply(frm._tax_rate);
+		} else {
+			_cache_tax_rate(frm, () => apply(frm._tax_rate || 0));
+		}
+	},
+});
+
 // ── Unit price fetch (price list aware) ──────────────────────────────────────
 function _fetch_unit_price(frm) {
 	if (!frm.doc.unit) return;
@@ -275,5 +319,68 @@ function _fetch_unit_price(frm) {
 			}
 		});
 	}
+}
+
+// ── Live PDC total vs Grand Total check ──────────────────────────────────────
+function _check_pdc_total(frm) {
+	const expected = flt(frm.doc.total_after_tax);
+	if (!expected || !frm.doc.pdc_schedule) return;
+	const actual = frm.doc.pdc_schedule.reduce((s, r) => s + flt(r.amount), 0);
+	const diff   = Math.abs(actual - expected);
+	if (diff > 0.01) {
+		frm.page.set_indicator(
+			__("PDC total {0} ≠ {1} (diff {2})", [
+				format_currency(actual, "OMR", 3),
+				format_currency(expected, "OMR", 3),
+				format_currency(diff, "OMR", 3),
+			]),
+			"orange"
+		);
+	} else {
+		const colors = { "Draft": "grey", "Confirmed": "blue", "Converted": "green", "Cancelled": "red" };
+		frm.page.set_indicator(frm.doc.status, colors[frm.doc.status] || "grey");
+	}
+}
+
+// ── Cache tax rate for PDC Schedule inline calculation ───────────────────────
+function _cache_tax_rate(frm, callback) {
+	if (!frm.doc.taxes_and_charges) {
+		frm._tax_rate = 0;
+		if (callback) callback();
+		return;
+	}
+	frappe.call({
+		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_tax_rate_from_template",
+		args: { taxes_and_charges: frm.doc.taxes_and_charges },
+		callback(r) {
+			frm._tax_rate = flt(r.message) || 0;
+			if (callback) callback();
+		},
+	});
+}
+
+// ── PDC Schedule visual grouping ─────────────────────────────────────────────
+function _style_pdc_schedule(frm) {
+	const colors = {
+		"Booking Amount":         "#dbeafe",
+		"Down Payment":           "#dcfce7",
+		"Installment":            "#ffffff",
+		"Owners Association Fee": "#fef9c3",
+	};
+	setTimeout(() => {
+		const grid = frm.fields_dict.pdc_schedule && frm.fields_dict.pdc_schedule.grid;
+		if (!grid) return;
+		let prev_type = null;
+		grid.wrapper.find(".grid-row").each(function(idx) {
+			const row = frm.doc.pdc_schedule && frm.doc.pdc_schedule[idx];
+			if (!row) return;
+			const type = row.installment_type;
+			$(this).find(".data-row").css("background-color", colors[type] || "#fff");
+			if (type !== prev_type && prev_type !== null) {
+				$(this).find(".data-row").css("border-top", "2px solid #d1d5db");
+			}
+			prev_type = type;
+		});
+	}, 400);
 }
 

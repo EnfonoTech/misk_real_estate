@@ -1,0 +1,9 @@
+[
+ {
+  "doctype": "Misk Real Estate Settings",
+  "name": "Misk Real Estate Settings",
+  "down_payment_days": 2,
+  "installment_start_months": 1,
+  "oa_fee_item": "OA-FEE"
+ }
+]

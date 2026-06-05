@@ -549,29 +549,6 @@
  {
   "doctype": "Custom Field",
   "dt": "Quotation",
-  "fieldname": "total_oa_fee",
-  "fieldtype": "Currency",
-  "label": "Total OA Fee",
-  "insert_after": "grand_total",
-  "read_only": 1,
-  "name": "Quotation-total_oa_fee",
-  "modified": "2026-06-05 00:00:00.000000"
- },
- {
-  "doctype": "Custom Field",
-  "dt": "Quotation",
-  "fieldname": "grand_total_with_oa",
-  "fieldtype": "Currency",
-  "label": "Grand Total (incl. OA Fee)",
-  "insert_after": "total_oa_fee",
-  "read_only": 1,
-  "bold": 1,
-  "name": "Quotation-grand_total_with_oa",
-  "modified": "2026-06-05 00:00:00.000000"
- },
- {
-  "doctype": "Custom Field",
-  "dt": "Quotation",
   "fieldname": "workflow_state",
   "fieldtype": "Data",
   "label": "Workflow State",

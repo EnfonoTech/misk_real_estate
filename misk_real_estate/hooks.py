@@ -23,7 +23,7 @@ scheduler_events = {
 # ── Doc Events ────────────────────────────────────────────────────────────────
 doc_events = {
     "Quotation": {
-        "validate": "misk_real_estate.real_estate.custom.quotation_hooks.validate",
+        "before_validate": "misk_real_estate.real_estate.custom.quotation_hooks.before_validate",
     },
 }
 
@@ -56,6 +56,13 @@ fixtures = [
     {
         "dt": "Number Card",
         "filters": [["name", "like", "Misk%"]]
+    },
+    {
+        "dt": "Item",
+        "filters": [["item_code", "=", "OA-FEE"]]
+    },
+    {
+        "dt": "Misk Real Estate Settings"
     },
     {
         "dt": "Payment Plan"

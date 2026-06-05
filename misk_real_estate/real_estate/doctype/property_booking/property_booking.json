@@ -32,7 +32,12 @@
   "monthly_installment",
   "number_of_installments",
   "owners_association_fee",
+  "section_tax_total",
+  "taxes_and_charges",
   "total_amount",
+  "column_break_tax",
+  "tax_amount",
+  "total_after_tax",
   "section_break_pdc",
   "pdc_schedule",
   "amended_from"
@@ -201,10 +206,37 @@
    "label": "Owners Association Fee"
   },
   {
-   "bold": 1,
+   "fieldname": "section_tax_total",
+   "fieldtype": "Section Break",
+   "label": "Tax & Total"
+  },
+  {
+   "fieldname": "taxes_and_charges",
+   "fieldtype": "Link",
+   "label": "Taxes and Charges",
+   "options": "Sales Taxes and Charges Template"
+  },
+  {
    "fieldname": "total_amount",
    "fieldtype": "Currency",
    "label": "Total (Unit Price + OA Fee)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_tax",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "tax_amount",
+   "fieldtype": "Currency",
+   "label": "Tax Amount",
+   "read_only": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "total_after_tax",
+   "fieldtype": "Currency",
+   "label": "Grand Total (incl. Tax + OA Fee)",
    "read_only": 1
   },
   {

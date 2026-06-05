@@ -177,12 +177,16 @@ function _add_action_buttons(frm) {
 	const state = frm.doc.workflow_state;
 
 	if (frm.doc.docstatus === 1 && state === "Confirmed") {
-		const pending = (frm.doc.items || []).filter(r => !r.property_booking);
-		pending.forEach(item => {
-			const label = item.item_code + (item.building ? ` — ${item.building}` : "");
-			frm.add_custom_button(__(label), () => {
-				_open_new_booking(frm, item);
-			}, __("Create Property Booking"));
+		frappe.db.get_single_value("Misk Real Estate Settings", "oa_fee_item").then(oa_item => {
+			const pending = (frm.doc.items || []).filter(r =>
+				!r.property_booking && r.item_code !== oa_item
+			);
+			pending.forEach(item => {
+				const label = item.item_code + (item.building ? ` — ${item.building}` : "");
+				frm.add_custom_button(__(label), () => {
+					_open_new_booking(frm, item);
+				}, __("Create Property Booking"));
+			});
 		});
 	}
 

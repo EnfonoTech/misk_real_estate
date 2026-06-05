@@ -8,6 +8,9 @@ from frappe.utils import cint, flt, cstr, today, add_days, add_months, getdate
 
 class PropertyBooking(Document):
     def validate(self):
+        # Auto-fill taxes_and_charges only on new documents (don't override if user cleared it)
+        if self.is_new() and not self.taxes_and_charges and self.company:
+            self.taxes_and_charges = _get_default_taxes(self.company)
         self.calculate_payment_schedule()
         self.validate_duplicate_booking()
         self._check_unit_availability()
@@ -37,9 +40,15 @@ class PropertyBooking(Document):
         """Create Sales Invoices immediately on submit for Booking Amount and Down Payment rows."""
         from misk_real_estate.pdc_management.cron.auto_invoice import _create_invoice
         company = self.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
+        settings = frappe.get_cached_doc("Misk Real Estate Settings")
+        oa_item = getattr(settings, "oa_fee_item", None)
+
         for row in self.pdc_schedule:
-            if row.installment_type in ("Booking Amount", "Down Payment") and not row.sales_invoice:
+            if row.installment_type in ("Booking Amount", "Down Payment") \
+                    and not row.sales_invoice:
                 try:
+                    # Use OA-FEE item for OA rows so its Item Tax Template applies
+                    item_code = oa_item if row.installment_type == "Owners Association Fee" else self.unit
                     row_data = frappe._dict({
                         "schedule_row": row.name,
                         "booking": self.name,
@@ -48,8 +57,9 @@ class PropertyBooking(Document):
                         "cheque_no": row.cheque_no or "",
                         "installment_type": row.installment_type,
                         "customer": self.customer,
-                        "unit": self.unit,
+                        "unit": item_code,
                         "company": company,
+                        "taxes_and_charges": self.taxes_and_charges or "",
                         "status": row.status,
                     })
                     si_name = _create_invoice(row_data)
@@ -194,14 +204,11 @@ class PropertyBooking(Document):
         booking_date = getdate(self.booking_date)
         seq = 1
 
+        settings = frappe.get_cached_doc("Misk Real Estate Settings")
+        dp_days = cint(settings.down_payment_days) or 2
+
         # 1. Booking Amount row
-        self.append("pdc_schedule", {
-            "sequence_no": seq,
-            "installment_type": "Booking Amount",
-            "cheque_date": booking_date,
-            "amount": flt(self.booking_amount),
-            "status": "Pending",
-        })
+        self.append("pdc_schedule", self._pdc_row(seq, "Booking Amount", booking_date, flt(self.booking_amount)))
         seq += 1
 
         plan_doc = frappe.db.get_value(
@@ -214,96 +221,182 @@ class PropertyBooking(Document):
             # Full payment — one more row for balance
             balance = flt(self.unit_price) - flt(self.booking_amount)
             if balance > 0:
-                settings = frappe.get_cached_doc("Misk Real Estate Settings")
-                dp_days = cint(settings.down_payment_days) or 2
-                self.append("pdc_schedule", {
-                    "sequence_no": seq,
-                    "installment_type": "Down Payment",
-                    "cheque_date": add_days(booking_date, dp_days),
-                    "amount": balance,
-                    "status": "Pending",
-                })
+                self.append("pdc_schedule", self._pdc_row(seq, "Down Payment", add_days(booking_date, dp_days), balance))
                 seq += 1
-            # OA fee for full payment — default date = balance cheque date
+            # OA fee for full payment — use OA item's tax rate
             if flt(self.owners_association_fee) > 0:
-                self.append("pdc_schedule", {
-                    "sequence_no": seq,
-                    "installment_type": "Owners Association Fee",
-                    "cheque_date": add_days(booking_date, dp_days),
-                    "amount": flt(self.owners_association_fee),
-                    "status": "Pending",
-                })
+                oa_bd = self._get_oa_tax_breakdown(flt(self.owners_association_fee))
+                self.append("pdc_schedule", self._pdc_row(seq, "Owners Association Fee", add_days(booking_date, dp_days), flt(self.owners_association_fee), breakdown=oa_bd))
             return
 
         # 2. Down Payment row
-        settings = frappe.get_cached_doc("Misk Real Estate Settings")
-        dp_days = cint(settings.down_payment_days) or 2
-        dp_date = add_days(booking_date, dp_days)
-        self.append("pdc_schedule", {
-            "sequence_no": seq,
-            "installment_type": "Down Payment",
-            "cheque_date": dp_date,
-            "amount": flt(self.down_payment_amount),
-            "status": "Pending",
-        })
+        self.append("pdc_schedule", self._pdc_row(seq, "Down Payment", add_days(booking_date, dp_days), flt(self.down_payment_amount)))
         seq += 1
 
         # 3. Monthly installment rows
         n = cint(self.number_of_installments)
         for i in range(1, n + 1):
             inst_date = add_months(booking_date, i)
-            self.append("pdc_schedule", {
-                "sequence_no": seq,
-                "installment_type": "Installment",
-                "cheque_date": inst_date,
-                "amount": flt(self.monthly_installment),
-                "status": "Pending",
-            })
+            self.append("pdc_schedule", self._pdc_row(seq, "Installment", inst_date, flt(self.monthly_installment)))
             seq += 1
 
-        # 4. Owners Association Fee row — default date = last installment date
+        # 4. Owners Association Fee row — use OA item's tax rate
         if flt(self.owners_association_fee) > 0:
             last_inst_date = add_months(booking_date, n)
-            self.append("pdc_schedule", {
-                "sequence_no": seq,
-                "installment_type": "Owners Association Fee",
-                "cheque_date": last_inst_date,
-                "amount": flt(self.owners_association_fee),
-                "status": "Pending",
-            })
+            oa_bd = self._get_oa_tax_breakdown(flt(self.owners_association_fee))
+            self.append("pdc_schedule", self._pdc_row(seq, "Owners Association Fee", last_inst_date, flt(self.owners_association_fee), breakdown=oa_bd))
 
     def _compute_and_validate_total(self):
         self.total_amount = flt(self.unit_price) + flt(self.owners_association_fee)
+
+        # Compute tax amount from the selected taxes_and_charges template
+        tax_amount = 0.0
+        is_inclusive = False
+        if self.taxes_and_charges:
+            tax_rows = frappe.db.get_all(
+                "Sales Taxes and Charges",
+                filters={"parent": self.taxes_and_charges, "parenttype": "Sales Taxes and Charges Template"},
+                fields=["rate", "included_in_print_rate", "charge_type"],
+            )
+            for tax in tax_rows:
+                if tax.charge_type in ("On Net Total", "On Previous Row Total"):
+                    if not tax.included_in_print_rate:
+                        tax_amount += flt(self.unit_price) * flt(tax.rate) / 100
+                    else:
+                        # Inclusive: extract tax portion for display
+                        tax_amount += flt(self.unit_price) - flt(self.unit_price) / (1 + flt(tax.rate) / 100)
+                        is_inclusive = True
+
+        self.tax_amount = round(tax_amount, 3)
+        # Exclusive: grand total = unit + tax + OA fee
+        # Inclusive: tax already in unit_price, so grand total = total_amount
+        if is_inclusive:
+            self.total_after_tax = self.total_amount
+        else:
+            self.total_after_tax = round(flt(self.total_amount) + tax_amount, 3)
+
         if self.pdc_schedule:
-            schedule_total = sum(flt(r.amount) for r in self.pdc_schedule)
-            diff = abs(schedule_total - self.total_amount)
+            schedule_total = round(sum(flt(r.amount) for r in self.pdc_schedule), 3)
+            expected = flt(self.total_after_tax)  # includes tax and OA fee
+            diff = abs(schedule_total - expected)
             if diff > 0.01:
-                frappe.msgprint(
-                    _("PDC Schedule total ({0} OMR) does not match Unit Price + OA Fee ({1} OMR). "
+                frappe.throw(
+                    _("PDC Schedule total ({0} OMR) does not match Grand Total incl. Tax + OA ({1} OMR). "
                       "Difference: {2} OMR.").format(
-                        round(schedule_total, 3),
-                        round(self.total_amount, 3),
-                        round(diff, 3),
+                        schedule_total, expected, round(diff, 3)
                     ),
-                    title=_("Amount Mismatch"),
-                    indicator="orange",
+                    title=_("PDC Amount Mismatch"),
                 )
 
+    def _get_oa_tax_breakdown(self, base_amount):
+        """
+        Get tax breakdown for OA Fee row.
+        Priority:
+          1. OA-FEE item's Item Tax Template rate (from Misk Real Estate Settings.oa_fee_item)
+          2. Fallback: booking's taxes_and_charges template (same as unit)
+        Item Tax Template rates are always exclusive (added on top of base).
+        """
+        settings = frappe.get_cached_doc("Misk Real Estate Settings")
+        oa_item = getattr(settings, "oa_fee_item", None)
+
+        if oa_item:
+            # Read the item's first Item Tax Template
+            item_tax_template = frappe.db.get_value(
+                "Item Tax", {"parent": oa_item}, "item_tax_template"
+            )
+            if item_tax_template:
+                rate_rows = frappe.db.get_all(
+                    "Item Tax Template Detail",
+                    filters={"parent": item_tax_template},
+                    fields=["tax_rate"],
+                )
+                oa_rate = sum(flt(r.tax_rate) for r in rate_rows)
+                if oa_rate:
+                    # Item Tax Template → exclusive (added on top)
+                    net   = flt(base_amount)
+                    tax   = round(net * oa_rate / 100, 3)
+                    total = round(net + tax, 3)
+                    return net, tax, total
+                else:
+                    # Template exists but 0% → exempt
+                    return flt(base_amount), 0.0, flt(base_amount)
+            else:
+                # No Item Tax Template on OA-FEE item → check if user explicitly set no tax
+                # If no template at all → exempt
+                all_templates = frappe.db.get_all("Item Tax", filters={"parent": oa_item}, fields=["name"])
+                if not all_templates:
+                    # No tax templates defined on item — use booking taxes_and_charges as fallback
+                    return self._get_tax_breakdown(base_amount)
+
+        # No oa_fee_item set → fallback to booking taxes_and_charges
+        return self._get_tax_breakdown(base_amount)
+
+    def _pdc_row(self, seq, installment_type, cheque_date, base_amount, cheque_no="", breakdown=None):
+        """Build a PDC Schedule row dict with tax breakdown applied to base_amount.
+        breakdown: optional (net, tax, total) tuple; if None, uses _get_tax_breakdown.
+        """
+        if breakdown:
+            net, tax, total = breakdown
+        else:
+            net, tax, total = self._get_tax_breakdown(base_amount)
+        return {
+            "sequence_no":    seq,
+            "installment_type": installment_type,
+            "cheque_date":    cheque_date,
+            "net_amount":     net,
+            "tax_amount":     tax,
+            "amount":         total,
+            "cheque_no":      cheque_no,
+            "status":         "Pending",
+        }
+
+    def _get_tax_breakdown(self, base_amount):
+        """Return (net_amount, tax_amount, total_cheque_amount).
+        Inclusive: tax extracted from base_amount; total = base_amount.
+        Exclusive: tax added on top;               total = base_amount + tax.
+        """
+        if not self.taxes_and_charges or not base_amount:
+            return flt(base_amount), 0.0, flt(base_amount)
+
+        tax_rows = frappe.db.get_all(
+            "Sales Taxes and Charges",
+            filters={"parent": self.taxes_and_charges, "parenttype": "Sales Taxes and Charges Template"},
+            fields=["rate", "included_in_print_rate", "charge_type"],
+        )
+        effective_rate = sum(
+            flt(t.rate) for t in tax_rows
+            if t.charge_type in ("On Net Total", "On Previous Row Total")
+        )
+        if not effective_rate:
+            return flt(base_amount), 0.0, flt(base_amount)
+
+        is_inclusive = any(t.included_in_print_rate for t in tax_rows)
+
+        if is_inclusive:
+            net  = round(flt(base_amount) / (1 + effective_rate / 100), 3)
+            tax  = round(flt(base_amount) - net, 3)
+            total = flt(base_amount)
+        else:
+            net   = flt(base_amount)
+            tax   = round(flt(base_amount) * effective_rate / 100, 3)
+            total = round(net + tax, 3)
+
+        return net, tax, total
+
     def _update_schedule_amounts(self):
-        """
-        Recalculate amounts for header rows only.
-        Installment rows are left untouched so user can manually adjust
-        individual amounts (e.g. last installment as rounding remainder).
-        """
-        amount_map = {
+        """Recalculate amounts for header rows only, including tax breakdown."""
+        base_map = {
             "Booking Amount":         flt(self.booking_amount),
             "Down Payment":           flt(self.down_payment_amount),
             "Owners Association Fee": flt(self.owners_association_fee),
         }
         for row in self.pdc_schedule:
-            new_amount = amount_map.get(row.installment_type)
-            if new_amount is not None:
-                row.amount = new_amount
+            base = base_map.get(row.installment_type)
+            if base is not None:
+                net, tax, total = self._get_tax_breakdown(base)
+                row.net_amount = net
+                row.tax_amount = tax
+                row.amount     = total
 
     def _cancel_pdc_entries(self):
         """Cancel linked PDC Entries that haven't been cleared."""
@@ -403,6 +496,8 @@ def generate_invoices_for_booking(booking_name):
     from frappe.utils import add_days, formatdate
     booking = frappe.get_doc("Property Booking", booking_name)
     company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
+    settings = frappe.get_cached_doc("Misk Real Estate Settings")
+    oa_item = getattr(settings, "oa_fee_item", None)
 
     for row in booking.pdc_schedule:
         if row.sales_invoice:
@@ -410,7 +505,9 @@ def generate_invoices_for_booking(booking_name):
         if row.status in ("Cancelled",):
             continue
 
-        item_code = booking.unit or _get_or_create_default_item(company)
+        # Use OA-FEE item for OA rows, unit item for all others
+        item_code = (oa_item if row.installment_type == "Owners Association Fee" and oa_item
+                     else booking.unit or _get_or_create_default_item(company))
         type_label = row.installment_type or "Installment"
         description = f"{type_label} — Cheque {row.cheque_no or 'TBC'} — Due {formatdate(row.cheque_date)}"
 
@@ -418,8 +515,9 @@ def generate_invoices_for_booking(booking_name):
             "doctype": "Sales Invoice",
             "customer": booking.customer,
             "company": company,
-            "posting_date": booking.booking_date,   # posting = booking date
-            "due_date": row.cheque_date,             # due = cheque date
+            "posting_date": booking.booking_date,
+            "due_date": row.cheque_date,
+            "taxes_and_charges": booking.taxes_and_charges or "",
             "items": [{
                 "item_code": item_code,
                 "qty": 1,
@@ -509,14 +607,19 @@ def create_bookings_from_quotation(quotation_name, item_name=None):
     payment_plan = quotation.get("payment_plan") or ""
     price_list = quotation.selling_price_list or ""
 
+    # Get OA fee item to exclude from booking creation
+    settings = frappe.get_cached_doc("Misk Real Estate Settings")
+    oa_item = getattr(settings, "oa_fee_item", None)
+
     created = []
     skipped = []
 
-    # Filter to specific row if provided; skip already-converted rows
+    # Filter: specific row if provided, skip already-converted and OA fee lines
     items_to_process = [
         item for item in quotation.items
         if (not item_name or item.name == item_name)
         and not item.get("property_booking")
+        and item.item_code != oa_item
     ]
 
     for item in items_to_process:
@@ -555,6 +658,7 @@ def create_bookings_from_quotation(quotation_name, item_name=None):
             "unit_price": unit_price,
             "booking_amount": booking_amount,
             "owners_association_fee": oa_fee,
+            "taxes_and_charges": quotation.taxes_and_charges or _get_default_taxes(company),
             "payment_plan": item_payment_plan,
             "price_list": item_price_list,
             "down_payment_percentage": dp_pct or None,
@@ -602,6 +706,39 @@ def get_price_lists_for_unit(doctype, txt, searchfield, start, page_len, filters
           AND ip.price_list LIKE %(txt)s
         LIMIT %(page_len)s OFFSET %(start)s
     """, {"unit": unit, "txt": f"%{txt}%", "page_len": page_len, "start": start})
+
+
+def _get_default_taxes(company):
+    """Return the default Sales Taxes and Charges Template (is_default=1) for company."""
+    return frappe.db.get_value(
+        "Sales Taxes and Charges Template",
+        {"is_default": 1, "company": company},
+        "name"
+    ) or ""
+
+
+@frappe.whitelist()
+def get_tax_rate_from_template(taxes_and_charges):
+    """Return the effective tax rate from a Sales Taxes and Charges Template."""
+    rows = frappe.db.get_all(
+        "Sales Taxes and Charges",
+        filters={"parent": taxes_and_charges, "parenttype": "Sales Taxes and Charges Template"},
+        fields=["rate", "charge_type"],
+    )
+    return sum(
+        flt(r.rate) for r in rows
+        if r.charge_type in ("On Net Total", "On Previous Row Total")
+    )
+
+
+@frappe.whitelist()
+def get_default_taxes_for_company(company):
+    """Whitelisted: used by JS to fetch default tax template (is_default=1)."""
+    return frappe.db.get_value(
+        "Sales Taxes and Charges Template",
+        {"is_default": 1, "company": company},
+        "name"
+    ) or ""
 
 
 def _effective_unit_price(quotation, item):

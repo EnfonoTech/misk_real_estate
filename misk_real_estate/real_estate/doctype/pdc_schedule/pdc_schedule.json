@@ -5,7 +5,7 @@
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
-  "sequence_no", "installment_type", "cheque_date", "amount",
+  "sequence_no", "installment_type", "cheque_date", "net_amount", "tax_amount", "amount",
   "cheque_no", "status", "sales_invoice", "payment_entry", "pdc_entry"
  ],
  "fields": [
@@ -33,10 +33,26 @@
    "columns": 2
   },
   {
+   "fieldname": "net_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Net Amount",
+   "read_only": 1,
+   "columns": 2
+  },
+  {
+   "fieldname": "tax_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Tax Amount",
+   "read_only": 1,
+   "columns": 2
+  },
+  {
    "fieldname": "amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Amount",
+   "label": "Total Amount",
    "reqd": 1,
    "columns": 2
   },

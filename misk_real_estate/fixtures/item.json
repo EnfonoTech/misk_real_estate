@@ -1,0 +1,15 @@
+[
+ {
+  "doctype": "Item",
+  "name": "OA-FEE",
+  "item_code": "OA-FEE",
+  "item_name": "Owners Association Fee",
+  "item_group": "Services",
+  "is_sales_item": 1,
+  "is_purchase_item": 0,
+  "is_stock_item": 0,
+  "stock_uom": "Nos",
+  "include_item_in_manufacturing": 0,
+  "description": "Owners Association annual fee charged to property buyers."
+ }
+]
