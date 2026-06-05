@@ -96,11 +96,11 @@
    "search_index": 1
   },
   {
-   "default": "Monthly (Cron)",
+   "default": "Monthly",
    "fieldname": "invoice_generation",
    "fieldtype": "Select",
    "label": "Invoice Generation (Installments)",
-   "options": "Monthly (Cron)\nAll at Once",
+   "options": "Monthly\nAll at Once",
    "reqd": 1
   },
   {

@@ -12,14 +12,12 @@ app_include_css = ["/assets/misk_real_estate/css/misk_real_estate.css"]
 app_include_js  = ["/assets/misk_real_estate/js/misk_icons.js"]
 
 # ── B3: PDC Auto-Invoice Scheduler ────────────────────────────────────────────
-# Runs on the 5th of every month at midnight (BRD requirement).
-# Creates Sales Invoice for each PDC Schedule row due this month.
+# Runs daily. The configured day-of-month is read from Misk Real Estate Settings
+# (invoice_day, default 5) — auto_invoice.run() skips if today is not that day.
 scheduler_events = {
-    "cron": {
-        "0 0 5 * *": [
-            "misk_real_estate.pdc_management.cron.auto_invoice.run"
-        ]
-    }
+    "daily_long": [
+        "misk_real_estate.pdc_management.cron.auto_invoice.run"
+    ]
 }
 
 # ── Doc Events ────────────────────────────────────────────────────────────────

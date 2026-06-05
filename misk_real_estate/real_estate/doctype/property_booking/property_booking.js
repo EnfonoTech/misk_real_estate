@@ -115,6 +115,23 @@ frappe.ui.form.on("Property Booking", {
 			}, __("Actions"));
 		}
 
+		// Regenerate PDC Schedule — only on Draft
+		if (frm.doc.docstatus === 0 && frm.doc.pdc_schedule && frm.doc.pdc_schedule.length) {
+			frm.add_custom_button(__("Regenerate PDC Schedule"), () => {
+				frappe.confirm(
+					__("This will clear all manually edited cheque dates and amounts and rebuild the schedule. Continue?"),
+					() => {
+						frappe.call({
+							method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.regenerate_pdc_schedule",
+							args: { booking_name: frm.doc.name },
+							freeze: true,
+							callback(r) { if (!r.exc) frm.reload_doc(); }
+						});
+					}
+				);
+			}, __("Actions"));
+		}
+
 		// Status indicator badge
 		const colors = {
 			"Draft": "grey", "Confirmed": "blue", "Converted": "green", "Cancelled": "red"
@@ -163,24 +180,20 @@ frappe.ui.form.on("Property Booking", {
 	payment_plan(frm)  { frm.trigger("recalculate"); },
 
 	down_payment_percentage(frm) {
-		// % edited → calculate amount, then recalc installment
-		const price = flt(frm.doc.unit_price), booking = flt(frm.doc.booking_amount);
+		// % of unit_price → calculate amount
+		const price = flt(frm.doc.unit_price);
 		const pct = flt(frm.doc.down_payment_percentage);
-		if (!price || !booking || !pct) return;
-		const dp = flt(((price - booking) * pct / 100).toFixed(3));
-		frm.set_value("down_payment_amount", dp);
+		if (!price || !pct) return;
+		frm.set_value("down_payment_amount", flt((price * pct / 100).toFixed(3)));
 		frm.trigger("_recalc_installment");
 	},
 
 	down_payment_amount(frm) {
-		// Amount edited → back-calculate %, then recalc installment
-		const price = flt(frm.doc.unit_price), booking = flt(frm.doc.booking_amount);
+		// Amount → back-calculate % against unit_price
+		const price = flt(frm.doc.unit_price);
 		const dp = flt(frm.doc.down_payment_amount);
-		if (!price || !booking || !dp) return;
-		const remaining = price - booking;
-		if (remaining > 0) {
-			frm.set_value("down_payment_percentage", flt((dp / remaining * 100).toFixed(3)));
-		}
+		if (!price || !dp) return;
+		frm.set_value("down_payment_percentage", flt((dp / price * 100).toFixed(3)));
 		frm.trigger("_recalc_installment");
 	},
 
@@ -212,12 +225,11 @@ frappe.ui.form.on("Property Booking", {
 			}
 
 			frm.set_value("number_of_installments", n);
-			const remaining = price - booking;
 			const dp_pct = flt(frm.doc.down_payment_percentage) || 50;
 			if (!frm.doc.down_payment_percentage) frm.set_value("down_payment_percentage", 50);
-			const dp = flt((remaining * dp_pct / 100).toFixed(3));
+			const dp = flt((price * dp_pct / 100).toFixed(3));
 			frm.set_value("down_payment_amount", dp);
-			const after_dp = remaining - dp;
+			const after_dp = (price - booking) - dp;
 			if (n > 0 && after_dp > 0) frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
 		});
 	},

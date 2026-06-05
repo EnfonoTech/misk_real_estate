@@ -12,19 +12,11 @@ class PropertyBooking(Document):
         self.validate_duplicate_booking()
         self._check_unit_availability()
         self._compute_and_validate_total()
-        if self.docstatus == 0 and self.unit_price and self.booking_amount and self.payment_plan:
-            current_installment_rows = sum(
-                1 for r in self.pdc_schedule if r.installment_type == "Installment"
-            )
-            expected_installments = cint(self.number_of_installments)
-
-            if not self.pdc_schedule or current_installment_rows != expected_installments:
-                # First save or payment plan changed — regenerate full schedule
-                self.pdc_schedule = []
-                self.generate_pdc_schedule()
-            else:
-                # Same structure — only update amounts, preserve user-edited dates/cheque nos
-                self._update_schedule_amounts()
+        # Generate PDC schedule only on first save — never overwrite after that.
+        # Use "Regenerate PDC Schedule" button to rebuild manually if needed.
+        if self.docstatus == 0 and not self.pdc_schedule \
+                and self.unit_price and self.booking_amount and self.payment_plan:
+            self.generate_pdc_schedule()
 
     def before_submit(self):
         self.status = "Confirmed"
@@ -173,16 +165,15 @@ class PropertyBooking(Document):
         dp_pct = flt(self.down_payment_percentage)
 
         if dp_amount > 0:
-            # Amount entered — back-calculate percentage
-            if remaining > 0:
-                self.down_payment_percentage = round(dp_amount / remaining * 100, 3)
+            # Amount entered — back-calculate % against full unit_price
+            self.down_payment_percentage = round(dp_amount / unit_price * 100, 3)
         elif dp_pct > 0:
-            # Percentage entered — calculate amount
-            self.down_payment_amount = round(remaining * dp_pct / 100, 3)
+            # Percentage entered — calculate amount against full unit_price
+            self.down_payment_amount = round(unit_price * dp_pct / 100, 3)
         else:
-            # Neither set — default to 50%
+            # Neither set — default to 50% of unit_price
             self.down_payment_percentage = 50
-            self.down_payment_amount = round(remaining * 0.50, 3)
+            self.down_payment_amount = round(unit_price * 0.50, 3)
 
         after_dp = remaining - flt(self.down_payment_amount)
         n = cint(self.number_of_installments)
@@ -283,13 +274,30 @@ class PropertyBooking(Document):
 
     def _compute_and_validate_total(self):
         self.total_amount = flt(self.unit_price) + flt(self.owners_association_fee)
+        if self.pdc_schedule:
+            schedule_total = sum(flt(r.amount) for r in self.pdc_schedule)
+            diff = abs(schedule_total - self.total_amount)
+            if diff > 0.01:
+                frappe.msgprint(
+                    _("PDC Schedule total ({0} OMR) does not match Unit Price + OA Fee ({1} OMR). "
+                      "Difference: {2} OMR.").format(
+                        round(schedule_total, 3),
+                        round(self.total_amount, 3),
+                        round(diff, 3),
+                    ),
+                    title=_("Amount Mismatch"),
+                    indicator="orange",
+                )
 
     def _update_schedule_amounts(self):
-        """Recalculate amounts in existing PDC Schedule rows without touching dates or cheque numbers."""
+        """
+        Recalculate amounts for header rows only.
+        Installment rows are left untouched so user can manually adjust
+        individual amounts (e.g. last installment as rounding remainder).
+        """
         amount_map = {
-            "Booking Amount":       flt(self.booking_amount),
-            "Down Payment":         flt(self.down_payment_amount),
-            "Installment":          flt(self.monthly_installment),
+            "Booking Amount":         flt(self.booking_amount),
+            "Down Payment":           flt(self.down_payment_amount),
             "Owners Association Fee": flt(self.owners_association_fee),
         }
         for row in self.pdc_schedule:
@@ -309,6 +317,19 @@ class PropertyBooking(Document):
 
 
 # ── Whitelisted API ───────────────────────────────────────────────────────────
+
+@frappe.whitelist()
+def regenerate_pdc_schedule(booking_name):
+    """Clear and rebuild the PDC Schedule. Called from UI button."""
+    frappe.has_permission("Property Booking", "write", throw=True)
+    booking = frappe.get_doc("Property Booking", booking_name)
+    if booking.docstatus != 0:
+        frappe.throw(_("PDC Schedule can only be regenerated on a Draft booking."))
+    booking.pdc_schedule = []
+    booking.generate_pdc_schedule()
+    booking.save(ignore_permissions=True)
+    frappe.msgprint(_("PDC Schedule regenerated."), alert=True)
+
 
 @frappe.whitelist()
 def trigger_invoice_generation(booking_name):
@@ -529,7 +550,7 @@ def create_bookings_from_quotation(quotation_name):
             "down_payment_percentage": dp_pct or None,
             "booking_date": today(),
             "company": company,
-            "invoice_generation": "Monthly (Cron)",
+            "invoice_generation": "Monthly",
             "status": "Draft",
         })
         booking.flags.ignore_permissions = True

@@ -10,9 +10,10 @@ from frappe.utils import getdate, today, add_days
 
 def run():
     """
-    Entry point called by Frappe scheduler (monthly_long).
-    Also callable manually: bench --site <site> execute
-      misk_real_estate.pdc_management.cron.auto_invoice.run
+    Entry point called by Frappe scheduler (daily_long).
+    Creates Sales Invoices for all PDC Schedule rows whose cheque_date <= today.
+    Each invoice is raised on its own cheque date — no fixed day-of-month needed.
+    Callable manually: bench --site <site> execute misk_real_estate.pdc_management.cron.auto_invoice.run
     """
     _generate_due_invoices()
 
@@ -44,7 +45,7 @@ def _generate_due_invoices():
         FROM `tabPDC Schedule` ps
         INNER JOIN `tabProperty Booking` pb ON pb.name = ps.parent
         WHERE pb.docstatus = 1
-          AND (pb.invoice_generation = 'Monthly (Cron)' OR pb.invoice_generation IS NULL OR pb.invoice_generation = '')
+          AND (pb.invoice_generation = 'Monthly' OR pb.invoice_generation IS NULL OR pb.invoice_generation = '')
           AND ps.cheque_date <= %(today)s
           AND (ps.sales_invoice IS NULL OR ps.sales_invoice = '')
           AND ps.status NOT IN ('Cleared', 'Bounced', 'Cancelled')

@@ -13,18 +13,18 @@ frappe.ui.form.on("Quotation", {
 frappe.ui.form.on("Quotation Item", {
 	down_payment_percentage(frm, cdt, cdn) {
 		const row = locals[cdt][cdn];
-		const remaining = flt(row.rate) - flt(row.booking_amount);
-		if (!remaining || !row.down_payment_percentage) return;
-		const dp = flt((remaining * flt(row.down_payment_percentage) / 100).toFixed(3));
-		frappe.model.set_value(cdt, cdn, "down_payment_amount", dp);
+		const price = flt(row.rate);
+		if (!price || !row.down_payment_percentage) return;
+		frappe.model.set_value(cdt, cdn, "down_payment_amount",
+			flt((price * flt(row.down_payment_percentage) / 100).toFixed(3)));
 	},
 
 	down_payment_amount(frm, cdt, cdn) {
 		const row = locals[cdt][cdn];
-		const remaining = flt(row.rate) - flt(row.booking_amount);
-		if (!remaining || !row.down_payment_amount) return;
-		const pct = flt((flt(row.down_payment_amount) / remaining * 100).toFixed(3));
-		frappe.model.set_value(cdt, cdn, "down_payment_percentage", pct);
+		const price = flt(row.rate);
+		if (!price || !row.down_payment_amount) return;
+		frappe.model.set_value(cdt, cdn, "down_payment_percentage",
+			flt((flt(row.down_payment_amount) / price * 100).toFixed(3)));
 	},
 
 	building(frm, cdt, cdn) {

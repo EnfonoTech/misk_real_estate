@@ -19,21 +19,19 @@
    "fieldtype": "Int",
    "label": "Down Payment Cheque — Days After Booking",
    "default": "2",
-   "reqd": 1,
-   "description": "Number of days after the booking date that the down payment cheque is dated (BRD 3.2: 2 days)"
+   "reqd": 1
   },
   {
    "fieldname": "installment_start_months",
    "fieldtype": "Int",
    "label": "Installments Start — Months After Booking",
    "default": "1",
-   "reqd": 1,
-   "description": "Month offset for the first monthly installment cheque (1 = one month after booking date)"
+   "reqd": 1
   }
  ],
  "issingle": 1,
  "links": [],
- "modified": "2026-06-04 00:00:00.000000",
+ "modified": "2026-06-05 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Misk Real Estate Settings",

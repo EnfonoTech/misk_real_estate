@@ -38,7 +38,6 @@
    "in_list_view": 1,
    "label": "Amount",
    "reqd": 1,
-   "read_only": 1,
    "columns": 2
   },
   {
