@@ -183,6 +183,14 @@ frappe.ui.form.on("Property Booking", {
 
 	price_list(frm) {
 		_fetch_unit_price(frm);
+		// Auto-fetch default down payment % from Price List
+		if (frm.doc.price_list) {
+			frappe.db.get_value("Price List", frm.doc.price_list, "down_payment_percentage", (r) => {
+				if (r && r.down_payment_percentage) {
+					frm.set_value("down_payment_percentage", r.down_payment_percentage);
+				}
+			});
+		}
 	},
 
 	// ── Live calculation ──────────────────────────────────────────────────────

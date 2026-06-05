@@ -32,7 +32,7 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Employee", "Item", "Quotation", "Quotation Item"]]
+            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Employee", "Item", "Quotation", "Quotation Item", "Price List"]]
         ]
     },
     {

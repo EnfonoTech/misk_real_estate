@@ -538,6 +538,16 @@
  },
  {
   "doctype": "Custom Field",
+  "dt": "Price List",
+  "fieldname": "down_payment_percentage",
+  "fieldtype": "Percent",
+  "label": "Default Down Payment %",
+  "insert_after": "enabled",
+  "name": "Price List-down_payment_percentage",
+  "modified": "2026-06-05 00:00:00.000000"
+ },
+ {
+  "doctype": "Custom Field",
   "dt": "Quotation",
   "fieldname": "total_oa_fee",
   "fieldtype": "Currency",

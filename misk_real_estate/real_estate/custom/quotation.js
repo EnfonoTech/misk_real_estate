@@ -30,10 +30,12 @@ frappe.ui.form.on("Quotation Item", {
 		frappe.model.set_value(cdt, cdn, "rate", 0);
 	},
 
-	// Price List selected — filter to unit's price lists + fetch rate
+	// Price List selected — fetch rate then DP%, then calculate in sequence
 	price_list(frm, cdt, cdn) {
 		const row = locals[cdt][cdn];
 		if (!row.item_code || !row.price_list) return;
+
+		// 1. Fetch rate first
 		frappe.db.get_value(
 			"Item Price",
 			{ item_code: row.item_code, price_list: row.price_list },
@@ -42,6 +44,19 @@ frappe.ui.form.on("Quotation Item", {
 				if (r && r.price_list_rate) {
 					frappe.model.set_value(cdt, cdn, "rate", r.price_list_rate);
 				}
+				// 2. Then fetch DP% and calculate (rate is now in locals)
+				frappe.db.get_value("Price List", row.price_list, "down_payment_percentage", (dp) => {
+					if (!dp || !dp.down_payment_percentage) return;
+					frappe.model.set_value(cdt, cdn, "down_payment_percentage", dp.down_payment_percentage);
+					const updated = locals[cdt][cdn];
+					const price = flt(updated.rate);
+					const pct = flt(updated.down_payment_percentage);
+					if (price && pct) {
+						frappe.model.set_value(cdt, cdn, "down_payment_amount",
+							flt((price * pct / 100).toFixed(3)));
+						_recalc_row(cdt, cdn);
+					}
+				});
 			}
 		);
 	},
