@@ -9,7 +9,7 @@ from frappe.utils import cint, flt, cstr, today, add_days, add_months, getdate
 class PropertyBooking(Document):
     def validate(self):
         # Auto-fill taxes_and_charges only on new documents (don't override if user cleared it)
-        if self.is_new() and not self.taxes_and_charges and self.company:
+        if self.is_new() and not self.taxes_and_charges and self.company and not self.quotation:
             self.taxes_and_charges = _get_default_taxes(self.company)
         self.calculate_payment_schedule()
         self.validate_duplicate_booking()
@@ -247,33 +247,22 @@ class PropertyBooking(Document):
             self.append("pdc_schedule", self._pdc_row(seq, "Owners Association Fee", last_inst_date, flt(self.owners_association_fee), breakdown=oa_bd))
 
     def _compute_and_validate_total(self):
-        self.total_amount = flt(self.unit_price) + flt(self.owners_association_fee)
+        unit_price = flt(self.unit_price)
+        oa_fee = flt(self.owners_association_fee)
 
-        # Compute tax amount from the selected taxes_and_charges template
-        tax_amount = 0.0
-        is_inclusive = False
-        if self.taxes_and_charges:
-            tax_rows = frappe.db.get_all(
-                "Sales Taxes and Charges",
-                filters={"parent": self.taxes_and_charges, "parenttype": "Sales Taxes and Charges Template"},
-                fields=["rate", "included_in_print_rate", "charge_type"],
-            )
-            for tax in tax_rows:
-                if tax.charge_type in ("On Net Total", "On Previous Row Total"):
-                    if not tax.included_in_print_rate:
-                        tax_amount += flt(self.unit_price) * flt(tax.rate) / 100
-                    else:
-                        # Inclusive: extract tax portion for display
-                        tax_amount += flt(self.unit_price) - flt(self.unit_price) / (1 + flt(tax.rate) / 100)
-                        is_inclusive = True
+        self.total_amount = unit_price + oa_fee  # pre-tax subtotal
 
-        self.tax_amount = round(tax_amount, 3)
-        # Exclusive: grand total = unit + tax + OA fee
-        # Inclusive: tax already in unit_price, so grand total = total_amount
-        if is_inclusive:
-            self.total_after_tax = self.total_amount
+        # Unit price tax (taxes_and_charges if set, else unit item's Item Tax Template)
+        _net, unit_tax, unit_total = self._get_unit_tax_breakdown(unit_price)
+
+        # OA fee tax (uses OA-FEE item's Item Tax Template, falls back to taxes_and_charges)
+        if oa_fee:
+            _net, oa_tax, oa_total = self._get_oa_tax_breakdown(oa_fee)
         else:
-            self.total_after_tax = round(flt(self.total_amount) + tax_amount, 3)
+            oa_tax, oa_total = 0.0, 0.0
+
+        self.tax_amount = round(unit_tax + oa_tax, 3)
+        self.total_after_tax = round(unit_total + oa_total, 3)
 
         if self.pdc_schedule:
             schedule_total = round(sum(flt(r.amount) for r in self.pdc_schedule), 3)
@@ -290,55 +279,44 @@ class PropertyBooking(Document):
 
     def _get_oa_tax_breakdown(self, base_amount):
         """
-        Get tax breakdown for OA Fee row.
+        Tax breakdown for OA Fee row.
         Priority:
-          1. OA-FEE item's Item Tax Template rate (from Misk Real Estate Settings.oa_fee_item)
-          2. Fallback: booking's taxes_and_charges template (same as unit)
+          1. OA-FEE item's Item Tax Template
+          2. OA-FEE item's item_group Item Tax Template
+          3. Fallback: booking's taxes_and_charges template
         Item Tax Template rates are always exclusive (added on top of base).
         """
         settings = frappe.get_cached_doc("Misk Real Estate Settings")
         oa_item = getattr(settings, "oa_fee_item", None)
 
         if oa_item:
-            # Read the item's first Item Tax Template
-            item_tax_template = frappe.db.get_value(
-                "Item Tax", {"parent": oa_item}, "item_tax_template"
-            )
-            if item_tax_template:
-                rate_rows = frappe.db.get_all(
-                    "Item Tax Template Detail",
-                    filters={"parent": item_tax_template},
-                    fields=["tax_rate"],
-                )
-                oa_rate = sum(flt(r.tax_rate) for r in rate_rows)
-                if oa_rate:
-                    # Item Tax Template → exclusive (added on top)
+            rate = _item_tax_rate(oa_item)
+            if rate is None:
+                # No template on item → check item group
+                item_group = frappe.db.get_value("Item", oa_item, "item_group")
+                if item_group:
+                    rate = _item_tax_rate(item_group)
+            if rate is not None:
+                # Template explicitly defined (even if 0%) → use it, don't fall through
+                if rate:
                     net   = flt(base_amount)
-                    tax   = round(net * oa_rate / 100, 3)
+                    tax   = round(net * rate / 100, 3)
                     total = round(net + tax, 3)
                     return net, tax, total
                 else:
-                    # Template exists but 0% → exempt
                     return flt(base_amount), 0.0, flt(base_amount)
-            else:
-                # No Item Tax Template on OA-FEE item → check if user explicitly set no tax
-                # If no template at all → exempt
-                all_templates = frappe.db.get_all("Item Tax", filters={"parent": oa_item}, fields=["name"])
-                if not all_templates:
-                    # No tax templates defined on item — use booking taxes_and_charges as fallback
-                    return self._get_tax_breakdown(base_amount)
 
-        # No oa_fee_item set → fallback to booking taxes_and_charges
+        # No oa_fee_item or no template anywhere → fall back to booking taxes_and_charges
         return self._get_tax_breakdown(base_amount)
 
     def _pdc_row(self, seq, installment_type, cheque_date, base_amount, cheque_no="", breakdown=None):
         """Build a PDC Schedule row dict with tax breakdown applied to base_amount.
-        breakdown: optional (net, tax, total) tuple; if None, uses _get_tax_breakdown.
+        breakdown: optional (net, tax, total) tuple; if None, uses _get_unit_tax_breakdown.
         """
         if breakdown:
             net, tax, total = breakdown
         else:
-            net, tax, total = self._get_tax_breakdown(base_amount)
+            net, tax, total = self._get_unit_tax_breakdown(base_amount)
         return {
             "sequence_no":    seq,
             "installment_type": installment_type,
@@ -349,6 +327,27 @@ class PropertyBooking(Document):
             "cheque_no":      cheque_no,
             "status":         "Pending",
         }
+
+    def _get_unit_tax_breakdown(self, base_amount):
+        """Tax breakdown for unit price rows.
+        Uses taxes_and_charges template if set (handles inclusive/exclusive).
+        Falls back to: unit item's Item Tax Template → item group's Item Tax Template.
+        """
+        if self.taxes_and_charges:
+            return self._get_tax_breakdown(base_amount)
+        if self.unit and base_amount:
+            rate = _item_tax_rate(self.unit)
+            if rate is None:
+                # Check item group
+                item_group = frappe.db.get_value("Item", self.unit, "item_group")
+                if item_group:
+                    rate = _item_tax_rate(item_group)
+            if rate:
+                net   = flt(base_amount)
+                tax   = round(net * rate / 100, 3)
+                total = round(net + tax, 3)
+                return net, tax, total
+        return flt(base_amount), 0.0, flt(base_amount)
 
     def _get_tax_breakdown(self, base_amount):
         """Return (net_amount, tax_amount, total_cheque_amount).
@@ -384,19 +383,22 @@ class PropertyBooking(Document):
         return net, tax, total
 
     def _update_schedule_amounts(self):
-        """Recalculate amounts for header rows only, including tax breakdown."""
-        base_map = {
-            "Booking Amount":         flt(self.booking_amount),
-            "Down Payment":           flt(self.down_payment_amount),
-            "Owners Association Fee": flt(self.owners_association_fee),
-        }
+        """Recalculate amounts for fixed rows, using the correct breakdown per row type."""
         for row in self.pdc_schedule:
-            base = base_map.get(row.installment_type)
-            if base is not None:
-                net, tax, total = self._get_tax_breakdown(base)
-                row.net_amount = net
-                row.tax_amount = tax
-                row.amount     = total
+            if row.installment_type == "Owners Association Fee":
+                base = flt(self.owners_association_fee)
+                net, tax, total = self._get_oa_tax_breakdown(base)
+            elif row.installment_type == "Booking Amount":
+                base = flt(self.booking_amount)
+                net, tax, total = self._get_unit_tax_breakdown(base)
+            elif row.installment_type == "Down Payment":
+                base = flt(self.down_payment_amount)
+                net, tax, total = self._get_unit_tax_breakdown(base)
+            else:
+                continue
+            row.net_amount = net
+            row.tax_amount = tax
+            row.amount     = total
 
     def _cancel_pdc_entries(self):
         """Cancel linked PDC Entries that haven't been cleared."""
@@ -708,6 +710,21 @@ def get_price_lists_for_unit(doctype, txt, searchfield, start, page_len, filters
     """, {"unit": unit, "txt": f"%{txt}%", "page_len": page_len, "start": start})
 
 
+def _item_tax_rate(parent):
+    """Return sum of tax rates from an Item Tax Template linked to parent (Item or Item Group).
+    Returns None if no template is defined, 0.0 if template exists but rate is 0.
+    """
+    item_tax_template = frappe.db.get_value("Item Tax", {"parent": parent}, "item_tax_template")
+    if not item_tax_template:
+        return None
+    rate_rows = frappe.db.get_all(
+        "Item Tax Template Detail",
+        filters={"parent": item_tax_template},
+        fields=["tax_rate"],
+    )
+    return sum(flt(r.tax_rate) for r in rate_rows)
+
+
 def _get_default_taxes(company):
     """Return the default Sales Taxes and Charges Template (is_default=1) for company."""
     return frappe.db.get_value(
@@ -718,17 +735,28 @@ def _get_default_taxes(company):
 
 
 @frappe.whitelist()
-def get_tax_rate_from_template(taxes_and_charges):
-    """Return the effective tax rate from a Sales Taxes and Charges Template."""
-    rows = frappe.db.get_all(
-        "Sales Taxes and Charges",
-        filters={"parent": taxes_and_charges, "parenttype": "Sales Taxes and Charges Template"},
-        fields=["rate", "charge_type"],
-    )
-    return sum(
-        flt(r.rate) for r in rows
-        if r.charge_type in ("On Net Total", "On Previous Row Total")
-    )
+def get_tax_rate_from_template(taxes_and_charges, unit=None):
+    """Return the effective tax rate for the unit.
+    Priority: taxes_and_charges template → unit Item Tax Template → item group Item Tax Template.
+    """
+    if taxes_and_charges:
+        rows = frappe.db.get_all(
+            "Sales Taxes and Charges",
+            filters={"parent": taxes_and_charges, "parenttype": "Sales Taxes and Charges Template"},
+            fields=["rate", "charge_type"],
+        )
+        return sum(flt(r.rate) for r in rows if r.charge_type in ("On Net Total", "On Previous Row Total"))
+
+    if unit:
+        rate = _item_tax_rate(unit)
+        if rate is None:
+            item_group = frappe.db.get_value("Item", unit, "item_group")
+            if item_group:
+                rate = _item_tax_rate(item_group)
+        if rate:
+            return rate
+
+    return 0
 
 
 @frappe.whitelist()

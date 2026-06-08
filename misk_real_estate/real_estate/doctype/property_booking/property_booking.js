@@ -155,7 +155,8 @@ frappe.ui.form.on("Property Booking", {
 	},
 
 	company(frm) {
-		if (frm.doc.company && !frm.doc.taxes_and_charges) {
+		// Only auto-fill default tax template when NOT coming from a Quotation
+		if (frm.doc.company && !frm.doc.taxes_and_charges && !frm.doc.quotation) {
 			frappe.call({
 				method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_default_taxes_for_company",
 				args: { company: frm.doc.company },
@@ -198,6 +199,9 @@ frappe.ui.form.on("Property Booking", {
 			frm.set_value("price_list", "");
 			frm.set_value("unit_price", "");
 		}
+		// Reset tax cache — unit's Item Tax Template may differ
+		frm._tax_rate = undefined;
+		_cache_tax_rate(frm);
 		_fetch_unit_price(frm);
 	},
 
@@ -240,7 +244,7 @@ frappe.ui.form.on("Property Booking", {
 		const n = cint(frm.doc.number_of_installments);
 		const price = flt(frm.doc.unit_price), booking = flt(frm.doc.booking_amount);
 		const dp = flt(frm.doc.down_payment_amount);
-		if (!n || !price || !booking) return;
+		if (!n || !price) return;
 		const after_dp = (price - booking) - dp;
 		if (after_dp > 0) frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
 	},
@@ -251,7 +255,7 @@ frappe.ui.form.on("Property Booking", {
 			["number_of_installments", "is_full_payment"], (r) => {
 			if (!r) return;
 			const price = flt(frm.doc.unit_price), booking = flt(frm.doc.booking_amount);
-			if (!price || !booking) return;
+			if (!price) return;
 
 			const n = (!r.is_full_payment && r.number_of_installments) ? r.number_of_installments : 0;
 
@@ -344,14 +348,17 @@ function _check_pdc_total(frm) {
 
 // ── Cache tax rate for PDC Schedule inline calculation ───────────────────────
 function _cache_tax_rate(frm, callback) {
-	if (!frm.doc.taxes_and_charges) {
+	if (!frm.doc.taxes_and_charges && !frm.doc.unit) {
 		frm._tax_rate = 0;
 		if (callback) callback();
 		return;
 	}
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_tax_rate_from_template",
-		args: { taxes_and_charges: frm.doc.taxes_and_charges },
+		args: {
+			taxes_and_charges: frm.doc.taxes_and_charges || "",
+			unit: frm.doc.unit || "",
+		},
 		callback(r) {
 			frm._tax_rate = flt(r.message) || 0;
 			if (callback) callback();

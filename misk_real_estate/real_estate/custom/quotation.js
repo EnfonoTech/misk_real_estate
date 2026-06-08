@@ -111,6 +111,7 @@ function _open_new_booking(frm, item) {
 		unit_price:         item.rate || 0,
 		payment_plan:       item.payment_plan || frm.doc.payment_plan || "",
 		price_list:         item.price_list || frm.doc.selling_price_list || "",
+		taxes_and_charges:  frm.doc.taxes_and_charges || "",
 		booking_amount:     item.booking_amount || 0,
 		down_payment_percentage: item.down_payment_percentage || 0,
 		down_payment_amount: item.down_payment_amount || 0,
