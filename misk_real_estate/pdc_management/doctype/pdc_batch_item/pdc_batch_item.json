@@ -20,7 +20,7 @@
    "label": "PDC Entry",
    "options": "PDC Entry",
    "reqd": 1,
-   "columns": 3
+   "columns": 2
   },
   {
    "fetch_from": "pdc_entry.cheque_no",
@@ -38,7 +38,7 @@
    "in_list_view": 1,
    "label": "Cheque Date",
    "read_only": 1,
-   "columns": 2
+   "columns": 1
   },
   {
    "fetch_from": "pdc_entry.customer",
@@ -48,7 +48,7 @@
    "label": "Customer",
    "options": "Customer",
    "read_only": 1,
-   "columns": 3
+   "columns": 2
   },
   {
    "fetch_from": "pdc_entry.amount",
@@ -66,7 +66,7 @@
    "in_list_view": 1,
    "label": "Status",
    "read_only": 1,
-   "columns": 2
+   "columns": 1
   }
  ],
  "index_web_pages_for_search": 0,

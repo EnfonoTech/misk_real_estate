@@ -56,6 +56,9 @@ def mark_cleared(pdc_entry_name, cleared_date=None):
     if entry.gl_posted:
         frappe.throw(_("GL already posted for {0}.").format(pdc_entry_name))
 
+    if not entry.sales_invoice:
+        frappe.throw(_("Cannot create Payment Entry for {0}: no Sales Invoice linked. Create an invoice first.").format(pdc_entry_name))
+
     pe_name = _create_payment_entry(entry, cleared_date or today())
     entry.status = "Cleared"
     entry.cleared_date = cleared_date or today()
@@ -116,13 +119,11 @@ def _create_payment_entry(pdc_entry, payment_date):
         "paid_to": bank_account,
         "paid_to_account_currency": account_currency,
         "paid_from": receivable_account,
-        "mode_of_payment": "Cheque",
+        "mode_of_payment": getattr(pdc_entry, "mode_of_payment", None) or "Cheque",
         "reference_no": pdc_entry.cheque_no,
         "reference_date": pdc_entry.cheque_date,
         "remarks": f"PDC Clearance — {pdc_entry.cheque_no} / Booking: {pdc_entry.booking or 'N/A'}",
         "property_booking": pdc_entry.booking or "",
-        "cheque_no": pdc_entry.cheque_no,
-        "cheque_date": pdc_entry.cheque_date,
         "cheque_status": "Cleared",
     })
 
@@ -257,11 +258,17 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
 
 
 def _get_bank_account(pdc_entry, company):
-    """Get bank account from linked batch, PDC Entry's own field, or company default."""
-    if pdc_entry.batch:
-        bank_account = frappe.db.get_value("PDC Batch", pdc_entry.batch, "bank_account")
-        if bank_account:
-            return bank_account
-    if getattr(pdc_entry, "bank_account", None):
-        return pdc_entry.bank_account
+    """Get bank account: PDC Entry MOP → batch MOP → company default."""
+    for mop in [
+        getattr(pdc_entry, "mode_of_payment", None),
+        frappe.db.get_value("PDC Batch", pdc_entry.batch, "mode_of_payment") if pdc_entry.batch else None,
+    ]:
+        if mop:
+            mop_account = frappe.db.get_value(
+                "Mode of Payment Account",
+                {"parent": mop, "company": company},
+                "default_account",
+            )
+            if mop_account:
+                return mop_account
     return frappe.db.get_value("Company", company, "default_bank_account")

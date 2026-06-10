@@ -8,6 +8,10 @@ from frappe.utils import flt, today
 
 class PDCBatch(Document):
     def validate(self):
+        if not self.mode_of_payment:
+            self.mode_of_payment = frappe.db.get_single_value(
+                "Misk Real Estate Settings", "pdc_payment_mode"
+            )
         self._validate_items()
         self._calc_totals()
 

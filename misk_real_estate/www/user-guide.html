@@ -602,7 +602,7 @@
         </div>
         Property Booking
       </div>
-      <div class="section-subtitle">Full lifecycle: Draft → Submit → PDC Entries → Invoices → Converted.</div>
+      <div class="section-subtitle">Full lifecycle: Draft → Submit → PDC Entries → Invoices → Closed.</div>
 
       <!-- Flow -->
       <div class="flow-diagram">
@@ -612,7 +612,7 @@
         <div class="flow-arrow">→</div>
         <div class="flow-node badge purple"><span class="dot"></span>PDC Created</div>
         <div class="flow-arrow">→</div>
-        <div class="flow-node badge green"><span class="dot"></span>Converted</div>
+        <div class="flow-node badge green"><span class="dot"></span>Closed</div>
       </div>
 
       <div class="steps">
@@ -712,7 +712,7 @@
             <p style="margin-top:12px;font-size:13px;font-weight:700;color:#1e293b;">Actions dropdown</p>
             <ul>
               <li><strong>Generate Invoices Now</strong> — only visible for <em>All at Once</em> bookings where Sales Invoices have not yet been created; re-queues invoice generation as a background job</li>
-              <li><strong>Mark Unit Sold</strong> — only visible when all PDC schedule rows are Cleared or Cancelled; marks the unit as Sold and the booking as Converted</li>
+              <li><strong>Mark Unit Sold</strong> — only visible when all PDC schedule rows are Cleared or Cancelled; marks the unit as Sold and the booking as Closed</li>
             </ul>
 
             <p style="margin-top:12px;font-size:13px;font-weight:700;color:#1e293b;">PDC group</p>
@@ -789,7 +789,7 @@
               <p>Opens a confirmation dialog. Confirm to proceed.</p>
               <div class="info-box green">
                 <svg viewBox="0 0 24 24" stroke-width="2"><polyline points="9 11 12 14 22 4"/></svg>
-                Two things happen simultaneously: the <strong>Unit's status</strong> is set to <span class="badge green" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Sold</span> in the Item master, and the <strong>Booking status</strong> moves to <span class="badge green" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Converted</span>.
+                Two things happen simultaneously: the <strong>Unit's status</strong> is set to <span class="badge green" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Sold</span> in the Item master, and the <strong>Booking status</strong> moves to <span class="badge green" style="font-size:11px;padding:2px 8px;display:inline-flex;"><span class="dot"></span>Closed</span>.
               </div>
             </div>
           </div>
@@ -1347,7 +1347,7 @@
       <div class="badge-grid">
         <div class="badge grey"><span class="dot"></span>Draft — saved, not confirmed</div>
         <div class="badge blue"><span class="dot"></span>Confirmed — submitted</div>
-        <div class="badge green"><span class="dot"></span>Converted — all PDC rows cleared, unit marked Sold</div>
+        <div class="badge green"><span class="dot"></span>Closed — all PDC rows cleared, unit marked Sold</div>
         <div class="badge red"><span class="dot"></span>Cancelled</div>
       </div>
 

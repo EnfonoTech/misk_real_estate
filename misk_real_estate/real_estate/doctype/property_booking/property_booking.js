@@ -101,10 +101,31 @@ frappe.ui.form.on("Property Booking", {
 			}, __("Actions"));
 		}
 
+		// Create Missing Invoices — manual fallback when auto-creation failed or user wants draft review
+		const missing_si = (frm.doc.pdc_schedule || []).some(r => !r.sales_invoice && r.status !== "Cancelled");
+		if (missing_si) {
+			frm.add_custom_button(__("Create Missing Invoices"), () => {
+				frappe.confirm(
+					__("Create draft Sales Invoices for all PDC rows that don't have one yet? You can review and submit them before they become final."),
+					() => {
+						frappe.call({
+							method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.create_missing_invoices",
+							args: { booking_name: frm.doc.name },
+							freeze: true,
+							freeze_message: __("Creating draft invoices..."),
+							callback(r) {
+								if (!r.exc) frm.reload_doc();
+							},
+						});
+					}
+				);
+			}, __("Actions"));
+		}
+
 		// Mark as Sold — when all PDCs cleared and unit not yet sold
 		const all_cleared = (frm.doc.pdc_schedule || []).length > 0 &&
 			(frm.doc.pdc_schedule || []).every(r => ["Cleared", "Cancelled"].includes(r.status));
-		if (all_cleared && frm.doc.status !== "Converted") {
+		if (all_cleared && frm.doc.status !== "Closed") {
 			frm.add_custom_button(__("Mark Unit Sold"), () => {
 				frappe.confirm(
 					__("Mark unit {0} as Sold? This cannot be undone.", [frm.doc.unit]),
@@ -141,7 +162,7 @@ frappe.ui.form.on("Property Booking", {
 
 		// Status indicator badge
 		const colors = {
-			"Draft": "grey", "Confirmed": "blue", "Converted": "green", "Cancelled": "red"
+			"Draft": "grey", "Confirmed": "blue", "Closed": "green", "Cancelled": "red"
 		};
 		frm.page.set_indicator(frm.doc.status, colors[frm.doc.status] || "grey");
 
@@ -341,7 +362,7 @@ function _check_pdc_total(frm) {
 			"orange"
 		);
 	} else {
-		const colors = { "Draft": "grey", "Confirmed": "blue", "Converted": "green", "Cancelled": "red" };
+		const colors = { "Draft": "grey", "Confirmed": "blue", "Closed": "green", "Cancelled": "red" };
 		frm.page.set_indicator(frm.doc.status, colors[frm.doc.status] || "grey");
 	}
 }
@@ -377,16 +398,26 @@ function _style_pdc_schedule(frm) {
 	setTimeout(() => {
 		const grid = frm.fields_dict.pdc_schedule && frm.fields_dict.pdc_schedule.grid;
 		if (!grid) return;
-		let prev_type = null;
-		grid.wrapper.find(".grid-row").each(function(idx) {
-			const row = frm.doc.pdc_schedule && frm.doc.pdc_schedule[idx];
+		const rows = frm.doc.pdc_schedule || [];
+
+		// Build name → row map for reliable lookup (index-based breaks due to Frappe's extra grid rows)
+		const rowMap = {};
+		rows.forEach(r => { rowMap[r.name] = r; });
+
+		grid.wrapper.find(".grid-row[data-name]").each(function() {
+			const row = rowMap[$(this).data("name")];
 			if (!row) return;
-			const type = row.installment_type;
-			$(this).find(".data-row").css("background-color", colors[type] || "#fff");
-			if (type !== prev_type && prev_type !== null) {
-				$(this).find(".data-row").css("border-top", "2px solid #d1d5db");
+			$(this).find(".data-row").css("background-color", colors[row.installment_type] || "#fff");
+		});
+
+		// Border between type groups
+		let prev_type = null;
+		rows.forEach(row => {
+			if (prev_type !== null && row.installment_type !== prev_type) {
+				grid.wrapper.find(`.grid-row[data-name="${row.name}"]`)
+					.find(".data-row").css("border-top", "2px solid #d1d5db");
 			}
-			prev_type = type;
+			prev_type = row.installment_type;
 		});
 	}, 400);
 }

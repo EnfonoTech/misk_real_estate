@@ -1,21 +1,18 @@
 // apps/misk_real_estate/misk_real_estate/pdc_management/doctype/pdc_batch/pdc_batch.js
 
-frappe.ui.form.on("PDC Batch", {
 
+frappe.ui.form.on("PDC Batch", {
 	onload(frm) {
+		frm.set_query("pdc_entry", "items", () => ({
+			filters: { status: "Pending" },
+		}));
 		if (frm.is_new()) {
 			const company = frappe.defaults.get_user_default("company")
 				|| frappe.defaults.get_global_default("company");
 			if (company && !frm.doc.company) {
 				frm.set_value("company", company);
-			} else if (frm.doc.company && !frm.doc.bank_account) {
-				_fetch_bank_account(frm);
 			}
 		}
-	},
-
-	company(frm) {
-		if (!frm.doc.bank_account) _fetch_bank_account(frm);
 	},
 
 	// ── Refresh — build action buttons based on state ─────────────────────────
@@ -67,11 +64,3 @@ frappe.ui.form.on("PDC Batch", {
 	},
 });
 
-function _fetch_bank_account(frm) {
-	if (!frm.doc.company) return;
-	frappe.db.get_value("Company", frm.doc.company, "default_bank_account", (r) => {
-		if (r && r.default_bank_account) {
-			frm.set_value("bank_account", r.default_bank_account);
-		}
-	});
-}

@@ -30,11 +30,11 @@ class PropertyBooking(Document):
 
     def on_submit(self):
         self._set_unit_status("Booked")
-        # Always create SIs immediately for Booking Amount and Down Payment
         self._create_upfront_invoices()
-        # Installments follow invoice_generation setting
         if self.invoice_generation == "All at Once":
             self._generate_all_invoices_now()
+        if self.quotation:
+            self._update_quotation_status()
 
     def _create_upfront_invoices(self):
         """Create Sales Invoices immediately on submit for Booking Amount and Down Payment rows."""
@@ -54,6 +54,7 @@ class PropertyBooking(Document):
                         "booking": self.name,
                         "cheque_date": row.cheque_date or today(),
                         "amount": row.amount,
+                        "net_amount": row.net_amount,
                         "cheque_no": row.cheque_no or "",
                         "installment_type": row.installment_type,
                         "customer": self.customer,
@@ -72,6 +73,9 @@ class PropertyBooking(Document):
         self.status = "Cancelled"
         self._cancel_pdc_entries()
         self._set_unit_status("Available")
+        if self.quotation:
+            self._clear_quotation_booking_link()
+            self._update_quotation_status()
 
     # ── Validation ────────────────────────────────────────────────────────────
 
@@ -400,6 +404,39 @@ class PropertyBooking(Document):
             row.tax_amount = tax
             row.amount     = total
 
+    def _update_quotation_status(self):
+        """Set Quotation status: Ordered / Partially Ordered / Open based on linked bookings."""
+        settings = frappe.get_cached_doc("Misk Real Estate Settings")
+        oa_item = getattr(settings, "oa_fee_item", None)
+
+        items = frappe.get_all(
+            "Quotation Item",
+            filters={"parent": self.quotation},
+            fields=["item_code", "property_booking"],
+        )
+        unit_lines = [i for i in items if i.item_code != oa_item]
+        if not unit_lines:
+            return
+
+        converted = [i for i in unit_lines if i.property_booking]
+        if len(converted) == len(unit_lines):
+            status = "Ordered"
+        elif converted:
+            status = "Partially Ordered"
+        else:
+            status = "Open"
+
+        frappe.db.set_value("Quotation", self.quotation, "status", status)
+
+    def _clear_quotation_booking_link(self):
+        """On booking cancel, clear the property_booking link from its Quotation Item row."""
+        frappe.db.set_value(
+            "Quotation Item",
+            {"parent": self.quotation, "property_booking": self.name},
+            "property_booking",
+            "",
+        )
+
     def _cancel_pdc_entries(self):
         """Cancel linked PDC Entries that haven't been cleared."""
         pdc_entries = frappe.get_all(
@@ -464,11 +501,14 @@ def create_pdc_entries(booking_name):
     for row in booking.pdc_schedule:
         if row.pdc_entry:
             continue  # already has an entry
+        settings = frappe.get_cached_doc("Misk Real Estate Settings")
         entry = frappe.get_doc({
             "doctype": "PDC Entry",
             "cheque_no": row.cheque_no or f"TBC-{row.sequence_no}",
             "cheque_date": row.cheque_date,
             "amount": row.amount,
+            "installment_type": row.installment_type or "",
+            "mode_of_payment": getattr(settings, "pdc_payment_mode", None) or "",
             "customer": booking.customer,
             "building": booking.building,
             "unit": booking.unit,
@@ -513,17 +553,35 @@ def generate_invoices_for_booking(booking_name):
         type_label = row.installment_type or "Installment"
         description = f"{type_label} — Cheque {row.cheque_no or 'TBC'} — Due {formatdate(row.cheque_date)}"
 
+        from misk_real_estate.pdc_management.cron.auto_invoice import (
+            _invoice_item_rate, _build_tax_rows_from_item_template
+        )
+        taxes_and_charges = booking.taxes_and_charges or ""
+        if taxes_and_charges:
+            rate = _invoice_item_rate(
+                frappe._dict(amount=row.amount, net_amount=row.net_amount),
+                taxes_and_charges,
+            )
+            tax_rows = []
+        else:
+            tax_rows = _build_tax_rows_from_item_template(item_code)
+            rate = flt(row.net_amount or row.amount) if tax_rows else flt(row.amount)
+
+        posting_date = getdate(booking.booking_date)
+        due_date = max(posting_date, getdate(row.cheque_date)) if row.cheque_date else posting_date
+
         si = frappe.get_doc({
             "doctype": "Sales Invoice",
             "customer": booking.customer,
             "company": company,
-            "posting_date": booking.booking_date,
-            "due_date": row.cheque_date,
-            "taxes_and_charges": booking.taxes_and_charges or "",
+            "posting_date": posting_date,
+            "due_date": due_date,
+            "taxes_and_charges": taxes_and_charges,
+            "taxes": tax_rows,
             "items": [{
                 "item_code": item_code,
                 "qty": 1,
-                "rate": flt(row.amount),
+                "rate": rate,
                 "description": description,
             }],
             "custom_pdc_schedule_row": row.name,
@@ -540,6 +598,89 @@ def generate_invoices_for_booking(booking_name):
 
     frappe.db.commit()
     frappe.logger().info(f"generate_invoices_for_booking: completed for {booking_name}")
+
+
+@frappe.whitelist()
+def create_missing_invoices(booking_name):
+    """
+    Manually create Sales Invoices (as Draft) for all PDC Schedule rows
+    that don't yet have one. Allows recovery when auto-creation failed,
+    or lets user create invoices manually before the cron runs.
+    Invoices are saved as Draft — user must submit them after review.
+    """
+    frappe.has_permission("Property Booking", "write", throw=True)
+    booking = frappe.get_doc("Property Booking", booking_name)
+    if booking.docstatus != 1:
+        frappe.throw(_("Booking must be submitted."))
+
+    from misk_real_estate.pdc_management.cron.auto_invoice import (
+        _invoice_item_rate, _build_tax_rows_from_item_template
+    )
+    from frappe.utils import formatdate
+
+    company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
+    settings = frappe.get_cached_doc("Misk Real Estate Settings")
+    oa_item = getattr(settings, "oa_fee_item", None)
+    taxes_and_charges = booking.taxes_and_charges or ""
+
+    created = []
+    for row in booking.pdc_schedule:
+        if row.sales_invoice or row.status == "Cancelled":
+            continue
+
+        item_code = (oa_item if row.installment_type == "Owners Association Fee" and oa_item
+                     else booking.unit or _get_or_create_default_item(company))
+
+        if taxes_and_charges:
+            rate = _invoice_item_rate(
+                frappe._dict(amount=row.amount, net_amount=row.net_amount),
+                taxes_and_charges,
+            )
+            tax_rows = []
+        else:
+            tax_rows = _build_tax_rows_from_item_template(item_code)
+            rate = flt(row.net_amount or row.amount) if tax_rows else flt(row.amount)
+
+        posting_date = getdate(today())
+        due_date = max(posting_date, getdate(row.cheque_date)) if row.cheque_date else posting_date
+        description = (f"{row.installment_type or 'Installment'} — "
+                       f"Cheque {row.cheque_no or 'TBC'} — Due {formatdate(row.cheque_date)}")
+
+        si = frappe.get_doc({
+            "doctype": "Sales Invoice",
+            "customer": booking.customer,
+            "company": company,
+            "posting_date": posting_date,
+            "due_date": due_date,
+            "taxes_and_charges": taxes_and_charges,
+            "taxes": tax_rows,
+            "items": [{
+                "item_code": item_code,
+                "qty": 1,
+                "rate": rate,
+                "description": description,
+            }],
+            "custom_pdc_schedule_row": row.name,
+            "custom_property_booking": booking_name,
+        })
+        si.flags.ignore_permissions = True
+        si.insert()  # Draft — user reviews and submits manually
+        frappe.db.set_value("PDC Schedule", row.name, "sales_invoice", si.name)
+        if row.pdc_entry:
+            frappe.db.set_value("PDC Entry", row.pdc_entry, "sales_invoice", si.name)
+        created.append(si.name)
+
+    frappe.db.commit()
+    if not created:
+        frappe.msgprint(_("All rows already have a Sales Invoice."), alert=True)
+    else:
+        frappe.msgprint(
+            _("{0} draft Sales Invoice(s) created: {1}. Review and submit them from the Sales Invoices list.").format(
+                len(created), ", ".join(created)
+            ),
+            title=_("Invoices Created (Draft)"),
+        )
+    return created
 
 
 def _get_or_create_default_item(company):
@@ -581,7 +722,7 @@ def mark_unit_sold(booking_name):
         )
 
     frappe.db.set_value("Item", booking.unit, "unit_status", "Sold")
-    frappe.db.set_value("Property Booking", booking_name, "status", "Converted")
+    frappe.db.set_value("Property Booking", booking_name, "status", "Closed")
     frappe.msgprint(_("Unit {0} marked as Sold.").format(booking.unit), alert=True)
 
 

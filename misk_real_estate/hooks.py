@@ -85,7 +85,9 @@ doctype_js = {
 }
 
 doctype_list_js = {
-    "Item": "real_estate/custom/item_list.js",
+    "Item":             "real_estate/custom/item_list.js",
+    "Quotation":        "real_estate/custom/quotation_list.js",
+    "Property Booking": "real_estate/doctype/property_booking/property_booking_list.js",
 }
 
 override_doctype_class = {}

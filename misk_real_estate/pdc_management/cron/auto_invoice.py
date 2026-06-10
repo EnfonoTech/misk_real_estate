@@ -5,7 +5,7 @@
 
 import frappe
 from frappe import _
-from frappe.utils import getdate, today, add_days
+from frappe.utils import getdate, today, add_days, flt
 
 
 def run():
@@ -36,6 +36,7 @@ def _generate_due_invoices():
             ps.parent AS booking,
             ps.cheque_date,
             ps.amount,
+            ps.net_amount,
             ps.cheque_no,
             ps.installment_type,
             ps.status,
@@ -100,18 +101,33 @@ def _create_invoice(row):
     else:
         item_code = row.unit or _get_default_item(company)
 
+    taxes_and_charges = row.get("taxes_and_charges") or ""
+
+    if taxes_and_charges:
+        rate = _invoice_item_rate(row, taxes_and_charges)
+        tax_rows = []
+    else:
+        # No transaction-level template — build tax rows from item's Item Tax Template
+        tax_rows = _build_tax_rows_from_item_template(item_code)
+        # Use net_amount when we have tax rows (exclusive); otherwise use total
+        rate = flt(row.get("net_amount") or row.get("amount")) if tax_rows else flt(row.get("amount"))
+
+    posting_date = getdate(row.cheque_date or today())
+    due_date = max(posting_date, getdate(row.cheque_date)) if row.cheque_date else posting_date
+
     si = frappe.get_doc({
         "doctype": "Sales Invoice",
         "customer": row.customer,
         "company": company,
-        "posting_date": row.cheque_date,
-        "due_date": add_days(row.cheque_date, 0),
-        "taxes_and_charges": row.get("taxes_and_charges") or "",
+        "posting_date": posting_date,
+        "due_date": due_date,
+        "taxes_and_charges": taxes_and_charges,
+        "taxes": tax_rows,
         "items": [
             {
                 "item_code": item_code,
                 "qty": 1,
-                "rate": row.amount,
+                "rate": rate,
                 "description": _get_description(row),
             }
         ],
@@ -122,6 +138,58 @@ def _create_invoice(row):
     si.insert()
     si.submit()
     return si.name
+
+
+def _build_tax_rows_from_item_template(item_code):
+    """Return SI taxes rows built from an item's (or item group's) Item Tax Template.
+    Returns empty list if no template or all rates are 0.
+    """
+    # Item level first, then item group
+    template = frappe.db.get_value("Item Tax", {"parent": item_code}, "item_tax_template")
+    if not template:
+        item_group = frappe.db.get_value("Item", item_code, "item_group")
+        if item_group:
+            template = frappe.db.get_value("Item Tax", {"parent": item_group}, "item_tax_template")
+    if not template:
+        return []
+
+    detail_rows = frappe.db.get_all(
+        "Item Tax Template Detail",
+        filters={"parent": template},
+        fields=["tax_type", "tax_rate"],
+    )
+    return [
+        {
+            "charge_type": "On Net Total",
+            "account_head": r.tax_type,
+            "description": r.tax_type,
+            "rate": flt(r.tax_rate),
+        }
+        for r in detail_rows
+        if flt(r.tax_rate) > 0
+    ]
+
+
+def _invoice_item_rate(row, taxes_and_charges):
+    """
+    Determine the item rate to use in the Sales Invoice.
+    - Exclusive tax (taxes_and_charges set, not inclusive): use net_amount so ERPNext adds tax on top.
+    - Inclusive tax (taxes_and_charges set, included_in_print_rate): use amount so ERPNext extracts tax.
+    - No taxes_and_charges: use amount (total), no tax recalculated.
+    """
+    total = flt(row.get("amount"))
+    net   = flt(row.get("net_amount"))
+
+    if not taxes_and_charges or not net or net == total:
+        return total  # no tax or no breakdown available
+
+    is_inclusive = frappe.db.get_value(
+        "Sales Taxes and Charges",
+        {"parent": taxes_and_charges, "parenttype": "Sales Taxes and Charges Template",
+         "included_in_print_rate": 1},
+        "name",
+    )
+    return total if is_inclusive else net
 
 
 def _get_description(row):
