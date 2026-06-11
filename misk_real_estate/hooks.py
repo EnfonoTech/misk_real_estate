@@ -62,9 +62,6 @@ fixtures = [
         "filters": [["item_code", "=", "OA-FEE"]]
     },
     {
-        "dt": "Misk Real Estate Settings"
-    },
-    {
         "dt": "Payment Plan"
     },
     {
