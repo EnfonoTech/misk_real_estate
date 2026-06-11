@@ -27,6 +27,12 @@ class PropertyBooking(Document):
         # Generate if somehow still empty (e.g. created programmatically)
         if not self.pdc_schedule:
             self.generate_pdc_schedule()
+        # Validate cheque_no mandatory for PDC rows
+        for row in self.pdc_schedule:
+            if row.get("is_pdc") and not row.cheque_no:
+                frappe.throw(
+                    _("Row {0}: Cheque No is required when PDC is enabled.").format(row.idx)
+                )
 
     def on_submit(self):
         self._set_unit_status("Booked")
@@ -324,6 +330,7 @@ class PropertyBooking(Document):
         return {
             "sequence_no":    seq,
             "installment_type": installment_type,
+            "is_pdc":         1,
             "cheque_date":    cheque_date,
             "net_amount":     net,
             "tax_amount":     tax,
@@ -501,6 +508,8 @@ def create_pdc_entries(booking_name):
     for row in booking.pdc_schedule:
         if row.pdc_entry:
             continue  # already has an entry
+        if not row.get("is_pdc"):
+            continue  # non-PDC row — no cheque entry needed
         settings = frappe.get_cached_doc("Misk Real Estate Settings")
         entry = frappe.get_doc({
             "doctype": "PDC Entry",
@@ -727,6 +736,16 @@ def mark_unit_sold(booking_name):
 
 
 @frappe.whitelist()
+def resolve_customer_for_quotation(quotation_name):
+    """Return (and auto-create if needed) the Customer for a Quotation.
+    Converts Lead → Customer automatically when party_type is Lead."""
+    quotation = frappe.get_doc("Quotation", quotation_name)
+    if quotation.quotation_to == "Lead":
+        return _get_or_create_customer_from_lead(quotation.party_name)
+    return quotation.party_name
+
+
+@frappe.whitelist()
 def create_bookings_from_quotation(quotation_name, item_name=None):
     """
     Create a Property Booking for one specific Quotation line (item_name).
@@ -934,13 +953,26 @@ def _effective_unit_price(quotation, item):
 
 def _get_or_create_customer_from_lead(lead_name):
     """Convert a Lead to Customer using ERPNext standard mapper, or return existing."""
-    # Check if customer already exists for this lead
+    # Check if Customer already linked to this lead
     existing = frappe.db.get_value("Customer", {"lead_name": lead_name}, "name")
     if existing:
         return existing
 
-    from erpnext.crm.doctype.lead.lead import make_customer
-    customer_doc = make_customer(lead_name)
-    customer_doc.flags.ignore_permissions = True
-    customer_doc.insert()
-    return customer_doc.name
+    # Also check lead.customer (set by ERPNext when lead is already converted)
+    lead_customer = frappe.db.get_value("Lead", lead_name, "customer")
+    if lead_customer and frappe.db.exists("Customer", lead_customer):
+        return lead_customer
+
+    try:
+        from erpnext.crm.doctype.lead.lead import _make_customer
+        customer_doc = _make_customer(lead_name, ignore_permissions=True)
+        customer_doc.insert(ignore_permissions=True)
+        frappe.db.commit()
+        return customer_doc.name
+    except Exception as e:
+        frappe.throw(
+            _("Could not convert Lead {0} to Customer: {1}. "
+              "Please create the Customer manually and re-link the Quotation to them.").format(
+                lead_name, str(e)
+            )
+        )

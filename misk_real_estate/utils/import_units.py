@@ -261,26 +261,40 @@ def get_import_template():
     note_fill   = PatternFill("solid", fgColor="FFF2CC")
     hdr_font    = Font(color="FFFFFF", bold=True)
 
-    # Row 1: building name instruction
-    ws["B1"] = "BUILDING NAME : YOUR BUILDING NAME"
-    ws["B1"].font = Font(bold=True, size=12)
+    # Row 1: Building Name label + input cell (separate column)
+    input_fill   = PatternFill("solid", fgColor="E2EFDA")
+    label_fill   = PatternFill("solid", fgColor="1F3864")
 
-    # Row 3: tip about price list columns
-    ws["B3"] = "Rename this sheet to your building name. Price list columns: header must exactly match a Price List name in the system (e.g. Full Payment, 50% DP Plan)."
-    ws["B3"].font = Font(color="7F6000", italic=True)
-    ws["B3"].fill = note_fill
-    ws.merge_cells("B3:H3")
+    ws["B1"] = "Building Name:"
+    ws["B1"].font = Font(bold=True, size=12, color="FFFFFF")
+    ws["B1"].fill = label_fill
+    ws["B1"].alignment = Alignment(horizontal="right", vertical="center")
+    ws.column_dimensions["B"].width = 16
 
-    # Row 4: headers — fixed columns + sample price lists
+    ws["C1"] = ""
+    ws["C1"].fill = input_fill
+    ws["C1"].font = Font(bold=True, size=12, color="C00000")
+    ws["C1"].alignment = Alignment(horizontal="left", vertical="center")
+    ws.column_dimensions["C"].width = 28
+    ws.merge_cells("C1:E1")
+    ws.row_dimensions[1].height = 24
+
+    # Row 2: tip about price list columns
+    ws["B2"] = "Price list columns: header must exactly match a Price List name in the system (e.g. Full Payment, 50% DP Plan)."
+    ws["B2"].font = Font(color="7F6000", italic=True)
+    ws["B2"].fill = note_fill
+    ws.merge_cells("B2:H2")
+
+    # Row 3: data column headers
     headers = [None, "Floor No.", "Unit No.", "Type", "Area (sqm)", "Full Payment", "50% DP Plan", "20% DP Plan"]
     for col, val in enumerate(headers, 1):
-        cell = ws.cell(row=4, column=col, value=val)
+        cell = ws.cell(row=3, column=col, value=val)
         if val:
             cell.font = hdr_font
             cell.fill = header_fill if col <= 5 else price_fill
             cell.alignment = Alignment(horizontal="center")
 
-    for col, width in [(2,12),(3,12),(4,12),(5,12),(6,16),(7,14),(8,14)]:
+    for col, width in [(2,12),(4,12),(5,12),(6,16),(7,14),(8,14)]:
         ws.column_dimensions[get_column_letter(col)].width = width
 
     output = BytesIO()
@@ -332,13 +346,30 @@ def run_from_file(file_url):
 
 
 def _get_building_name_from_sheet(ws, sheet_name):
-    """Read 'BUILDING NAME : ...' from row 2, fallback to sheet name."""
-    for row in ws.iter_rows(min_row=1, max_row=3, values_only=True):
+    """Read building name from the cell immediately to the right of a 'Building Name:' label.
+
+    Template layout (row 1):  B1 = "Building Name:"  |  C1 = <actual name>
+    Searches rows 1-3 for any cell whose text contains 'building name', then
+    reads the value from the next column in that row.
+    Falls back to sheet name with a warning if the cell is empty.
+    """
+    rows = list(ws.iter_rows(min_row=1, max_row=3))
+    for row in rows:
         for cell in row:
-            if cell and isinstance(cell, str) and "BUILDING NAME" in cell.upper():
-                parts = cell.split(":")
-                if len(parts) > 1:
-                    return parts[1].strip()
+            if cell.value and isinstance(cell.value, str) and "building name" in cell.value.lower():
+                # Read the cell one column to the right
+                name_cell = ws.cell(row=cell.row, column=cell.column + 1)
+                name = str(name_cell.value).strip() if name_cell.value else ""
+                if name:
+                    return name
+                frappe.msgprint(
+                    f"Sheet '{sheet_name}': the yellow 'Building Name' cell (next to the label) is empty. "
+                    f"Type the building name there before uploading. "
+                    f"Using sheet name '{sheet_name}' as fallback.",
+                    indicator="orange", alert=True
+                )
+                return sheet_name
+    # Label cell not found at all — fall back to sheet name silently
     return sheet_name
 
 
@@ -348,10 +379,10 @@ def _parse_sheet_dynamic(ws, building_name, known_price_lists):
     Required columns: Unit No. (or Unit No), Type (or unit_type), Floor No.
     Price list columns: any header that matches a Price List name exactly.
     """
-    # Find the header row (first row where 'unit no' or 'floor' appears)
+    # Find the header row (first row where 'unit no' or 'floor' appears; skip building name rows)
     header_row_idx = None
     headers = {}
-    for row_idx, row in enumerate(ws.iter_rows(min_row=1, max_row=8, values_only=True), 1):
+    for row_idx, row in enumerate(ws.iter_rows(min_row=2, max_row=8, values_only=True), 2):
         row_lower = [str(c).strip().lower() if c else "" for c in row]
         if any(k in " ".join(row_lower) for k in ["unit no", "floor no", "unit no."]):
             header_row_idx = row_idx

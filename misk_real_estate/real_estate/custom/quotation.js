@@ -118,21 +118,18 @@ function _open_new_booking(frm, item) {
 		owners_association_fee: item.owners_association_fee || 0,
 	};
 
-	const party_type = frm.doc.quotation_to;
-	const party_name = frm.doc.party_name;
-
-	if (party_type === "Customer") {
-		prefill.customer = party_name;
-		frappe.route_options = prefill;
-		frappe.new_doc("Property Booking");
-	} else {
-		// Lead — check if already converted to customer
-		frappe.db.get_value("Lead", party_name, "customer", (r) => {
-			prefill.customer = (r && r.customer) ? r.customer : "";
+	// Resolve customer (auto-converts Lead → Customer if needed)
+	frappe.call({
+		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.resolve_customer_for_quotation",
+		args: { quotation_name: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Resolving customer..."),
+		callback(r) {
+			prefill.customer = r.message || "";
 			frappe.route_options = prefill;
 			frappe.new_doc("Property Booking");
-		});
-	}
+		},
+	});
 }
 
 // ── Item query: filter by building + Available units only ─────────────────────

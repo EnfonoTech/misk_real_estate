@@ -1,7 +1,7 @@
 [
  {
   "doctype": "Number Card",
-  "name": "Misk Available Units",
+  "name": "Available Units",
   "label": "Available Units",
   "document_type": "Item",
   "function": "Count",
@@ -12,7 +12,7 @@
  },
  {
   "doctype": "Number Card",
-  "name": "Misk Active Bookings",
+  "name": "Active Bookings",
   "label": "Active Bookings",
   "document_type": "Property Booking",
   "function": "Count",
@@ -23,7 +23,7 @@
  },
  {
   "doctype": "Number Card",
-  "name": "Misk Pending PDCs",
+  "name": "Pending PDCs",
   "label": "Pending PDCs",
   "document_type": "PDC Entry",
   "function": "Count",
@@ -34,12 +34,12 @@
  },
  {
   "doctype": "Number Card",
-  "name": "Misk PDCs at Bank",
-  "label": "PDCs at Bank",
+  "name": "Bounced PDCs",
+  "label": "Bounced PDCs",
   "document_type": "PDC Entry",
   "function": "Count",
-  "filters_json": "[[\"PDC Entry\",\"status\",\"in\",\"In Batch,Deposited\"]]",
-  "color": "#9C27B0",
+  "filters_json": "[[\"PDC Entry\",\"status\",\"=\",\"Bounced\"]]",
+  "color": "#F44336",
   "is_public": 1,
   "module": "Real Estate"
  }
