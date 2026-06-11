@@ -1,6 +1,6 @@
 [project]
 name = "misk_real_estate"
-version = "0.2.1"
+version = "0.2.2"
 description = "Misk real estate booking and PDC management"
 authors = [{ name = "Enfono Technologies", email = "sayanth@enfono.com" }]
 license = { text = "MIT" }
