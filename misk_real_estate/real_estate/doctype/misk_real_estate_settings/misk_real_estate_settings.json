@@ -6,7 +6,6 @@
  "field_order": [
   "section_pdc",
   "down_payment_days",
-  "installment_start_months",
   "pdc_payment_mode",
   "section_items",
   "oa_fee_item"
@@ -22,13 +21,6 @@
    "fieldtype": "Int",
    "label": "Down Payment Cheque — Days After Booking",
    "default": "2",
-   "reqd": 1
-  },
-  {
-   "fieldname": "installment_start_months",
-   "fieldtype": "Int",
-   "label": "Installments Start — Months After Booking",
-   "default": "1",
    "reqd": 1
   },
   {
