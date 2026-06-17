@@ -445,12 +445,48 @@ function _add_advance_buttons(frm) {
 					frm.add_custom_button(__(paymentLabel),
 						() => _record_advance_payment(frm, purpose), grp);
 				}
+				// Collect this advance by post-dated cheque (single-purpose; combine manually)
+				frm.add_custom_button(__(purpose + " by PDC"),
+					() => _collect_advance_pdc(frm, purpose), grp);
 			};
 
 			block(frm.doc.booking_amount, status["Booking Amount"],
 				"Booking Amount", "Booking Amount Invoice", "Record Booking Payment");
 			block(frm.doc.down_payment_amount, status["Down Payment"],
 				"Down Payment", "Down Payment Invoice", "Record Down Payment");
+		},
+	});
+}
+
+function _collect_advance_pdc(frm, purpose) {
+	if (frm.is_dirty()) {
+		frappe.msgprint(__("Please save the booking before collecting an advance by PDC."));
+		return;
+	}
+	frappe.call({
+		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.create_advance_pdc",
+		args: { booking_name: frm.doc.name, purpose },
+		freeze: true,
+		freeze_message: __("Preparing PDC Entry..."),
+		callback(r) {
+			if (r.exc || !r.message) return;
+			const data = r.message;
+			// Build a fresh local PDC Entry (get_new_doc assigns a usable name) and
+			// pre-fill the key fields. To combine, the user adds allocation rows.
+			frappe.model.with_doctype("PDC Entry", () => {
+				const doc = frappe.model.get_new_doc("PDC Entry");
+				doc.customer = data.customer;
+				doc.customer_bank_account = data.customer_bank_account;
+				doc.company = data.company;
+				doc.building = data.building;
+				doc.booking = data.booking;
+				doc.unit = data.unit;
+				doc.installment_type = data.installment_type;
+				doc.amount = data.amount;
+				doc.sales_invoice = data.sales_invoice;
+				doc.cheque_date = data.cheque_date;
+				frappe.set_route("Form", "PDC Entry", doc.name);
+			});
 		},
 	});
 }

@@ -5,13 +5,18 @@ frappe.ui.form.on("PDC Entry", {
 	// ── On load — set defaults for new docs ────────────────────────────────────
 	onload(frm) {
 		if (frm.is_new()) {
-			if (frm.doc.company && !frm.doc.bank_account) _fetch_bank_account(frm);
 			if (frm.doc.customer) _fetch_currency(frm);
 		}
-	},
-
-	company(frm) {
-		if (!frm.doc.bank_account) _fetch_bank_account(frm);
+		// Allocation rows: limit bookings & invoices to this cheque's customer
+		frm.set_query("property_booking", "allocations", () => ({
+			filters: frm.doc.customer ? { customer: frm.doc.customer } : {},
+		}));
+		frm.set_query("sales_invoice", "allocations", () => ({
+			filters: {
+				...(frm.doc.customer ? { customer: frm.doc.customer } : {}),
+				docstatus: ["<", 2],
+			},
+		}));
 	},
 
 	customer(frm) {
@@ -110,15 +115,6 @@ frappe.ui.form.on("PDC Entry", {
 
 
 // ── Field fetch helpers ───────────────────────────────────────────────────────
-
-function _fetch_bank_account(frm) {
-	if (!frm.doc.company) return;
-	frappe.db.get_value("Company", frm.doc.company, "default_bank_account", (r) => {
-		if (r && r.default_bank_account) {
-			frm.set_value("bank_account", r.default_bank_account);
-		}
-	});
-}
 
 function _fetch_currency(frm) {
 	if (!frm.doc.customer) return;
@@ -321,4 +317,28 @@ function _confirm_bounced(frm) {
 		},
 	});
 	d.show();
+}
+
+// ── Allocation rows — auto-fill amount + invoice from booking/purpose ─────────
+frappe.ui.form.on("PDC Allocation", {
+	property_booking: _fill_allocation,
+	purpose: _fill_allocation,
+});
+
+function _fill_allocation(frm, cdt, cdn) {
+	const row = locals[cdt][cdn];
+	if (!row.property_booking || !row.purpose) return;
+	frappe.call({
+		method: "misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry.get_allocation_defaults",
+		args: { booking: row.property_booking, purpose: row.purpose },
+		callback(r) {
+			if (r.exc || !r.message) return;
+			if (!row.allocated_amount && r.message.amount) {
+				frappe.model.set_value(cdt, cdn, "allocated_amount", r.message.amount);
+			}
+			if (!row.sales_invoice && r.message.sales_invoice) {
+				frappe.model.set_value(cdt, cdn, "sales_invoice", r.message.sales_invoice);
+			}
+		},
+	});
 }

@@ -681,6 +681,42 @@ def make_advance_payment(booking_name, purpose):
     return pe.as_dict()
 
 
+@frappe.whitelist()
+def create_advance_pdc(booking_name, purpose):
+    """Return the field values to seed a single-purpose PDC Entry (Booking Amount
+    OR Down Payment) for this booking — the normal case. The UI opens a fresh PDC
+    Entry pre-filled with booking, unit, amount and invoice. To combine purposes /
+    other bookings on one cheque, the user adds allocation rows manually."""
+    frappe.has_permission("Property Booking", "write", throw=True)
+    if purpose not in ("Booking Amount", "Down Payment"):
+        frappe.throw(_("Invalid purpose: {0}").format(purpose))
+
+    booking = frappe.get_doc("Property Booking", booking_name)
+    base = flt(booking.booking_amount) if purpose == "Booking Amount" else flt(booking.down_payment_amount)
+    if base <= 0:
+        frappe.throw(_("This booking has no {0} to collect.").format(purpose))
+
+    _net, _tax, total = booking._get_unit_tax_breakdown(base)
+    si = frappe.db.get_value(
+        "Sales Invoice",
+        {"custom_property_booking": booking_name, "custom_payment_purpose": purpose, "docstatus": ("<", 2)},
+        "name", order_by="docstatus desc, creation desc",
+    )
+    company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
+    return {
+        "customer": booking.customer,
+        "customer_bank_account": booking.customer_bank_account or "",
+        "company": company,
+        "building": booking.building,
+        "booking": booking_name,
+        "unit": booking.unit,
+        "installment_type": purpose,
+        "amount": total,
+        "sales_invoice": si or "",
+        "cheque_date": today(),
+    }
+
+
 # ── Whitelisted API ───────────────────────────────────────────────────────────
 
 @frappe.whitelist()

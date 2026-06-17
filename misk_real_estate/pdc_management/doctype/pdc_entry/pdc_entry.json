@@ -18,6 +18,8 @@
   "building",
   "unit",
   "booking",
+  "section_break_alloc",
+  "allocations",
   "section_break_status",
   "status",
   "batch",
@@ -131,6 +133,18 @@
    "options": "Property Booking",
    "in_standard_filter": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "section_break_alloc",
+   "fieldtype": "Section Break",
+   "label": "Allocations",
+   "description": "Use for one cheque covering booking amount / down payment across one or more bookings. Leave empty for a single-booking cheque (uses the Property Booking above)."
+  },
+  {
+   "fieldname": "allocations",
+   "fieldtype": "Table",
+   "label": "Allocations",
+   "options": "PDC Allocation"
   },
   {
    "fieldname": "section_break_status",
