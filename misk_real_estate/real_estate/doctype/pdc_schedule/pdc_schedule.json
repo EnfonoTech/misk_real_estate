@@ -78,7 +78,7 @@
    "in_list_view": 1,
    "label": "Status",
    "columns": 1,
-   "options": "Pending\nIn Batch\nDeposited\nCleared\nBounced\nSubstituted\nCancelled",
+   "options": "Pending\nSent to Bank\nIn Batch\nDeposited\nCleared\nBounced\nSubstituted\nCancelled",
    "default": "Pending",
    "read_only": 1
   },

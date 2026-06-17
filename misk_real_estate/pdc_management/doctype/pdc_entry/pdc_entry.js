@@ -24,16 +24,31 @@ frappe.ui.form.on("PDC Entry", {
 
 		// Status badge
 		const colors = {
-			"Pending":    "orange",
-			"In Batch":   "blue",
-			"Deposited":  "purple",
-			"Cleared":    "green",
-			"Bounced":    "red",
+			"Pending":      "orange",
+			"Sent to Bank": "purple",
+			"In Batch":     "blue",
+			"Deposited":    "yellow",
+			"Cleared":      "green",
+			"Bounced":      "red",
 		};
 		frm.page.set_indicator(status, colors[status] || "grey");
 
 		// Only action buttons when not submitted/cancelled through docstatus
 		// PDC Entry is not a submittable doctype — use status field directly
+
+		// Mark Sent to Bank — cheque handed to the bank, before deposit
+		if (["Pending", "In Batch"].includes(status)) {
+			frm.add_custom_button(__("Mark Sent to Bank"), () => {
+				_confirm_sent_to_bank(frm);
+			}, __("Actions"));
+		}
+
+		// Mark Deposited — cheque deposited, awaiting clearance/bounce
+		if (["Pending", "Sent to Bank", "In Batch"].includes(status)) {
+			frm.add_custom_button(__("Mark Deposited"), () => {
+				_confirm_deposited(frm);
+			}, __("Actions"));
+		}
 
 		// Mark Cleared — available when Deposited or In Batch, GL not yet posted
 		if (["Deposited", "In Batch"].includes(status) && !frm.doc.gl_posted) {
@@ -146,6 +161,52 @@ function _confirm_clearance(frm) {
 						frm.reload_doc();
 					}
 				},
+			});
+		},
+	});
+	d.show();
+}
+
+function _confirm_sent_to_bank(frm) {
+	const d = new frappe.ui.Dialog({
+		title: __("Mark Sent to Bank"),
+		fields: [
+			{
+				fieldname: "sent_date", fieldtype: "Date", label: __("Sent Date"),
+				default: frappe.datetime.get_today(), reqd: 1,
+			},
+		],
+		primary_action_label: __("Confirm"),
+		primary_action(values) {
+			d.hide();
+			frappe.call({
+				method: "misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry.mark_sent_to_bank",
+				args: { pdc_entry_name: frm.doc.name, sent_date: values.sent_date },
+				freeze: true,
+				callback(r) { if (!r.exc) frm.reload_doc(); },
+			});
+		},
+	});
+	d.show();
+}
+
+function _confirm_deposited(frm) {
+	const d = new frappe.ui.Dialog({
+		title: __("Mark Deposited"),
+		fields: [
+			{
+				fieldname: "deposited_date", fieldtype: "Date", label: __("Deposit Date"),
+				default: frappe.datetime.get_today(), reqd: 1,
+			},
+		],
+		primary_action_label: __("Confirm"),
+		primary_action(values) {
+			d.hide();
+			frappe.call({
+				method: "misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry.mark_deposited",
+				args: { pdc_entry_name: frm.doc.name, deposited_date: values.deposited_date },
+				freeze: true,
+				callback(r) { if (!r.exc) frm.reload_doc(); },
 			});
 		},
 	});

@@ -15,6 +15,31 @@ frappe.ui.form.on("Property Booking", {
 		}
 		// Cache tax rate from existing taxes_and_charges
 		if (frm.doc.taxes_and_charges) _cache_tax_rate(frm);
+
+		// Limit Customer Bank Account to the selected customer's bank accounts
+		frm.set_query("customer_bank_account", () => ({
+			filters: { party_type: "Customer", party: frm.doc.customer || "" },
+		}));
+
+		frm._last_cheque_prefix = frm.doc.cheque_prefix || "";
+	},
+
+	// Cheque No Prefix — fill every PDC row's cheque_no with the prefix so the user
+	// only has to type the last digits per row. Non-destructive: rows the user has
+	// already completed (value differs from the prefix) are left untouched; blank
+	// rows and rows still holding the old prefix are updated.
+	cheque_prefix(frm) {
+		const prefix = (frm.doc.cheque_prefix || "").trim();
+		const old = frm._last_cheque_prefix || "";
+		(frm.doc.pdc_schedule || []).forEach(r => {
+			if (!r.is_pdc) return;
+			const cur = (r.cheque_no || "").trim();
+			if (!cur || cur === old) {
+				frappe.model.set_value(r.doctype, r.name, "cheque_no", prefix);
+			}
+		});
+		frm._last_cheque_prefix = prefix;
+		frm.refresh_field("pdc_schedule");
 	},
 
 	// ── Refresh — build action buttons based on state ─────────────────────────
@@ -25,6 +50,23 @@ frappe.ui.form.on("Property Booking", {
 		// saved Draft and on submitted bookings, since advance may be collected
 		// before the booking is confirmed.
 		if (!frm.is_new()) _add_advance_buttons(frm);
+
+		// Mark Lost — release the reserved unit on a Draft that won't proceed
+		if (frm.doc.docstatus === 0 && !frm.is_new() && frm.doc.status !== "Lost") {
+			frm.add_custom_button(__("Mark Lost"), () => {
+				frappe.confirm(
+					__("Mark this booking as Lost and release unit {0}?", [frm.doc.unit || ""]),
+					() => {
+						frappe.call({
+							method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.mark_lost",
+							args: { booking_name: frm.doc.name },
+							freeze: true,
+							callback(r) { if (!r.exc) frm.reload_doc(); },
+						});
+					}
+				);
+			}, __("Actions"));
+		}
 
 		if (frm.doc.docstatus !== 1) return;
 
@@ -276,12 +318,25 @@ frappe.ui.form.on("Property Booking", {
 	},
 
 	recalculate(frm) {
+		const price = flt(frm.doc.unit_price);
+		if (!price) return;
+
+		// Down payment conversion — independent of payment plan, so changing
+		// unit price / booking amount keeps the down payment in sync.
+		const dp_amount = flt(frm.doc.down_payment_amount);
+		const dp_pct = flt(frm.doc.down_payment_percentage);
+		if (dp_amount > 0) {
+			frm.set_value("down_payment_percentage", flt((dp_amount / price * 100).toFixed(3)));
+		} else if (dp_pct > 0) {
+			frm.set_value("down_payment_amount", flt((price * dp_pct / 100).toFixed(3)));
+		}
+
+		// Installments need a plan.
 		if (!frm.doc.payment_plan) return;
 		frappe.db.get_value("Payment Plan", frm.doc.payment_plan,
 			["number_of_installments", "is_full_payment"], (r) => {
 			if (!r) return;
-			const price = flt(frm.doc.unit_price), booking = flt(frm.doc.booking_amount);
-			if (!price) return;
+			const booking = flt(frm.doc.booking_amount);
 
 			const n = (!r.is_full_payment && r.number_of_installments) ? r.number_of_installments : 0;
 
@@ -486,4 +541,5 @@ function _style_pdc_schedule(frm) {
 		});
 	}, 400);
 }
+
 

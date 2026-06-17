@@ -14,6 +14,7 @@
   "company",
   "column_break_1",
   "customer",
+  "customer_bank_account",
   "building",
   "unit",
   "booking",
@@ -21,6 +22,7 @@
   "status",
   "batch",
   "column_break_status",
+  "sent_to_bank_date",
   "deposited_date",
   "cleared_date",
   "section_break_links",
@@ -102,6 +104,12 @@
    "search_index": 1
   },
   {
+   "fieldname": "customer_bank_account",
+   "fieldtype": "Link",
+   "label": "Customer Bank Account",
+   "options": "Bank Account"
+  },
+  {
    "fieldname": "building",
    "fieldtype": "Link",
    "label": "Building",
@@ -133,7 +141,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "Pending\nIn Batch\nDeposited\nCleared\nBounced\nSubstituted\nCancelled\nReturned",
+   "options": "Pending\nSent to Bank\nIn Batch\nDeposited\nCleared\nBounced\nSubstituted\nCancelled\nReturned",
    "default": "Pending",
    "reqd": 1,
    "in_list_view": 1,
@@ -152,6 +160,11 @@
   {
    "fieldname": "column_break_status",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "sent_to_bank_date",
+   "fieldtype": "Date",
+   "label": "Sent to Bank Date"
   },
   {
    "fieldname": "deposited_date",

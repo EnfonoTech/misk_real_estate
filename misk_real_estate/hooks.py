@@ -57,6 +57,13 @@ fixtures = [
         ]]]
     },
     {
+        # Must import BEFORE Workflow — transitions link to these masters
+        "dt": "Workflow Action Master",
+        "filters": [["workflow_action_name", "in", [
+            "Approve", "Reject", "Submit for Approval", "Resubmit"
+        ]]]
+    },
+    {
         "dt": "Workflow",
         "filters": [["document_type", "in", ["Quotation", "Property Booking"]]]
     },

@@ -44,8 +44,8 @@ class PropertyBooking(Document):
         if self.docstatus == 2:
             self.status = "Cancelled"
             return
-        if self.status == "Closed":
-            return  # terminal — set via Mark Unit Sold
+        if self.status in ("Closed", "Lost"):
+            return  # terminal — Closed via Mark Unit Sold, Lost via Mark Lost
         if self._advance_received("Down Payment"):
             self.status = "Down Payment Received"
         elif self._advance_received("Booking Amount"):
@@ -101,22 +101,63 @@ class PropertyBooking(Document):
             self._clear_quotation_booking_link()
             self._update_quotation_status()
 
+    def after_insert(self):
+        """Reserve the unit as soon as the booking is created (draft stage).
+        Only claim a free unit — never downgrade a unit already Booked/Sold."""
+        if not self.unit:
+            return
+        current = frappe.db.get_value("Item", self.unit, "unit_status")
+        if current in (None, "", "Available"):
+            self._set_unit_status("Reserved")
+
+    def on_trash(self):
+        """Release a draft reservation if this booking is deleted and no other
+        active booking holds the unit (avoid orphaned 'Reserved' units)."""
+        if self.unit and self.docstatus == 0:
+            current = frappe.db.get_value("Item", self.unit, "unit_status")
+            if current == "Reserved" and not self._unit_reserved_by_other():
+                self._set_unit_status("Available")
+
     # ── Validation ────────────────────────────────────────────────────────────
 
     def _check_unit_availability(self):
-        """Block booking if unit_status is Sold or Booked (from Item custom field)."""
+        """Block booking if the unit is taken by a DIFFERENT booking.
+        A unit Reserved by *this* same booking (draft) must not block its own saves."""
         if not self.unit:
             return
+        if self.docstatus == 1:
+            return  # allow edits on an already-submitted booking
         unit_status = frappe.db.get_value("Item", self.unit, "unit_status")
-        if unit_status in ("Sold", "Booked", "Reserved"):
-            # Allow edit on existing submitted booking (re-validate after submit)
-            if self.docstatus == 1:
-                return
+        if unit_status in ("Sold", "Booked"):
             frappe.throw(
                 _("Unit {0} is currently {1} and cannot be booked.").format(
                     self.unit, unit_status
                 )
             )
+        if unit_status == "Reserved":
+            other = self._unit_reserved_by_other()
+            if other:
+                frappe.throw(
+                    _("Unit {0} is Reserved under another booking ({1}).").format(
+                        self.unit, other
+                    )
+                )
+
+    def _unit_reserved_by_other(self):
+        """Name of another active booking (not cancelled) holding this unit, else None.
+        Lets us tell 'my own reservation' apart from a genuine conflict."""
+        if not self.unit:
+            return None
+        return frappe.db.get_value(
+            "Property Booking",
+            {
+                "unit": self.unit,
+                "name": ("!=", self.name or ""),
+                "status": ("not in", ["Cancelled", "Lost"]),
+                "docstatus": ("<", 2),
+            },
+            "name",
+        )
 
     def _set_unit_status(self, status):
         """Update unit_status custom field on the linked Item."""
@@ -181,6 +222,16 @@ class PropertyBooking(Document):
         if not unit_price or not booking_amount:
             return  # wait until user fills required fields
 
+        # Down payment %/amount conversion — depends only on unit_price, NOT on a
+        # payment plan. Whichever the user entered drives the other.
+        dp_amount = flt(self.down_payment_amount)
+        dp_pct = flt(self.down_payment_percentage)
+        if dp_amount > 0:
+            self.down_payment_percentage = round(dp_amount / unit_price * 100, 3)
+        elif dp_pct > 0:
+            self.down_payment_amount = round(unit_price * dp_pct / 100, 3)
+
+        # The installment split is the only part that genuinely needs a plan.
         if not self.payment_plan:
             return
         plan_doc = frappe.db.get_value(
@@ -199,17 +250,8 @@ class PropertyBooking(Document):
         self.number_of_installments = cint(plan_doc.number_of_installments)
 
         remaining = unit_price - booking_amount
-        dp_amount = flt(self.down_payment_amount)
-        dp_pct = flt(self.down_payment_percentage)
-
-        if dp_amount > 0:
-            # Amount entered — back-calculate % against full unit_price
-            self.down_payment_percentage = round(dp_amount / unit_price * 100, 3)
-        elif dp_pct > 0:
-            # Percentage entered — calculate amount against full unit_price
-            self.down_payment_amount = round(unit_price * dp_pct / 100, 3)
-        else:
-            # Neither set — default to 50% of unit_price
+        # Default to 50% only when neither was entered (and a plan is present)
+        if not dp_amount and not dp_pct:
             self.down_payment_percentage = 50
             self.down_payment_amount = round(unit_price * 0.50, 3)
 
@@ -634,6 +676,8 @@ def make_advance_payment(booking_name, purpose):
     pe = get_payment_entry("Sales Invoice", si_name)
     pe.property_booking = booking_name
     pe.property_unit = booking.unit
+    if booking.customer_bank_account:
+        pe.party_bank_account = booking.customer_bank_account
     return pe.as_dict()
 
 
@@ -701,6 +745,7 @@ def create_pdc_entries(booking_name):
             "installment_type": row.installment_type or "",
             "mode_of_payment": getattr(settings, "pdc_payment_mode", None) or "",
             "customer": booking.customer,
+            "customer_bank_account": booking.customer_bank_account or "",
             "building": booking.building,
             "unit": booking.unit,
             "booking": booking_name,
@@ -916,6 +961,26 @@ def mark_unit_sold(booking_name):
     frappe.db.set_value("Item", booking.unit, "unit_status", "Sold")
     frappe.db.set_value("Property Booking", booking_name, "status", "Closed")
     frappe.msgprint(_("Unit {0} marked as Sold.").format(booking.unit), alert=True)
+
+
+@frappe.whitelist()
+def mark_lost(booking_name):
+    """Mark a Draft booking as Lost and release its reserved unit.
+    Only for drafts — submitted bookings are released via Cancel instead."""
+    frappe.has_permission("Property Booking", "write", throw=True)
+    booking = frappe.get_doc("Property Booking", booking_name)
+    if booking.docstatus != 0:
+        frappe.throw(_("Only a Draft booking can be marked Lost. Cancel a submitted booking instead."))
+
+    # Release the unit if this booking is the only one holding it
+    if booking.unit:
+        current = frappe.db.get_value("Item", booking.unit, "unit_status")
+        if current == "Reserved" and not booking._unit_reserved_by_other():
+            frappe.db.set_value("Item", booking.unit, "unit_status", "Available")
+
+    # Set terminal status directly (db_set avoids re-running validate / re-reserving)
+    frappe.db.set_value("Property Booking", booking_name, "status", "Lost")
+    frappe.msgprint(_("Booking marked Lost. Unit {0} released.").format(booking.unit or ""), alert=True)
 
 
 @frappe.whitelist()

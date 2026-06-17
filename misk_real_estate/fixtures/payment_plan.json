@@ -1,8 +1,56 @@
 [
- {"doctype": "Payment Plan", "name": "Full Payment",     "plan_name": "Full Payment",     "is_full_payment": 1, "number_of_installments": 0},
- {"doctype": "Payment Plan", "name": "Installment 12M",  "plan_name": "Installment 12M",  "is_full_payment": 0, "number_of_installments": 12},
- {"doctype": "Payment Plan", "name": "Installment 18M",  "plan_name": "Installment 18M",  "is_full_payment": 0, "number_of_installments": 18},
- {"doctype": "Payment Plan", "name": "Installment 24M",  "plan_name": "Installment 24M",  "is_full_payment": 0, "number_of_installments": 24},
- {"doctype": "Payment Plan", "name": "Installment 36M",  "plan_name": "Installment 36M",  "is_full_payment": 0, "number_of_installments": 36},
- {"doctype": "Payment Plan", "name": "Installment 48M",  "plan_name": "Installment 48M",  "is_full_payment": 0, "number_of_installments": 48}
+ {
+  "docstatus": 0,
+  "doctype": "Payment Plan",
+  "is_full_payment": 1,
+  "modified": "2026-06-17 16:18:28.993292",
+  "name": "Full Payment",
+  "number_of_installments": 0,
+  "plan_name": "Full Payment"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Payment Plan",
+  "is_full_payment": 0,
+  "modified": "2026-06-17 16:18:29.003940",
+  "name": "Installment 12M",
+  "number_of_installments": 12,
+  "plan_name": "Installment 12M"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Payment Plan",
+  "is_full_payment": 0,
+  "modified": "2026-06-17 16:18:29.013311",
+  "name": "Installment 18M",
+  "number_of_installments": 18,
+  "plan_name": "Installment 18M"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Payment Plan",
+  "is_full_payment": 0,
+  "modified": "2026-06-17 16:18:29.022433",
+  "name": "Installment 24M",
+  "number_of_installments": 24,
+  "plan_name": "Installment 24M"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Payment Plan",
+  "is_full_payment": 0,
+  "modified": "2026-06-17 16:18:29.030847",
+  "name": "Installment 36M",
+  "number_of_installments": 36,
+  "plan_name": "Installment 36M"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Payment Plan",
+  "is_full_payment": 0,
+  "modified": "2026-06-17 16:18:29.039195",
+  "name": "Installment 48M",
+  "number_of_installments": 48,
+  "plan_name": "Installment 48M"
+ }
 ]

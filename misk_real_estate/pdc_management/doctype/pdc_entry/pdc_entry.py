@@ -89,6 +89,72 @@ def mark_bounced(pdc_entry_name, notes=None):
     frappe.msgprint(_("Cheque {0} marked as Bounced.").format(entry.cheque_no), alert=True)
 
 
+@frappe.whitelist()
+def mark_sent_to_bank(pdc_entry_name, sent_date=None):
+    """Move a PDC Entry to 'Sent to Bank' (cheque handed to the bank, pre-deposit)."""
+    frappe.has_permission("PDC Entry", "write", throw=True)
+
+    entry = frappe.get_doc("PDC Entry", pdc_entry_name)
+    if entry.status not in ("Pending", "In Batch"):
+        frappe.throw(
+            _("Only Pending or In Batch cheques can be sent to the bank (current: {0}).").format(entry.status)
+        )
+
+    entry.status = "Sent to Bank"
+    entry.sent_to_bank_date = sent_date or today()
+    entry.save(ignore_permissions=True)
+    frappe.msgprint(_("Cheque {0} marked as Sent to Bank.").format(entry.cheque_no), alert=True)
+
+
+@frappe.whitelist()
+def mark_deposited(pdc_entry_name, deposited_date=None):
+    """Mark a PDC Entry as Deposited (in the bank, awaiting clearance/bounce)."""
+    frappe.has_permission("PDC Entry", "write", throw=True)
+
+    entry = frappe.get_doc("PDC Entry", pdc_entry_name)
+    if entry.status not in ("Pending", "Sent to Bank", "In Batch"):
+        frappe.throw(
+            _("Only Pending, Sent to Bank or In Batch cheques can be deposited (current: {0}).").format(entry.status)
+        )
+
+    entry.status = "Deposited"
+    entry.deposited_date = deposited_date or today()
+    entry.save(ignore_permissions=True)
+    frappe.msgprint(_("Cheque {0} marked as Deposited.").format(entry.cheque_no), alert=True)
+
+
+@frappe.whitelist()
+def bulk_action(names, action, date=None, notes=None):
+    """Apply a PDC status action to many entries from the list view.
+    action ∈ {sent_to_bank, deposited, cleared, bounced}.
+    Returns {"ok": [names], "failed": [{"name", "error"}]} — per-entry errors are
+    collected so one bad cheque doesn't abort the whole batch."""
+    frappe.has_permission("PDC Entry", "write", throw=True)
+    names = frappe.parse_json(names) if isinstance(names, str) else names
+
+    dispatch = {
+        "sent_to_bank": lambda n: mark_sent_to_bank(n, date),
+        "deposited":    lambda n: mark_deposited(n, date),
+        "cleared":      lambda n: mark_cleared(n, date),
+        "bounced":      lambda n: mark_bounced(n, notes),
+    }
+    fn = dispatch.get(action)
+    if not fn:
+        frappe.throw(_("Unknown action: {0}").format(action))
+
+    ok, failed = [], []
+    for n in (names or []):
+        savepoint = f"pdc_{action}_{len(ok) + len(failed)}"
+        frappe.db.savepoint(savepoint)
+        try:
+            fn(n)
+            ok.append(n)
+        except Exception as e:
+            frappe.db.rollback(save_point=savepoint)
+            failed.append({"name": n, "error": str(e)})
+    return {"ok": ok, "failed": failed}
+
+
 def _create_payment_entry(pdc_entry, payment_date):
     """Create Payment Entry — GL posts only here (B7 requirement)."""
     company = pdc_entry.company or frappe.defaults.get_user_default("company")
@@ -124,6 +190,7 @@ def _create_payment_entry(pdc_entry, payment_date):
         "reference_date": pdc_entry.cheque_date,
         "remarks": f"PDC Clearance — {pdc_entry.cheque_no} / Booking: {pdc_entry.booking or 'N/A'}",
         "property_booking": pdc_entry.booking or "",
+        "party_bank_account": getattr(pdc_entry, "customer_bank_account", None) or "",
         "cheque_status": "Cleared",
     })
 
@@ -219,6 +286,7 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
         "reference_date": payment_date,
         "remarks": notes or _("Manual payment — PDC cheque {0} cancelled by customer").format(entry.cheque_no),
         "property_booking": entry.booking or "",
+        "party_bank_account": getattr(entry, "customer_bank_account", None) or "",
         "references": [{
             "reference_doctype": "Sales Invoice",
             "reference_name": entry.sales_invoice,

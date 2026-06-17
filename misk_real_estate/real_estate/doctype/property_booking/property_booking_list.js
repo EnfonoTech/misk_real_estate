@@ -1,15 +1,32 @@
 frappe.listview_settings["Property Booking"] = {
+	// Required: without this, Frappe returns a hardcoded "Draft" for any
+	// docstatus-0 document before reaching get_indicator (so Lost never showed).
+	has_indicator_for_draft: 1,
+
 	get_indicator(doc) {
-		const map = {
-			"Draft":                  ["Draft", "grey"],
+		const status_map = {
 			"Booking Amount Received":["Booking Amount Received", "orange"],
 			"Down Payment Received":  ["Down Payment Received", "purple"],
 			"Confirmed":              ["Confirmed", "blue"],
 			"Closed":                 ["Closed", "green"],
 			"Cancelled":              ["Cancelled", "red"],
+			"Lost":                   ["Lost", "red"],
 		};
-		const [label, color] = map[doc.status] || [doc.status, "grey"];
-		return [label, color, "status,=," + doc.status];
+		if (status_map[doc.status]) {
+			const [label, color] = status_map[doc.status];
+			return [label, color, "status,=," + doc.status];
+		}
+		// status is still "Draft" → show the approval stage instead
+		const wf_color = {
+			"Draft":                       "grey",
+			"Pending Sales Approval":      "orange",
+			"Pending Finance Approval":    "orange",
+			"Pending Management Approval": "orange",
+			"Confirmed":                   "blue",
+			"Rejected":                    "red",
+		};
+		const ws = doc.workflow_state || "Draft";
+		return [ws, wf_color[ws] || "grey", "workflow_state,=," + ws];
 	},
 
 	formatters: {

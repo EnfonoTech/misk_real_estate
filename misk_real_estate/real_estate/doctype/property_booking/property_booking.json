@@ -11,6 +11,7 @@
   "customer",
   "customer_name",
   "mobile_no",
+  "customer_bank_account",
   "workflow_state",
   "status",
   "column_break_1",
@@ -47,6 +48,7 @@
   "table_difference",
   "installment_progress",
   "section_break_pdc",
+  "cheque_prefix",
   "pdc_schedule",
   "amended_from"
  ],
@@ -76,6 +78,12 @@
    "fieldtype": "Data",
    "label": "Mobile No",
    "read_only": 1
+  },
+  {
+   "fieldname": "customer_bank_account",
+   "fieldtype": "Link",
+   "label": "Customer Bank Account",
+   "options": "Bank Account"
   },
   {
    "fieldname": "column_break_1",
@@ -114,7 +122,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Payment Status",
-   "options": "Draft\nBooking Amount Received\nDown Payment Received\nConfirmed\nCancelled\nClosed",
+   "options": "Draft\nBooking Amount Received\nDown Payment Received\nConfirmed\nCancelled\nClosed\nLost",
    "read_only": 1,
    "reqd": 1,
    "search_index": 1
@@ -301,6 +309,11 @@
    "fieldname": "section_break_pdc",
    "fieldtype": "Section Break",
    "label": "PDC Schedule"
+  },
+  {
+   "fieldname": "cheque_prefix",
+   "fieldtype": "Data",
+   "label": "Cheque No Prefix"
   },
   {
    "fieldname": "pdc_schedule",
