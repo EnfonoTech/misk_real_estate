@@ -21,6 +21,11 @@ frappe.ui.form.on("Property Booking", {
 	refresh(frm) {
 		frm.trigger("set_unit_filter");
 
+		// Advance payment buttons (Booking Amount / Down Payment) — available on a
+		// saved Draft and on submitted bookings, since advance may be collected
+		// before the booking is confirmed.
+		if (!frm.is_new()) _add_advance_buttons(frm);
+
 		if (frm.doc.docstatus !== 1) return;
 
 		const has_pdc = (frm.doc.pdc_schedule || []).some(r => r.pdc_entry);
@@ -346,15 +351,15 @@ function _fetch_unit_price(frm) {
 	}
 }
 
-// ── Live PDC total vs Grand Total check ──────────────────────────────────────
+// ── Live PDC total vs Expected (Installments + OA) check ─────────────────────
 function _check_pdc_total(frm) {
-	const expected = flt(frm.doc.total_after_tax);
+	const expected = flt(frm.doc.expected_table_total);
 	if (!expected || !frm.doc.pdc_schedule) return;
 	const actual = frm.doc.pdc_schedule.reduce((s, r) => s + flt(r.amount), 0);
 	const diff   = Math.abs(actual - expected);
 	if (diff > 0.01) {
 		frm.page.set_indicator(
-			__("PDC total {0} ≠ {1} (diff {2})", [
+			__("Table total {0} ≠ expected {1} (diff {2})", [
 				format_currency(actual, "OMR", 3),
 				format_currency(expected, "OMR", 3),
 				format_currency(diff, "OMR", 3),
@@ -365,6 +370,66 @@ function _check_pdc_total(frm) {
 		const colors = { "Draft": "grey", "Confirmed": "blue", "Closed": "green", "Cancelled": "red" };
 		frm.page.set_indicator(frm.doc.status, colors[frm.doc.status] || "grey");
 	}
+}
+
+// ── Advance Payments: Booking Amount & Down Payment invoice/payment buttons ───
+function _add_advance_buttons(frm) {
+	frappe.call({
+		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_advance_invoice_status",
+		args: { booking_name: frm.doc.name },
+		callback(r) {
+			if (r.exc) return;
+			const status = r.message || {};
+			const grp = __("Advance Payments");
+
+			const block = (amount, si, purpose, invoiceLabel, paymentLabel) => {
+				if (flt(amount) <= 0) return;
+				frm.add_custom_button(si ? __("Open " + invoiceLabel) : __(invoiceLabel),
+					() => _open_advance_invoice(frm, purpose), grp);
+				if (si) {
+					frm.add_custom_button(__(paymentLabel),
+						() => _record_advance_payment(frm, purpose), grp);
+				}
+			};
+
+			block(frm.doc.booking_amount, status["Booking Amount"],
+				"Booking Amount", "Booking Amount Invoice", "Record Booking Payment");
+			block(frm.doc.down_payment_amount, status["Down Payment"],
+				"Down Payment", "Down Payment Invoice", "Record Down Payment");
+		},
+	});
+}
+
+function _open_advance_invoice(frm, purpose) {
+	if (frm.is_dirty()) {
+		frappe.msgprint(__("Please save the booking before raising the invoice."));
+		return;
+	}
+	frappe.call({
+		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.make_advance_invoice",
+		args: { booking_name: frm.doc.name, purpose },
+		freeze: true,
+		freeze_message: __("Preparing invoice..."),
+		callback(r) {
+			if (!r.exc && r.message) frappe.set_route("Form", "Sales Invoice", r.message);
+		},
+	});
+}
+
+function _record_advance_payment(frm, purpose) {
+	frappe.call({
+		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.make_advance_payment",
+		args: { booking_name: frm.doc.name, purpose },
+		freeze: true,
+		freeze_message: __("Preparing payment entry..."),
+		callback(r) {
+			if (!r.exc && r.message) {
+				// Open a fresh, unsaved Payment Entry pre-filled with all data.
+				const doc = frappe.model.sync(r.message)[0];
+				frappe.set_route("Form", doc.doctype, doc.name);
+			}
+		},
+	});
 }
 
 // ── Cache tax rate for PDC Schedule inline calculation ───────────────────────

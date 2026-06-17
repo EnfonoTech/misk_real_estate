@@ -24,13 +24,6 @@
     "style": "Warning"
    },
    {
-    "name": "lonnnrj9u7",
-    "allow_edit": "Misk Finance",
-    "doc_status": "0",
-    "state": "Pending Finance Approval",
-    "style": "Warning"
-   },
-   {
     "name": "lontb2egul",
     "allow_edit": "Misk Admin",
     "doc_status": "1",
@@ -56,9 +49,9 @@
    },
    {
     "name": "loncdrkqbg",
-    "action": "Sales Approve",
+    "action": "Approve",
     "allowed": "Sales Manager",
-    "next_state": "Pending Finance Approval",
+    "next_state": "Confirmed",
     "state": "Pending Sales Approval",
     "allow_self_approval": 1
    },
@@ -71,22 +64,6 @@
     "allow_self_approval": 1
    },
    {
-    "name": "lon0uchdcl",
-    "action": "Finance Approve",
-    "allowed": "Misk Finance",
-    "next_state": "Confirmed",
-    "state": "Pending Finance Approval",
-    "allow_self_approval": 1
-   },
-   {
-    "name": "lonavq4hrv",
-    "action": "Reject",
-    "allowed": "Misk Finance",
-    "next_state": "Rejected",
-    "state": "Pending Finance Approval",
-    "allow_self_approval": 1
-   },
-   {
     "name": "long77aduu",
     "action": "Resubmit",
     "allowed": "Misk Sales",
@@ -94,6 +71,34 @@
     "state": "Rejected",
     "allow_self_approval": 1
    }
+  ]
+ },
+ {
+  "doctype": "Workflow",
+  "document_type": "Property Booking",
+  "is_active": 1,
+  "override_status": 0,
+  "send_email_alert": 1,
+  "name": "Property Booking Approval",
+  "workflow_name": "Property Booking Approval",
+  "workflow_state_field": "workflow_state",
+  "states": [
+   {"name": "pb_st_draft",   "allow_edit": "Misk Sales",      "doc_status": "0", "state": "Draft",                      "style": "Default"},
+   {"name": "pb_st_sales",   "allow_edit": "Sales Manager",   "doc_status": "0", "state": "Pending Sales Approval",      "style": "Warning"},
+   {"name": "pb_st_finance", "allow_edit": "Misk Finance",    "doc_status": "0", "state": "Pending Finance Approval",    "style": "Warning"},
+   {"name": "pb_st_mgmt",    "allow_edit": "Misk Management", "doc_status": "0", "state": "Pending Management Approval", "style": "Warning"},
+   {"name": "pb_st_conf",    "allow_edit": "Misk Admin",      "doc_status": "1", "state": "Confirmed",                   "style": "Success"},
+   {"name": "pb_st_rej",     "allow_edit": "Misk Sales",      "doc_status": "0", "state": "Rejected",                    "style": "Danger"}
+  ],
+  "transitions": [
+   {"name": "pb_tr_submit",  "action": "Submit for Approval", "allowed": "Misk Sales",      "state": "Draft",                      "next_state": "Pending Sales Approval",      "allow_self_approval": 1},
+   {"name": "pb_tr_sapp",    "action": "Approve",             "allowed": "Sales Manager",   "state": "Pending Sales Approval",      "next_state": "Pending Finance Approval",    "allow_self_approval": 1},
+   {"name": "pb_tr_srej",    "action": "Reject",              "allowed": "Sales Manager",   "state": "Pending Sales Approval",      "next_state": "Rejected",                    "allow_self_approval": 1},
+   {"name": "pb_tr_fapp",    "action": "Approve",             "allowed": "Misk Finance",    "state": "Pending Finance Approval",    "next_state": "Pending Management Approval", "allow_self_approval": 1},
+   {"name": "pb_tr_frej",    "action": "Reject",              "allowed": "Misk Finance",    "state": "Pending Finance Approval",    "next_state": "Rejected",                    "allow_self_approval": 1},
+   {"name": "pb_tr_mapp",    "action": "Approve",             "allowed": "Misk Management", "state": "Pending Management Approval", "next_state": "Confirmed",                   "allow_self_approval": 1},
+   {"name": "pb_tr_mrej",    "action": "Reject",              "allowed": "Misk Management", "state": "Pending Management Approval", "next_state": "Rejected",                    "allow_self_approval": 1},
+   {"name": "pb_tr_resub",   "action": "Resubmit",            "allowed": "Misk Sales",      "state": "Rejected",                    "next_state": "Draft",                       "allow_self_approval": 1}
   ]
  }
 ]

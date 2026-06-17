@@ -11,6 +11,7 @@
   "customer",
   "customer_name",
   "mobile_no",
+  "workflow_state",
   "status",
   "column_break_1",
   "company",
@@ -28,6 +29,7 @@
   "booking_amount",
   "down_payment_percentage",
   "down_payment_amount",
+  "down_payment_date",
   "column_break_calc",
   "monthly_installment",
   "number_of_installments",
@@ -38,6 +40,12 @@
   "column_break_tax",
   "tax_amount",
   "total_after_tax",
+  "section_totals",
+  "expected_table_total",
+  "table_total",
+  "column_break_tbl",
+  "table_difference",
+  "installment_progress",
   "section_break_pdc",
   "pdc_schedule",
   "amended_from"
@@ -89,13 +97,24 @@
    "reqd": 1
   },
   {
+   "fieldname": "workflow_state",
+   "fieldtype": "Link",
+   "options": "Workflow State",
+   "label": "Approval State",
+   "read_only": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "allow_on_submit": 1,
+   "no_copy": 1
+  },
+  {
    "default": "Draft",
    "fieldname": "status",
    "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Status",
-   "options": "Draft\nConfirmed\nCancelled\nClosed",
+   "label": "Payment Status",
+   "options": "Draft\nBooking Amount Received\nDown Payment Received\nConfirmed\nCancelled\nClosed",
    "read_only": 1,
    "reqd": 1,
    "search_index": 1
@@ -158,8 +177,7 @@
    "fieldtype": "Link",
    "in_standard_filter": 1,
    "label": "Payment Plan",
-   "options": "Payment Plan",
-   "reqd": 1
+   "options": "Payment Plan"
   },
   {
    "fieldname": "section_break_payment",
@@ -187,6 +205,11 @@
    "fieldname": "down_payment_amount",
    "fieldtype": "Currency",
    "label": "Down Payment Amount"
+  },
+  {
+   "fieldname": "down_payment_date",
+   "fieldtype": "Date",
+   "label": "Down Payment Date"
   },
   {
    "fieldname": "monthly_installment",
@@ -238,6 +261,41 @@
    "fieldtype": "Currency",
    "label": "Grand Total (incl. Tax + OA Fee)",
    "read_only": 1
+  },
+  {
+   "fieldname": "section_totals",
+   "fieldtype": "Section Break",
+   "label": "PDC Schedule Totals"
+  },
+  {
+   "fieldname": "expected_table_total",
+   "fieldtype": "Currency",
+   "label": "Expected (Installments + OA, incl. Tax)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "table_total",
+   "fieldtype": "Currency",
+   "label": "PDC Table Total",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_tbl",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "table_difference",
+   "fieldtype": "Currency",
+   "label": "Difference (Table − Expected)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "installment_progress",
+   "fieldtype": "Percent",
+   "label": "Installment Progress",
+   "read_only": 1,
+   "in_list_view": 1,
+   "allow_on_submit": 1
   },
   {
    "fieldname": "section_break_pdc",
@@ -319,7 +377,17 @@
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Misk Finance"
+   "role": "Sales Manager",
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Misk Finance",
+   "write": 1
   },
   {
    "amend": 1,
@@ -342,7 +410,9 @@
    "print": 1,
    "read": 1,
    "report": 1,
-   "role": "Misk Management"
+   "role": "Misk Management",
+   "submit": 1,
+   "write": 1
   }
  ],
  "row_format": "Dynamic",

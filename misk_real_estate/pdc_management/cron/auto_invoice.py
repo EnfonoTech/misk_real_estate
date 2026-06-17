@@ -89,8 +89,12 @@ def _generate_due_invoices():
     )
 
 
-def _create_invoice(row):
-    """Create and submit a Sales Invoice for one PDC Schedule row."""
+def _create_invoice(row, submit=False, payment_purpose=None):
+    """Create a Sales Invoice for one PDC Schedule row (or an advance payment row).
+    Left as Draft by default — finance reviews and submits manually.
+    Pass submit=True to submit immediately. payment_purpose tags the invoice
+    (Booking Amount / Down Payment / Installment / Owners Association Fee).
+    """
     company = row.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
 
     # Use OA-FEE item for Owners Association Fee rows
@@ -133,10 +137,12 @@ def _create_invoice(row):
         ],
         "custom_pdc_schedule_row": row.schedule_row,
         "custom_property_booking": row.booking,
+        "custom_payment_purpose": payment_purpose or row.get("installment_type") or "Installment",
     })
     si.flags.ignore_permissions = True
     si.insert()
-    si.submit()
+    if submit:
+        si.submit()
     return si.name
 
 

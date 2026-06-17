@@ -25,6 +25,16 @@ doc_events = {
     "Quotation": {
         "before_validate": "misk_real_estate.real_estate.custom.quotation_hooks.before_validate",
     },
+    # Keep Property Booking advance-payment status in sync with its invoices/payments
+    "Sales Invoice": {
+        "on_submit": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_sales_invoice_change",
+        "on_cancel": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_sales_invoice_change",
+        "on_update_after_submit": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_sales_invoice_change",
+    },
+    "Payment Entry": {
+        "on_submit": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_payment_entry_change",
+        "on_cancel": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_payment_entry_change",
+    },
 }
 
 # ── Fixtures — run `bench export-fixtures` before every commit ────────────────
@@ -42,12 +52,13 @@ fixtures = [
     {
         "dt": "Workflow State",
         "filters": [["workflow_state_name", "in", [
-            "Draft", "Pending Sales Approval", "Pending Finance Approval", "Confirmed", "Rejected"
+            "Draft", "Pending Sales Approval", "Pending Finance Approval",
+            "Pending Management Approval", "Confirmed", "Rejected"
         ]]]
     },
     {
         "dt": "Workflow",
-        "filters": [["document_type", "in", ["Quotation"]]]
+        "filters": [["document_type", "in", ["Quotation", "Property Booking"]]]
     },
     {
         "dt": "Role",

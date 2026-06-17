@@ -2,6 +2,7 @@
  {"doctype": "Workflow State", "name": "Draft",                    "workflow_state_name": "Draft",                    "style": "Default"},
  {"doctype": "Workflow State", "name": "Pending Sales Approval",   "workflow_state_name": "Pending Sales Approval",   "style": "Warning"},
  {"doctype": "Workflow State", "name": "Pending Finance Approval", "workflow_state_name": "Pending Finance Approval", "style": "Warning"},
+ {"doctype": "Workflow State", "name": "Pending Management Approval", "workflow_state_name": "Pending Management Approval", "style": "Warning"},
  {"doctype": "Workflow State", "name": "Confirmed",                "workflow_state_name": "Confirmed",                "style": "Success"},
  {"doctype": "Workflow State", "name": "Rejected",                 "workflow_state_name": "Rejected",                 "style": "Danger"}
 ]
