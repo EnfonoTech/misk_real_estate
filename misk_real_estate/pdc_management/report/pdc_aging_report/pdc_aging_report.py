@@ -20,6 +20,7 @@ def get_columns():
         {"label": _("Customer"),      "fieldname": "customer",     "fieldtype": "Link",     "options": "Customer",   "width": 160},
         {"label": _("Building"),       "fieldname": "building",     "fieldtype": "Link",     "options": "Item Group", "width": 140},
         {"label": _("Unit"),           "fieldname": "unit",         "fieldtype": "Link",     "options": "Item",       "width": 110},
+        {"label": _("Type"),           "fieldname": "purpose",      "fieldtype": "Data",     "width": 120},
         {"label": _("Cheque No"),      "fieldname": "cheque_no",    "fieldtype": "Data",     "width": 130},
         {"label": _("Cheque Date"),    "fieldname": "cheque_date",  "fieldtype": "Date",     "width": 110},
         {"label": _("Amount (OMR)"),   "fieldname": "amount",       "fieldtype": "Currency", "width": 120},
@@ -39,7 +40,7 @@ def get_data(filters, as_of):
         values["customer"] = filters["customer"]
 
     if filters.get("building"):
-        conditions.append("pe.building = %(building)s")
+        conditions.append("a.building = %(building)s")
         values["building"] = filters["building"]
 
     if filters.get("status"):
@@ -52,16 +53,19 @@ def get_data(filters, as_of):
         f"""
         SELECT
             pe.customer,
-            pe.building,
-            pe.unit,
+            GROUP_CONCAT(DISTINCT a.building) AS building,
+            GROUP_CONCAT(DISTINCT a.unit) AS unit,
+            GROUP_CONCAT(DISTINCT a.purpose) AS purpose,
             pe.cheque_no,
             pe.cheque_date,
-            pe.amount,
+            pe.amount AS amount,
             pe.status,
-            pe.booking,
+            GROUP_CONCAT(DISTINCT a.property_booking) AS booking,
             DATEDIFF(%(as_of)s, pe.cheque_date) AS days_overdue
         FROM `tabPDC Entry` pe
+        LEFT JOIN `tabPDC Allocation` a ON a.parent = pe.name
         WHERE {where}
+        GROUP BY pe.name
         ORDER BY pe.cheque_date ASC
         """,
         values,

@@ -513,14 +513,16 @@ class PropertyBooking(Document):
         )
 
     def _cancel_pdc_entries(self):
-        """Cancel linked PDC Entries that haven't been cleared."""
-        pdc_entries = frappe.get_all(
-            "PDC Entry",
-            filters={"booking": self.name, "status": ("not in", ["Cleared", "Bounced"])},
-            fields=["name", "status"],
+        """Cancel linked PDC Entries (via allocation rows) that haven't been cleared."""
+        entry_names = frappe.get_all(
+            "PDC Allocation",
+            filters={"property_booking": self.name},
+            pluck="parent",
         )
-        for entry in pdc_entries:
-            frappe.db.set_value("PDC Entry", entry.name, "status", "Cancelled")
+        for name in set(entry_names):
+            status = frappe.db.get_value("PDC Entry", name, "status")
+            if status not in ("Cleared", "Bounced", "Cancelled"):
+                frappe.db.set_value("PDC Entry", name, "status", "Cancelled")
 
 
 # ── Advance Payments (Booking Amount & Down Payment) ───────────────────────────
@@ -682,6 +684,14 @@ def make_advance_payment(booking_name, purpose):
 
 
 @frappe.whitelist()
+def get_booking_pdc_entries(booking_name):
+    """PDC Entry names that have an allocation row for this booking."""
+    return sorted(set(frappe.get_all(
+        "PDC Allocation", filters={"property_booking": booking_name}, pluck="parent"
+    )))
+
+
+@frappe.whitelist()
 def create_advance_pdc(booking_name, purpose):
     """Return the field values to seed a single-purpose PDC Entry (Booking Amount
     OR Down Payment) for this booking — the normal case. The UI opens a fresh PDC
@@ -707,13 +717,15 @@ def create_advance_pdc(booking_name, purpose):
         "customer": booking.customer,
         "customer_bank_account": booking.customer_bank_account or "",
         "company": company,
-        "building": booking.building,
-        "booking": booking_name,
-        "unit": booking.unit,
-        "installment_type": purpose,
-        "amount": total,
-        "sales_invoice": si or "",
         "cheque_date": today(),
+        "allocation": {
+            "property_booking": booking_name,
+            "purpose": purpose,
+            "building": booking.building,
+            "unit": booking.unit,
+            "sales_invoice": si or "",
+            "allocated_amount": total,
+        },
     }
 
 
@@ -777,17 +789,19 @@ def create_pdc_entries(booking_name):
             "doctype": "PDC Entry",
             "cheque_no": row.cheque_no or f"TBC-{row.sequence_no}",
             "cheque_date": row.cheque_date,
-            "amount": row.amount,
-            "installment_type": row.installment_type or "",
             "mode_of_payment": getattr(settings, "pdc_payment_mode", None) or "",
             "customer": booking.customer,
             "customer_bank_account": booking.customer_bank_account or "",
-            "building": booking.building,
-            "unit": booking.unit,
-            "booking": booking_name,
             "company": company,
-            "sales_invoice": row.sales_invoice or "",
             "status": "Pending",
+            "allocations": [{
+                "property_booking": booking_name,
+                "purpose": row.installment_type or "Installment",
+                "building": booking.building,
+                "unit": booking.unit,
+                "sales_invoice": row.sales_invoice or "",
+                "allocated_amount": row.amount,
+            }],
         })
         entry.insert(ignore_permissions=True)
         frappe.db.set_value("PDC Schedule", row.name, "pdc_entry", entry.name)
@@ -863,10 +877,11 @@ def generate_invoices_for_booking(booking_name):
         si.flags.ignore_permissions = True
         si.insert()  # Draft — finance reviews and submits manually
 
-        # Link SI to PDC Schedule row and PDC Entry
+        # Link SI to PDC Schedule row and the PDC Entry's allocation row
         frappe.db.set_value("PDC Schedule", row.name, "sales_invoice", si.name)
         if row.pdc_entry:
-            frappe.db.set_value("PDC Entry", row.pdc_entry, "sales_invoice", si.name)
+            from misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry import link_invoice_to_allocation
+            link_invoice_to_allocation(row.pdc_entry, booking_name, row.installment_type, si.name)
 
     frappe.db.commit()
     frappe.logger().info(f"generate_invoices_for_booking: completed for {booking_name}")
@@ -940,7 +955,8 @@ def create_missing_invoices(booking_name):
         si.insert()  # Draft — user reviews and submits manually
         frappe.db.set_value("PDC Schedule", row.name, "sales_invoice", si.name)
         if row.pdc_entry:
-            frappe.db.set_value("PDC Entry", row.pdc_entry, "sales_invoice", si.name)
+            from misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry import link_invoice_to_allocation
+            link_invoice_to_allocation(row.pdc_entry, booking.name, row.installment_type, si.name)
         created.append(si.name)
 
     frappe.db.commit()

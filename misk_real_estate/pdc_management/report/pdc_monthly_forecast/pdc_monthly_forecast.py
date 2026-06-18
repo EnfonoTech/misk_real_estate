@@ -42,7 +42,8 @@ def get_data(filters):
     }
 
     if filters.get("building"):
-        conditions.append("pe.building = %(building)s")
+        # Filter via allocation rows without joining (avoids double-counting amounts)
+        conditions.append("pe.name IN (SELECT parent FROM `tabPDC Allocation` WHERE building = %(building)s)")
         values["building"] = filters["building"]
 
     if filters.get("customer"):

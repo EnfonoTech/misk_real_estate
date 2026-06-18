@@ -105,15 +105,15 @@
    "reqd": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "workflow_state",
    "fieldtype": "Link",
-   "options": "Workflow State",
-   "label": "Approval State",
-   "read_only": 1,
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "allow_on_submit": 1,
-   "no_copy": 1
+   "label": "Approval State",
+   "no_copy": 1,
+   "options": "Workflow State",
+   "read_only": 1
   },
   {
    "default": "Draft",
@@ -162,6 +162,7 @@
    "fieldtype": "Link",
    "in_global_search": 1,
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Apartment / Unit",
    "options": "Item",
    "reqd": 1,
@@ -183,7 +184,6 @@
   {
    "fieldname": "payment_plan",
    "fieldtype": "Link",
-   "in_standard_filter": 1,
    "label": "Payment Plan",
    "options": "Payment Plan"
   },
@@ -294,16 +294,16 @@
   {
    "fieldname": "table_difference",
    "fieldtype": "Currency",
-   "label": "Difference (Table − Expected)",
+   "label": "Difference (Table \u2212 Expected)",
    "read_only": 1
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "installment_progress",
    "fieldtype": "Percent",
-   "label": "Installment Progress",
-   "read_only": 1,
    "in_list_view": 1,
-   "allow_on_submit": 1
+   "label": "Installment Progress",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_pdc",
@@ -337,21 +337,18 @@
  "links": [
   {
    "link_doctype": "PDC Entry",
-   "link_fieldname": "booking",
-   "label": "PDC Entries"
+   "link_fieldname": "booking"
   },
   {
    "link_doctype": "Sales Invoice",
-   "link_fieldname": "custom_property_booking",
-   "label": "Sales Invoices"
+   "link_fieldname": "custom_property_booking"
   },
   {
    "link_doctype": "Payment Entry",
-   "link_fieldname": "property_booking",
-   "label": "Payment Entries"
+   "link_fieldname": "property_booking"
   }
  ],
- "modified": "2026-06-05 10:28:10.404613",
+ "modified": "2026-06-18 11:16:53.599228",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Property Booking",

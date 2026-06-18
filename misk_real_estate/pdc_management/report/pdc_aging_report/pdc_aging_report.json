@@ -27,7 +27,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "\nPending\nIn Batch\nDeposited\nBounced"
+   "options": "\nPending\nSent to Bank\nIn Batch\nDeposited\nBounced\nSubstituted\nReturned"
   }
  ],
  "is_standard": "Yes",

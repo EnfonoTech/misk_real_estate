@@ -69,12 +69,13 @@ def _generate_due_invoices():
             si_name = _create_invoice(row)
             # Link invoice back to PDC Schedule row
             frappe.db.set_value("PDC Schedule", row.schedule_row, "sales_invoice", si_name)
-            # Link invoice to PDC Entry so mark_cleared() can reconcile AR
+            # Link invoice to the PDC Entry's allocation row so mark_cleared() reconciles AR
             pdc_entry_name = frappe.db.get_value(
                 "PDC Schedule", row.schedule_row, "pdc_entry"
             )
             if pdc_entry_name:
-                frappe.db.set_value("PDC Entry", pdc_entry_name, "sales_invoice", si_name)
+                from misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry import link_invoice_to_allocation
+                link_invoice_to_allocation(pdc_entry_name, row.booking, row.get("installment_type"), si_name)
             created.append(si_name)
         except Exception:
             errors.append(row.schedule_row)

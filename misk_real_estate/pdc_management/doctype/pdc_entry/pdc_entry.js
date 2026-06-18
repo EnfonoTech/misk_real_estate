@@ -17,10 +17,19 @@ frappe.ui.form.on("PDC Entry", {
 				docstatus: ["<", 2],
 			},
 		}));
+		// Unit limited to the row's building (units are Items under that Item Group)
+		frm.set_query("unit", "allocations", (doc, cdt, cdn) => {
+			const row = locals[cdt][cdn] || {};
+			return { filters: row.building ? { item_group: row.building } : {} };
+		});
 	},
 
 	customer(frm) {
 		_fetch_currency(frm);
+	},
+
+	allocations_remove(frm) {
+		_recalc_cheque_amount(frm);
 	},
 
 	// ── Refresh — build action buttons based on status ─────────────────────────
@@ -76,8 +85,12 @@ frappe.ui.form.on("PDC Entry", {
 			}, __("Actions"));
 		}
 
+		// Single-allocation conveniences (multi-row cheques use the table itself)
+		const allocs = frm.doc.allocations || [];
+		const single = allocs.length === 1 ? allocs[0] : null;
+
 		// Record Manual Payment — customer cancels PDC and pays by cash/transfer instead
-		if (["Pending", "Deposited", "In Batch"].includes(status) && frm.doc.sales_invoice) {
+		if (["Pending", "Deposited", "In Batch"].includes(status) && single && single.sales_invoice) {
 			frm.add_custom_button(__("Record Manual Payment"), () => {
 				_record_manual_payment(frm);
 			}, __("Actions"));
@@ -90,17 +103,17 @@ frappe.ui.form.on("PDC Entry", {
 			}, __("View"));
 		}
 
-		// View linked Sales Invoice
-		if (frm.doc.sales_invoice) {
+		// View linked Sales Invoice (single-row cheque)
+		if (single && single.sales_invoice) {
 			frm.add_custom_button(__("Sales Invoice"), () => {
-				frappe.set_route("Form", "Sales Invoice", frm.doc.sales_invoice);
+				frappe.set_route("Form", "Sales Invoice", single.sales_invoice);
 			}, __("View"));
 		}
 
-		// View parent booking
-		if (frm.doc.booking) {
+		// View parent booking (single-row cheque)
+		if (single && single.property_booking) {
 			frm.add_custom_button(__("Property Booking"), () => {
-				frappe.set_route("Form", "Property Booking", frm.doc.booking);
+				frappe.set_route("Form", "Property Booking", single.property_booking);
 			}, __("View"));
 		}
 
@@ -218,7 +231,7 @@ function _record_manual_payment(frm) {
 				fieldtype: "HTML",
 				options: `<div class="alert alert-warning" style="margin-bottom:10px">
 					<b>${__("Cheque {0} will be cancelled.", [frm.doc.cheque_no])}</b><br>
-					${__("A Payment Entry will be created against Sales Invoice {0}.", [frm.doc.sales_invoice])}
+					${__("A Payment Entry will be created against Sales Invoice {0}.", [(frm.doc.allocations && frm.doc.allocations[0] && frm.doc.allocations[0].sales_invoice) || ""])}
 				</div>`,
 			},
 			{
@@ -321,23 +334,35 @@ function _confirm_bounced(frm) {
 
 // ── Allocation rows — auto-fill amount + invoice from booking/purpose ─────────
 frappe.ui.form.on("PDC Allocation", {
-	property_booking: _fill_allocation,
-	purpose: _fill_allocation,
+	property_booking(frm, cdt, cdn) { _fill_allocation(frm, cdt, cdn, false); },
+	purpose(frm, cdt, cdn) { _fill_allocation(frm, cdt, cdn, true); },
+	allocated_amount: (frm) => _recalc_cheque_amount(frm),
 });
 
-function _fill_allocation(frm, cdt, cdn) {
+function _recalc_cheque_amount(frm) {
+	const total = (frm.doc.allocations || []).reduce((s, r) => s + flt(r.allocated_amount), 0);
+	frm.set_value("amount", flt(total, 3));
+}
+
+// overwrite_amount: true when the Type changed — re-fetch amount/invoice for the
+// new type. On a booking change we only fill blanks (don't clobber a typed amount).
+function _fill_allocation(frm, cdt, cdn, overwrite_amount) {
 	const row = locals[cdt][cdn];
-	if (!row.property_booking || !row.purpose) return;
+	if (!row.property_booking) return;
 	frappe.call({
 		method: "misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry.get_allocation_defaults",
-		args: { booking: row.property_booking, purpose: row.purpose },
+		args: { booking: row.property_booking, purpose: row.purpose || "" },
 		callback(r) {
 			if (r.exc || !r.message) return;
-			if (!row.allocated_amount && r.message.amount) {
-				frappe.model.set_value(cdt, cdn, "allocated_amount", r.message.amount);
-			}
-			if (!row.sales_invoice && r.message.sales_invoice) {
-				frappe.model.set_value(cdt, cdn, "sales_invoice", r.message.sales_invoice);
+			const d = r.message;
+			if (!row.building && d.building) frappe.model.set_value(cdt, cdn, "building", d.building);
+			if (!row.unit && d.unit) frappe.model.set_value(cdt, cdn, "unit", d.unit);
+			if (overwrite_amount) {
+				frappe.model.set_value(cdt, cdn, "allocated_amount", d.amount || 0);
+				frappe.model.set_value(cdt, cdn, "sales_invoice", d.sales_invoice || null);
+			} else {
+				if (!row.allocated_amount && d.amount) frappe.model.set_value(cdt, cdn, "allocated_amount", d.amount);
+				if (!row.sales_invoice && d.sales_invoice) frappe.model.set_value(cdt, cdn, "sales_invoice", d.sales_invoice);
 			}
 		},
 	});

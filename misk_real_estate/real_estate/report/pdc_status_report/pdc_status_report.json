@@ -20,7 +20,7 @@
    "fieldname": "status",
    "fieldtype": "Select",
    "label": "Status",
-   "options": "\nPending\nIn Batch\nDeposited\nCleared\nBounced"
+   "options": "\nPending\nSent to Bank\nIn Batch\nDeposited\nCleared\nBounced\nSubstituted\nCancelled\nReturned"
   },
   {
    "fieldname": "from_date",

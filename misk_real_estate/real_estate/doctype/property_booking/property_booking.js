@@ -99,9 +99,20 @@ frappe.ui.form.on("Property Booking", {
 			}, __("PDC"));
 		}
 
-		// View PDC Entries
+		// View PDC Entries (resolved via allocation rows)
 		frm.add_custom_button(__("PDC Entries"), () => {
-			frappe.set_route("List", "PDC Entry", { booking: frm.doc.name });
+			frappe.call({
+				method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_booking_pdc_entries",
+				args: { booking_name: frm.doc.name },
+				callback(r) {
+					const names = r.message || [];
+					if (!names.length) {
+						frappe.msgprint(__("No PDC Entries for this booking yet."));
+						return;
+					}
+					frappe.set_route("List", "PDC Entry", { name: ["in", names] });
+				},
+			});
 		}, __("View"));
 
 		// View Sales Invoices
@@ -472,19 +483,21 @@ function _collect_advance_pdc(frm, purpose) {
 			if (r.exc || !r.message) return;
 			const data = r.message;
 			// Build a fresh local PDC Entry (get_new_doc assigns a usable name) and
-			// pre-fill the key fields. To combine, the user adds allocation rows.
+			// pre-fill the header + one allocation row. To combine, add more rows.
 			frappe.model.with_doctype("PDC Entry", () => {
 				const doc = frappe.model.get_new_doc("PDC Entry");
 				doc.customer = data.customer;
 				doc.customer_bank_account = data.customer_bank_account;
 				doc.company = data.company;
-				doc.building = data.building;
-				doc.booking = data.booking;
-				doc.unit = data.unit;
-				doc.installment_type = data.installment_type;
-				doc.amount = data.amount;
-				doc.sales_invoice = data.sales_invoice;
 				doc.cheque_date = data.cheque_date;
+				const a = data.allocation || {};
+				const row = frappe.model.add_child(doc, "PDC Allocation", "allocations");
+				row.property_booking = a.property_booking;
+				row.purpose = a.purpose;
+				row.building = a.building;
+				row.unit = a.unit;
+				row.sales_invoice = a.sales_invoice;
+				row.allocated_amount = a.allocated_amount;
 				frappe.set_route("Form", "PDC Entry", doc.name);
 			});
 		},

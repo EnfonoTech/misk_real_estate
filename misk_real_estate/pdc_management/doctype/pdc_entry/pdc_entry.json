@@ -9,15 +9,11 @@
   "cheque_date",
   "amount",
   "currency",
-  "installment_type",
   "mode_of_payment",
   "company",
   "column_break_1",
   "customer",
   "customer_bank_account",
-  "building",
-  "unit",
-  "booking",
   "section_break_alloc",
   "allocations",
   "section_break_status",
@@ -28,7 +24,6 @@
   "deposited_date",
   "cleared_date",
   "section_break_links",
-  "sales_invoice",
   "payment_entry",
   "gl_posted",
   "section_break_notes",
@@ -55,10 +50,10 @@
   {
    "fieldname": "amount",
    "fieldtype": "Currency",
-   "label": "Amount",
+   "label": "Cheque Amount",
    "options": "company:default_currency",
-   "reqd": 1,
-   "in_list_view": 1
+   "in_list_view": 1,
+   "read_only": 1
   },
   {
    "fieldname": "currency",
@@ -74,14 +69,6 @@
    "options": "Company",
    "reqd": 1,
    "default": "Misk Real Estate"
-  },
-  {
-   "fieldname": "installment_type",
-   "fieldtype": "Select",
-   "label": "Type",
-   "options": "Booking Amount\nDown Payment\nInstallment\nOwners Association Fee",
-   "in_list_view": 1,
-   "in_standard_filter": 1
   },
   {
    "fieldname": "mode_of_payment",
@@ -112,33 +99,9 @@
    "options": "Bank Account"
   },
   {
-   "fieldname": "building",
-   "fieldtype": "Link",
-   "label": "Building",
-   "options": "Item Group",
-   "in_standard_filter": 1,
-   "search_index": 1
-  },
-  {
-   "fieldname": "unit",
-   "fieldtype": "Link",
-   "label": "Unit",
-   "options": "Item",
-   "in_global_search": 1
-  },
-  {
-   "fieldname": "booking",
-   "fieldtype": "Link",
-   "label": "Property Booking",
-   "options": "Property Booking",
-   "in_standard_filter": 1,
-   "search_index": 1
-  },
-  {
    "fieldname": "section_break_alloc",
    "fieldtype": "Section Break",
-   "label": "Allocations",
-   "description": "Use for one cheque covering booking amount / down payment across one or more bookings. Leave empty for a single-booking cheque (uses the Property Booking above)."
+   "label": "Payment Details"
   },
   {
    "fieldname": "allocations",
@@ -197,14 +160,6 @@
    "label": "Financial Links"
   },
   {
-   "fieldname": "sales_invoice",
-   "fieldtype": "Link",
-   "label": "Sales Invoice",
-   "options": "Sales Invoice",
-   "read_only": 1,
-   "allow_on_submit": 1
-  },
-  {
    "fieldname": "payment_entry",
    "fieldtype": "Link",
    "label": "Payment Entry",
@@ -219,7 +174,8 @@
    "label": "GL Posted",
    "read_only": 1,
    "allow_on_submit": 1,
-   "default": 0
+   "default": 0,
+   "hidden": 1
   },
   {
    "fieldname": "section_break_notes",

@@ -20,6 +20,7 @@ def get_columns():
         {"label": _("Customer"),        "fieldname": "customer",       "fieldtype": "Link",     "options": "Customer", "width": 160},
         {"label": _("Building"),        "fieldname": "building",       "fieldtype": "Link",     "options": "Item Group", "width": 140},
         {"label": _("Unit"),            "fieldname": "unit",           "fieldtype": "Link",     "options": "Item",  "width": 110},
+        {"label": _("Type"),            "fieldname": "purpose",        "fieldtype": "Data",     "width": 120},
         {"label": _("Cheque Date"),     "fieldname": "cheque_date",    "fieldtype": "Date",     "width": 110},
         {"label": _("Amount (OMR)"),    "fieldname": "amount",         "fieldtype": "Currency", "width": 120},
         {"label": _("Status"),          "fieldname": "status",         "fieldtype": "Data",     "width": 110},
@@ -40,7 +41,7 @@ def get_data(filters):
         values["customer"] = filters["customer"]
 
     if filters.get("building"):
-        conditions.append("pe.building = %(building)s")
+        conditions.append("a.building = %(building)s")
         values["building"] = filters["building"]
 
     if filters.get("status"):
@@ -63,18 +64,21 @@ def get_data(filters):
             pe.name,
             pe.cheque_no,
             pe.customer,
-            pe.building,
-            pe.unit,
+            GROUP_CONCAT(DISTINCT a.building) AS building,
+            GROUP_CONCAT(DISTINCT a.unit) AS unit,
+            GROUP_CONCAT(DISTINCT a.purpose) AS purpose,
             pe.cheque_date,
-            pe.amount,
+            pe.amount AS amount,
             pe.status,
-            pe.booking,
+            GROUP_CONCAT(DISTINCT a.property_booking) AS booking,
             pe.batch,
             pe.deposited_date,
             pe.cleared_date,
             pe.payment_entry
         FROM `tabPDC Entry` pe
+        LEFT JOIN `tabPDC Allocation` a ON a.parent = pe.name
         WHERE {where}
+        GROUP BY pe.name
         ORDER BY pe.cheque_date ASC
         """,
         values,
@@ -111,6 +115,7 @@ def get_summary(data):
         {"label": _("Total PDCs"),   "value": len(data),                         "datatype": "Int"},
         {"label": _("Total Amount"), "value": total,                             "datatype": "Currency"},
         {"label": _("Pending"),      "value": by_status.get("Pending", 0),       "datatype": "Currency", "color": "orange"},
+        {"label": _("Sent to Bank"), "value": by_status.get("Sent to Bank", 0),  "datatype": "Currency", "color": "purple"},
         {"label": _("Deposited"),    "value": by_status.get("Deposited", 0),     "datatype": "Currency", "color": "blue"},
         {"label": _("In Batch"),     "value": by_status.get("In Batch", 0),      "datatype": "Currency", "color": "purple"},
         {"label": _("Cleared"),      "value": by_status.get("Cleared", 0),       "datatype": "Currency", "color": "green"},

@@ -10,9 +10,11 @@ class PDCEntry(Document):
     def validate(self):
         if not self.cheque_no:
             frappe.throw(_("Cheque No is required."))
+        if not self.allocations:
+            frappe.throw(_("Add at least one payment row (building / unit / booking / type / amount)."))
         self._validate_allocations()
         if flt(self.amount) <= 0:
-            frappe.throw(_("Amount must be greater than zero."))
+            frappe.throw(_("Cheque amount must be greater than zero."))
 
     @property
     def is_allocated(self):
@@ -21,50 +23,69 @@ class PDCEntry(Document):
         return bool(self.allocations)
 
     def _validate_allocations(self):
-        """One cheque, one customer; cheque amount = sum of allocations."""
+        """The allocation table is the source of truth. One cheque, one customer;
+        cheque amount = sum of rows. Each row's building/unit are auto-filled from its
+        booking, and the primary row is mirrored into the (hidden) header fields so
+        existing reports / cron / batch logic keep working."""
         if not self.allocations:
             return
         total = 0.0
         for row in self.allocations:
             if flt(row.allocated_amount) <= 0:
-                frappe.throw(_("Allocation row {0}: Allocated Amount must be greater than zero.").format(row.idx))
+                frappe.throw(_("Allocation row {0}: Amount must be greater than zero.").format(row.idx))
             if not row.purpose:
-                frappe.throw(_("Allocation row {0}: Purpose is required.").format(row.idx))
-            booking_customer = frappe.db.get_value("Property Booking", row.property_booking, "customer")
-            # First allocation seeds the customer if it wasn't set
+                frappe.throw(_("Allocation row {0}: Type is required.").format(row.idx))
+            bk = frappe.db.get_value(
+                "Property Booking", row.property_booking,
+                ["customer", "unit", "building"], as_dict=True
+            ) or {}
             if not self.customer:
-                self.customer = booking_customer
-            if booking_customer and self.customer and booking_customer != self.customer:
+                self.customer = bk.get("customer")
+            if bk.get("customer") and self.customer and bk["customer"] != self.customer:
                 frappe.throw(
                     _("Allocation row {0}: Booking {1} belongs to {2}, not {3}. One cheque is for a single customer.").format(
-                        row.idx, row.property_booking, booking_customer, self.customer
+                        row.idx, row.property_booking, bk["customer"], self.customer
                     )
                 )
+            if not row.unit:
+                row.unit = bk.get("unit")
+            if not row.building:
+                row.building = bk.get("building")
             total += flt(row.allocated_amount)
-        # The cheque is fully allocated — its amount is exactly the sum of allocations.
+
+        # Cheque amount = sum of rows.
         self.amount = round(total, 3)
 
     def on_update(self):
         self._sync_booking_schedule_status()
 
     def _sync_booking_schedule_status(self):
-        """Keep PDC Schedule row in Property Booking in sync with this entry's status.
-        Single-booking installment cheques only — allocation-mode advance cheques
-        have no schedule row. Uses db_set to bypass allow_on_submit."""
-        if self.is_allocated or not self.booking:
-            return
+        """Mirror this cheque's status onto every PDC Schedule row that points to it.
+        One cheque may back several installment rows (across bookings), so sync them
+        all. Uses db_set to bypass allow_on_submit on submitted bookings."""
         try:
-            row_name = frappe.db.get_value(
-                "PDC Schedule", {"pdc_entry": self.name, "parent": self.booking}, "name"
-            )
-            if not row_name:
+            rows = frappe.get_all("PDC Schedule", filters={"pdc_entry": self.name}, pluck="name")
+            if not rows:
                 return
             update = {"status": self.status}
             if self.status == "Cleared" and self.payment_entry:
                 update["payment_entry"] = self.payment_entry
-            frappe.db.set_value("PDC Schedule", row_name, update)
+            for row_name in rows:
+                frappe.db.set_value("PDC Schedule", row_name, update)
         except Exception:
             frappe.log_error(frappe.get_traceback(), "PDC Entry: sync booking schedule failed")
+
+
+def link_invoice_to_allocation(pdc_entry_name, booking, purpose, si_name):
+    """Attach a Sales Invoice to the matching allocation row of a PDC Entry.
+    Used when invoices are generated after the cheque was recorded."""
+    if not pdc_entry_name or not si_name:
+        return
+    base = {"parent": pdc_entry_name, "property_booking": booking}
+    alloc = (frappe.db.get_value("PDC Allocation", {**base, "purpose": purpose}, "name")
+             or frappe.db.get_value("PDC Allocation", base, "name"))
+    if alloc:
+        frappe.db.set_value("PDC Allocation", alloc, "sales_invoice", si_name)
 
 
 @frappe.whitelist()
@@ -88,19 +109,14 @@ def mark_cleared(pdc_entry_name, cleared_date=None):
     if entry.gl_posted:
         frappe.throw(_("GL already posted for {0}.").format(pdc_entry_name))
 
-    if entry.is_allocated:
-        # A cheque clears in one shot — block unless EVERY allocation has an invoice.
-        missing = [str(a.idx) for a in entry.allocations if not a.sales_invoice]
-        if missing:
-            frappe.throw(
-                _("Every allocation must have a Sales Invoice before this cheque can be cleared. "
-                  "Missing on row(s): {0}.").format(", ".join(missing))
-            )
-        pe_name = _create_allocated_payment_entry(entry, cleared_date or today())
-    else:
-        if not entry.sales_invoice:
-            frappe.throw(_("Cannot create Payment Entry for {0}: no Sales Invoice linked. Create an invoice first.").format(pdc_entry_name))
-        pe_name = _create_payment_entry(entry, cleared_date or today())
+    # A cheque clears in one shot — block unless EVERY allocation has an invoice.
+    missing = [str(a.idx) for a in entry.allocations if not a.sales_invoice]
+    if missing:
+        frappe.throw(
+            _("Every allocation must have a Sales Invoice before this cheque can be cleared. "
+              "Missing on row(s): {0}.").format(", ".join(missing))
+        )
+    pe_name = _create_allocated_payment_entry(entry, cleared_date or today())
     entry.status = "Cleared"
     entry.cleared_date = cleared_date or today()
     entry.gl_posted = 1
@@ -131,20 +147,29 @@ def mark_bounced(pdc_entry_name, notes=None):
 
 
 @frappe.whitelist()
-def get_allocation_defaults(booking, purpose):
-    """Suggested allocated amount (tax-inclusive) and existing advance Sales Invoice
-    for a booking + purpose — used to auto-fill an allocation row."""
+def get_allocation_defaults(booking, purpose=None):
+    """Auto-fill values for an allocation row: building/unit from the booking, plus
+    the suggested amount (tax-inclusive) and existing advance Sales Invoice when the
+    type is Booking Amount / Down Payment."""
     b = frappe.get_doc("Property Booking", booking)
-    base = flt(b.booking_amount) if purpose == "Booking Amount" else flt(b.down_payment_amount)
-    if base <= 0:
-        return {"amount": 0, "sales_invoice": None}
-    _net, _tax, total = b._get_unit_tax_breakdown(base)
-    si = frappe.db.get_value(
-        "Sales Invoice",
-        {"custom_property_booking": booking, "custom_payment_purpose": purpose, "docstatus": ("<", 2)},
-        "name", order_by="docstatus desc, creation desc",
-    )
-    return {"amount": total, "sales_invoice": si}
+    out = {"building": b.building, "unit": b.unit, "amount": 0, "sales_invoice": None}
+
+    base, breakdown = 0, None
+    if purpose == "Booking Amount":
+        base, breakdown = flt(b.booking_amount), b._get_unit_tax_breakdown
+    elif purpose == "Down Payment":
+        base, breakdown = flt(b.down_payment_amount), b._get_unit_tax_breakdown
+    elif purpose == "Owners Association Fee":
+        base, breakdown = flt(b.owners_association_fee), b._get_oa_tax_breakdown
+
+    if base > 0 and breakdown:
+        out["amount"] = breakdown(base)[2]  # (net, tax, total) -> total
+        out["sales_invoice"] = frappe.db.get_value(
+            "Sales Invoice",
+            {"custom_property_booking": booking, "custom_payment_purpose": purpose, "docstatus": ("<", 2)},
+            "name", order_by="docstatus desc, creation desc",
+        )
+    return out
 
 
 @frappe.whitelist()
@@ -213,73 +238,6 @@ def bulk_action(names, action, date=None, notes=None):
     return {"ok": ok, "failed": failed}
 
 
-def _create_payment_entry(pdc_entry, payment_date):
-    """Create Payment Entry — GL posts only here (B7 requirement)."""
-    company = pdc_entry.company or frappe.defaults.get_user_default("company")
-
-    # Get the default receivable account for company
-    receivable_account = frappe.db.get_value(
-        "Company", company, "default_receivable_account"
-    )
-    # Get the bank account linked to the PDC Entry's batch (or entry field or company default)
-    bank_account = _get_bank_account(pdc_entry, company)
-    account_currency = (
-        frappe.db.get_value("Account", bank_account, "account_currency")
-        if bank_account
-        else None
-    ) or getattr(pdc_entry, "currency", None) or "OMR"
-
-    pe = frappe.get_doc({
-        "doctype": "Payment Entry",
-        "payment_type": "Receive",
-        "party_type": "Customer",
-        "party": pdc_entry.customer,
-        "company": company,
-        "posting_date": payment_date,
-        "paid_amount": flt(pdc_entry.amount),
-        "received_amount": flt(pdc_entry.amount),
-        "source_exchange_rate": 1,
-        "target_exchange_rate": 1,
-        "paid_to": bank_account,
-        "paid_to_account_currency": account_currency,
-        "paid_from": receivable_account,
-        "mode_of_payment": getattr(pdc_entry, "mode_of_payment", None) or "Cheque",
-        "reference_no": pdc_entry.cheque_no,
-        "reference_date": pdc_entry.cheque_date,
-        "remarks": f"PDC Clearance — {pdc_entry.cheque_no} / Booking: {pdc_entry.booking or 'N/A'}",
-        "property_booking": pdc_entry.booking or "",
-        "party_bank_account": getattr(pdc_entry, "customer_bank_account", None) or "",
-        "cheque_status": "Cleared",
-    })
-
-    # Resolve Sales Invoice — from entry directly, or look up from PDC Schedule row
-    si_name = pdc_entry.sales_invoice
-    if not si_name and pdc_entry.booking:
-        row_name = frappe.db.get_value(
-            "PDC Schedule",
-            {"pdc_entry": pdc_entry.name, "parent": pdc_entry.booking},
-            "name",
-        )
-        if row_name:
-            si_name = frappe.db.get_value("PDC Schedule", row_name, "sales_invoice")
-
-    if si_name:
-        outstanding = frappe.db.get_value("Sales Invoice", si_name, "outstanding_amount")
-        if outstanding and flt(outstanding) > 0:
-            pe.append("references", {
-                "reference_doctype": "Sales Invoice",
-                "reference_name": si_name,
-                "allocated_amount": min(flt(pdc_entry.amount), flt(outstanding)),
-            })
-
-    pe.insert(ignore_permissions=True)
-    pe.submit()
-
-    # Do NOT db_set here — caller still holds the PDC Entry doc and will save() it.
-    # db_set would bump modified timestamp → timestamp mismatch on caller's save().
-    return pe.name
-
-
 def _create_allocated_payment_entry(pdc_entry, payment_date):
     """One physical cheque -> ONE Payment Entry that settles every allocated
     Sales Invoice (booking amount / down payment across one or more bookings)."""
@@ -291,8 +249,15 @@ def _create_allocated_payment_entry(pdc_entry, payment_date):
         if bank_account else None
     ) or getattr(pdc_entry, "currency", None) or "OMR"
 
+    # Header property_booking / property_unit only when the whole cheque is for ONE
+    # booking; otherwise leave blank (the per-invoice booking is on each SI reference).
     bookings = {a.property_booking for a in pdc_entry.allocations if a.property_booking}
     single_booking = next(iter(bookings)) if len(bookings) == 1 else ""
+    single_unit = ""
+    if single_booking:
+        units = {a.unit for a in pdc_entry.allocations if a.unit}
+        single_unit = (next(iter(units)) if len(units) == 1
+                       else frappe.db.get_value("Property Booking", single_booking, "unit"))
 
     pe = frappe.get_doc({
         "doctype": "Payment Entry",
@@ -313,6 +278,7 @@ def _create_allocated_payment_entry(pdc_entry, payment_date):
         "reference_date": pdc_entry.cheque_date,
         "remarks": f"PDC Clearance — {pdc_entry.cheque_no} / {len(pdc_entry.allocations)} allocation(s)",
         "property_booking": single_booking,
+        "property_unit": single_unit,
         "party_bank_account": getattr(pdc_entry, "customer_bank_account", None) or "",
         "cheque_status": "Cleared",
     })
@@ -346,8 +312,8 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
 
     entry = frappe.get_doc("PDC Entry", pdc_entry_name)
 
-    if entry.is_allocated:
-        frappe.throw(_("Record Manual Payment is not supported for an allocated (multi-booking) cheque."))
+    if len(entry.allocations or []) > 1:
+        frappe.throw(_("Record Manual Payment is not supported for a multi-allocation cheque."))
 
     if entry.status in ("Cleared", "Cancelled"):
         frappe.throw(
@@ -356,12 +322,15 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
             )
         )
 
-    if not entry.sales_invoice:
+    alloc = entry.allocations[0] if entry.allocations else None
+    if not alloc or not alloc.sales_invoice:
         frappe.throw(
             _("No Sales Invoice linked to PDC Entry {0}. Link an invoice before recording manual payment.").format(
                 pdc_entry_name
             )
         )
+    si_name = alloc.sales_invoice
+    booking_name = alloc.property_booking
 
     company = entry.company or frappe.defaults.get_user_default("company")
     receivable_account = frappe.db.get_value("Company", company, "default_receivable_account")
@@ -379,7 +348,7 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
     ) or getattr(entry, "currency", None) or "OMR"
 
     outstanding = flt(
-        frappe.db.get_value("Sales Invoice", entry.sales_invoice, "outstanding_amount") or 0
+        frappe.db.get_value("Sales Invoice", si_name, "outstanding_amount") or 0
     )
     allocated = min(flt(amount), outstanding) if outstanding > 0 else flt(amount)
 
@@ -401,11 +370,11 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
         "reference_no": f"Manual-{pdc_entry_name}",
         "reference_date": payment_date,
         "remarks": notes or _("Manual payment — PDC cheque {0} cancelled by customer").format(entry.cheque_no),
-        "property_booking": entry.booking or "",
+        "property_booking": booking_name or "",
         "party_bank_account": getattr(entry, "customer_bank_account", None) or "",
         "references": [{
             "reference_doctype": "Sales Invoice",
-            "reference_name": entry.sales_invoice,
+            "reference_name": si_name,
             "allocated_amount": allocated,
         }],
     })
@@ -422,7 +391,7 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
     # Override PDC Schedule row to Cleared (on_update sets Cancelled, we correct it)
     row_name = frappe.db.get_value(
         "PDC Schedule",
-        {"pdc_entry": pdc_entry_name, "parent": entry.booking},
+        {"pdc_entry": pdc_entry_name, "parent": booking_name},
         "name",
     )
     if row_name:
