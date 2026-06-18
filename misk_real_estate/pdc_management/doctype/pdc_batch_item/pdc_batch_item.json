@@ -1,6 +1,6 @@
 {
  "actions": [],
- "creation": "2026-05-24 00:00:00.000000",
+ "creation": "2026-05-24 00:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
@@ -8,76 +8,82 @@
   "pdc_entry",
   "cheque_no",
   "cheque_date",
+  "column_break_eafq",
   "customer",
   "amount",
   "status"
  ],
  "fields": [
   {
+   "columns": 2,
    "fieldname": "pdc_entry",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "PDC Entry",
    "options": "PDC Entry",
-   "reqd": 1,
-   "columns": 2
+   "reqd": 1
   },
   {
+   "columns": 2,
    "fetch_from": "pdc_entry.cheque_no",
    "fieldname": "cheque_no",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Cheque No",
-   "read_only": 1,
-   "columns": 2
+   "read_only": 1
   },
   {
+   "columns": 1,
    "fetch_from": "pdc_entry.cheque_date",
    "fieldname": "cheque_date",
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Cheque Date",
-   "read_only": 1,
-   "columns": 1
+   "read_only": 1
   },
   {
+   "columns": 2,
    "fetch_from": "pdc_entry.customer",
    "fieldname": "customer",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Customer",
    "options": "Customer",
-   "read_only": 1,
-   "columns": 2
+   "read_only": 1
   },
   {
+   "columns": 2,
    "fetch_from": "pdc_entry.amount",
    "fieldname": "amount",
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Amount",
-   "read_only": 1,
-   "columns": 2
+   "read_only": 1
   },
   {
+   "columns": 1,
    "fetch_from": "pdc_entry.status",
    "fieldname": "status",
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Status",
-   "read_only": 1,
-   "columns": 1
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_eafq",
+   "fieldtype": "Column Break"
   }
  ],
- "index_web_pages_for_search": 0,
  "istable": 1,
  "links": [],
- "modified": "2026-05-24 00:00:00.000000",
+ "modified": "2026-06-18 12:06:26.684378",
  "modified_by": "Administrator",
  "module": "PDC Management",
  "name": "PDC Batch Item",
  "owner": "Administrator",
  "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "modified",
- "sort_order": "DESC"
+ "sort_order": "DESC",
+ "states": []
 }

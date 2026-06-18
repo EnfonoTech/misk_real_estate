@@ -78,10 +78,31 @@ frappe.ui.form.on("PDC Entry", {
 			}, __("Actions"));
 		}
 
-		// Mark Bounced — available when Deposited or In Batch
-		if (["Deposited", "In Batch"].includes(status)) {
+		// Mark Bounced — available when Sent to Bank, Deposited or In Batch
+		if (["Sent to Bank", "Deposited", "In Batch"].includes(status)) {
 			frm.add_custom_button(__("Mark Bounced"), () => {
 				_confirm_bounced(frm);
+			}, __("Actions"));
+		}
+
+		// Substitute — replace this cheque with a new one (keeps a Pending copy)
+		if (!["Cleared", "Cancelled", "Substituted"].includes(status)) {
+			frm.add_custom_button(__("Substitute Cheque"), () => {
+				_confirm_substitute(frm);
+			}, __("Actions"));
+		}
+
+		// Returned — cheque handed back to customer
+		if (!["Cleared", "Cancelled", "Returned"].includes(status)) {
+			frm.add_custom_button(__("Mark Returned"), () => {
+				_confirm_status_note(frm, "mark_returned", __("Mark Returned"), "orange");
+			}, __("Actions"));
+		}
+
+		// Cancelled — void the cheque
+		if (!["Cleared", "Cancelled"].includes(status)) {
+			frm.add_custom_button(__("Cancel Cheque"), () => {
+				_confirm_status_note(frm, "mark_cancelled", __("Cancel Cheque"), "gray");
 			}, __("Actions"));
 		}
 
@@ -301,10 +322,18 @@ function _confirm_bounced(frm) {
 				options: `<p class="text-muted">${__("Cheque No: <strong>{0}</strong> — Amount: <strong>{1} OMR</strong>", [frm.doc.cheque_no, frm.doc.amount])}</p>`,
 			},
 			{
+				fieldname: "bounce_reason",
+				fieldtype: "Link",
+				label: __("Bounce Reason"),
+				options: "PDC Bounce Reason",
+				reqd: 1,
+				description: __("Pick a reason, or type a new one and create it inline."),
+			},
+			{
 				fieldname: "notes",
 				fieldtype: "Small Text",
-				label: __("Reason / Notes"),
-				placeholder: __("e.g. Insufficient funds, Account closed…"),
+				label: __("Extra Notes"),
+				placeholder: __("Optional details…"),
 			},
 		],
 		primary_action_label: __("Mark Bounced"),
@@ -314,6 +343,7 @@ function _confirm_bounced(frm) {
 				method: "misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry.mark_bounced",
 				args: {
 					pdc_entry_name: frm.doc.name,
+					bounce_reason: values.bounce_reason || "",
 					notes: values.notes || "",
 				},
 				freeze: true,
@@ -324,6 +354,67 @@ function _confirm_bounced(frm) {
 							indicator: "red",
 						});
 						frm.reload_doc();
+					}
+				},
+			});
+		},
+	});
+	d.show();
+}
+
+// Generic status action with an optional note (Returned / Cancelled)
+function _confirm_status_note(frm, method, title, indicator) {
+	const d = new frappe.ui.Dialog({
+		title: title,
+		fields: [{ fieldname: "notes", fieldtype: "Small Text", label: __("Notes") }],
+		primary_action_label: __("Confirm"),
+		primary_action(values) {
+			d.hide();
+			frappe.call({
+				method: `misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry.${method}`,
+				args: { pdc_entry_name: frm.doc.name, notes: values.notes || "" },
+				freeze: true,
+				callback(r) {
+					if (!r.exc) {
+						frappe.show_alert({ message: __("{0} done.", [title]), indicator: indicator });
+						frm.reload_doc();
+					}
+				},
+			});
+		},
+	});
+	d.show();
+}
+
+// Substitute: mark this cheque Substituted and create a Pending replacement copy
+function _confirm_substitute(frm) {
+	const d = new frappe.ui.Dialog({
+		title: __("Substitute Cheque"),
+		fields: [
+			{
+				fieldname: "info", fieldtype: "HTML",
+				options: `<p class="text-muted">${__("Enter the new cheque's number and date.")}</p>`,
+			},
+			{ fieldname: "new_cheque_no", fieldtype: "Data", label: __("New Cheque No"), reqd: 1 },
+			{ fieldname: "new_cheque_date", fieldtype: "Date", label: __("New Cheque Date"), reqd: 1, default: frappe.datetime.get_today() },
+			{ fieldname: "notes", fieldtype: "Small Text", label: __("Notes") },
+		],
+		primary_action_label: __("Substitute"),
+		primary_action(values) {
+			d.hide();
+			frappe.call({
+				method: "misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry.mark_substituted",
+				args: {
+					pdc_entry_name: frm.doc.name,
+					new_cheque_no: values.new_cheque_no,
+					new_cheque_date: values.new_cheque_date,
+					notes: values.notes || "",
+				},
+				freeze: true,
+				callback(r) {
+					if (!r.exc && r.message) {
+						frappe.show_alert({ message: __("Substituted by {0}.", [r.message]), indicator: "blue" });
+						frappe.set_route("Form", "PDC Entry", r.message);
 					}
 				},
 			});

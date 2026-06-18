@@ -368,6 +368,9 @@ frappe.ui.form.on("Property Booking", {
 			if (n > 0 && after_dp > 0) frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
 		});
 	},
+
+	pdc_schedule_add(frm)    { _check_pdc_total(frm); },
+	pdc_schedule_remove(frm) { _check_pdc_total(frm); },
 });
 
 // ── PDC Schedule: recalc net/tax when user edits Total Amount ────────────────
@@ -420,8 +423,11 @@ function _fetch_unit_price(frm) {
 // ── Live PDC total vs Expected (Installments + OA) check ─────────────────────
 function _check_pdc_total(frm) {
 	const expected = flt(frm.doc.expected_table_total);
+	const actual = (frm.doc.pdc_schedule || []).reduce((s, r) => s + flt(r.amount), 0);
+	// Live-update the displayed totals (server recomputes identically on save)
+	frm.set_value("table_total", flt(actual.toFixed(3)));
+	frm.set_value("table_difference", flt((actual - expected).toFixed(3)));
 	if (!expected || !frm.doc.pdc_schedule) return;
-	const actual = frm.doc.pdc_schedule.reduce((s, r) => s + flt(r.amount), 0);
 	const diff   = Math.abs(actual - expected);
 	if (diff > 0.01) {
 		frm.page.set_indicator(

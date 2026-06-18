@@ -131,19 +131,115 @@ def mark_cleared(pdc_entry_name, cleared_date=None):
 
 
 @frappe.whitelist()
-def mark_bounced(pdc_entry_name, notes=None):
-    """Mark a PDC Entry as Bounced. Invoice stays outstanding."""
+def mark_bounced(pdc_entry_name, bounce_reason=None, notes=None):
+    """Mark a PDC Entry as Bounced (with a reason). Invoice stays outstanding."""
     frappe.has_permission("PDC Entry", "write", throw=True)
 
     entry = frappe.get_doc("PDC Entry", pdc_entry_name)
-    if entry.status not in ("Deposited", "In Batch"):
-        frappe.throw(_("Only Deposited or In Batch entries can be marked Bounced."))
+    if entry.status not in ("Deposited", "In Batch", "Sent to Bank"):
+        frappe.throw(_("Only Sent to Bank, Deposited or In Batch entries can be marked Bounced."))
 
     entry.status = "Bounced"
+    if bounce_reason:
+        entry.bounce_reason = bounce_reason
     if notes:
         entry.notes = (entry.notes or "") + f"\nBounced: {notes}"
     entry.save(ignore_permissions=True)
     frappe.msgprint(_("Cheque {0} marked as Bounced.").format(entry.cheque_no), alert=True)
+
+
+@frappe.whitelist()
+def mark_returned(pdc_entry_name, notes=None):
+    """Mark a PDC Entry as Returned (handed back to the customer)."""
+    frappe.has_permission("PDC Entry", "write", throw=True)
+    entry = frappe.get_doc("PDC Entry", pdc_entry_name)
+    if entry.status in ("Cleared", "Cancelled", "Returned"):
+        frappe.throw(_("A {0} cheque cannot be returned.").format(entry.status))
+    entry.status = "Returned"
+    if notes:
+        entry.notes = (entry.notes or "") + f"\nReturned: {notes}"
+    entry.save(ignore_permissions=True)
+    frappe.msgprint(_("Cheque {0} marked as Returned.").format(entry.cheque_no), alert=True)
+
+
+@frappe.whitelist()
+def mark_cancelled(pdc_entry_name, notes=None):
+    """Cancel a PDC Entry (void the cheque). No GL impact."""
+    frappe.has_permission("PDC Entry", "write", throw=True)
+    entry = frappe.get_doc("PDC Entry", pdc_entry_name)
+    if entry.status in ("Cleared", "Cancelled"):
+        frappe.throw(_("A {0} cheque cannot be cancelled.").format(entry.status))
+    entry.status = "Cancelled"
+    if notes:
+        entry.notes = (entry.notes or "") + f"\nCancelled: {notes}"
+    entry.save(ignore_permissions=True)
+    frappe.msgprint(_("Cheque {0} cancelled.").format(entry.cheque_no), alert=True)
+
+
+@frappe.whitelist()
+def mark_substituted(pdc_entry_name, new_cheque_no, new_cheque_date, notes=None):
+    """Mark this cheque Substituted and create a replacement PDC Entry — an exact
+    copy (customer, bank, allocations) with a new cheque no/date, left Pending."""
+    frappe.has_permission("PDC Entry", "write", throw=True)
+    entry = frappe.get_doc("PDC Entry", pdc_entry_name)
+    if entry.status in ("Cleared", "Cancelled", "Substituted"):
+        frappe.throw(_("A {0} cheque cannot be substituted.").format(entry.status))
+    if not new_cheque_no or not new_cheque_date:
+        frappe.throw(_("New cheque number and date are required."))
+    if frappe.db.exists("PDC Entry", {"cheque_no": new_cheque_no}):
+        frappe.throw(_("A PDC Entry with cheque no {0} already exists.").format(new_cheque_no))
+
+    replacement = frappe.get_doc({
+        "doctype": "PDC Entry",
+        "cheque_no": new_cheque_no,
+        "cheque_date": new_cheque_date,
+        "customer": entry.customer,
+        "customer_bank_account": entry.customer_bank_account,
+        "company": entry.company,
+        "currency": entry.currency,
+        "mode_of_payment": entry.mode_of_payment,
+        "status": "Pending",
+        "notes": _("Substitute for cheque {0}.").format(entry.cheque_no),
+        "allocations": [{
+            "property_booking": a.property_booking,
+            "purpose": a.purpose,
+            "building": a.building,
+            "unit": a.unit,
+            "sales_invoice": a.sales_invoice,
+            "allocated_amount": a.allocated_amount,
+        } for a in entry.allocations],
+    })
+    replacement.insert(ignore_permissions=True)
+
+    entry.status = "Substituted"
+    entry.substituted_by = replacement.name
+    note_text = notes or _("Substituted by cheque {0}.").format(new_cheque_no)
+    entry.notes = ((entry.notes or "") + f"\n{note_text}").strip()
+    entry.save(ignore_permissions=True)
+
+    frappe.msgprint(
+        _("Cheque {0} substituted by new PDC Entry {1} (Pending).").format(entry.cheque_no, replacement.name),
+        alert=True,
+    )
+    return replacement.name
+
+
+@frappe.whitelist()
+def pending_pdcs_card(filters=None):
+    """Custom Number Card: count of Pending cheques due today or earlier, plus the
+    route + filters so clicking the card opens that exact list. Computing here (not
+    via a dynamic filter) keeps BOTH the count and the click-through correct."""
+    as_of = frappe.utils.nowdate()
+    count = frappe.db.count("PDC Entry", {"status": "Pending", "cheque_date": ["<=", as_of]})
+    return {
+        "value": count,
+        "fieldtype": "Int",
+        "route": ["List", "PDC Entry"],
+        "route_options": {
+            "status": "Pending",
+            "cheque_date": ["<=", as_of],
+        },
+    }
 
 
 @frappe.whitelist()
@@ -207,9 +303,9 @@ def mark_deposited(pdc_entry_name, deposited_date=None):
 
 
 @frappe.whitelist()
-def bulk_action(names, action, date=None, notes=None):
+def bulk_action(names, action, date=None, notes=None, bounce_reason=None):
     """Apply a PDC status action to many entries from the list view.
-    action ∈ {sent_to_bank, deposited, cleared, bounced}.
+    action ∈ {sent_to_bank, deposited, cleared, bounced, returned, cancelled}.
     Returns {"ok": [names], "failed": [{"name", "error"}]} — per-entry errors are
     collected so one bad cheque doesn't abort the whole batch."""
     frappe.has_permission("PDC Entry", "write", throw=True)
@@ -219,7 +315,9 @@ def bulk_action(names, action, date=None, notes=None):
         "sent_to_bank": lambda n: mark_sent_to_bank(n, date),
         "deposited":    lambda n: mark_deposited(n, date),
         "cleared":      lambda n: mark_cleared(n, date),
-        "bounced":      lambda n: mark_bounced(n, notes),
+        "bounced":      lambda n: mark_bounced(n, bounce_reason, notes),
+        "returned":     lambda n: mark_returned(n, notes),
+        "cancelled":    lambda n: mark_cancelled(n, notes),
     }
     fn = dispatch.get(action)
     if not fn:

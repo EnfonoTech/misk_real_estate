@@ -11,29 +11,33 @@
   "customer",
   "customer_name",
   "mobile_no",
+  "column_break_1",
   "customer_bank_account",
+  "company",
+  "invoice_generation",
+  "column_break_jlmv",
+  "quotation",
+  "installment_progress",
   "workflow_state",
   "status",
-  "column_break_1",
-  "company",
-  "booking_date",
-  "invoice_generation",
-  "quotation",
   "section_break_property",
   "building",
   "unit",
   "column_break_wkrs",
   "price_list",
   "unit_price",
-  "section_break_payment",
-  "payment_plan",
+  "column_break_rndp",
+  "booking_date",
   "booking_amount",
-  "down_payment_percentage",
+  "section_break_payment",
   "down_payment_amount",
+  "down_payment_percentage",
   "down_payment_date",
   "column_break_calc",
-  "monthly_installment",
+  "payment_plan",
   "number_of_installments",
+  "monthly_installment",
+  "column_break_fsrv",
   "owners_association_fee",
   "section_tax_total",
   "taxes_and_charges",
@@ -41,12 +45,10 @@
   "column_break_tax",
   "tax_amount",
   "total_after_tax",
-  "section_totals",
-  "expected_table_total",
+  "column_break_pgdp",
   "table_total",
-  "column_break_tbl",
+  "expected_table_total",
   "table_difference",
-  "installment_progress",
   "section_break_pdc",
   "cheque_prefix",
   "pdc_schedule",
@@ -239,7 +241,7 @@
   {
    "fieldname": "section_tax_total",
    "fieldtype": "Section Break",
-   "label": "Tax & Total"
+   "label": "Tax & Totals"
   },
   {
    "fieldname": "taxes_and_charges",
@@ -271,11 +273,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "section_totals",
-   "fieldtype": "Section Break",
-   "label": "PDC Schedule Totals"
-  },
-  {
    "fieldname": "expected_table_total",
    "fieldtype": "Currency",
    "label": "Expected (Installments + OA, incl. Tax)",
@@ -286,10 +283,6 @@
    "fieldtype": "Currency",
    "label": "PDC Table Total",
    "read_only": 1
-  },
-  {
-   "fieldname": "column_break_tbl",
-   "fieldtype": "Column Break"
   },
   {
    "fieldname": "table_difference",
@@ -331,6 +324,22 @@
   {
    "fieldname": "column_break_wkrs",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_jlmv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_rndp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_fsrv",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_pgdp",
+   "fieldtype": "Column Break"
   }
  ],
  "is_submittable": 1,
@@ -348,7 +357,7 @@
    "link_fieldname": "property_booking"
   }
  ],
- "modified": "2026-06-18 11:16:53.599228",
+ "modified": "2026-06-18 12:13:46.867389",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Property Booking",

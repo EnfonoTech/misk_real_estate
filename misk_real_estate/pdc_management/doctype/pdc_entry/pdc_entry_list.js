@@ -1,8 +1,9 @@
-// List-view bulk actions for PDC Entry — pipeline: Pending → Sent to Bank →
-// Deposited → Cleared / Bounced. Actions appear in the "Actions" menu once rows
-// are selected.
+// List-view bulk actions + indicators for PDC Entry.
+// Pipeline: Pending → Sent to Bank → Deposited → Cleared / Bounced (also Returned,
+// Cancelled, Substituted). Actions appear in the "Actions" menu once rows selected.
 
 frappe.listview_settings["PDC Entry"] = {
+	add_fields: ["bounce_reason", "bounce_reason_color"],
 
 	onload(listview) {
 		const M = "misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry";
@@ -44,56 +45,56 @@ frappe.listview_settings["PDC Entry"] = {
 		function prompt_then(action, fields, label, build_payload) {
 			const names = selected_names();
 			if (!names) return;
-			frappe.prompt(
-				fields,
-				(v) => run_bulk(action, names, build_payload(v)),
-				label,
-				__("Confirm")
-			);
+			frappe.prompt(fields, (v) => run_bulk(action, names, build_payload(v)), label, __("Confirm"));
 		}
 
 		const today = () => frappe.datetime.get_today();
 
 		listview.page.add_actions_menu_item(__("Sent to Bank"), () => {
-			prompt_then(
-				"sent_to_bank",
+			prompt_then("sent_to_bank",
 				[{ fieldname: "date", fieldtype: "Date", label: __("Sent Date"), default: today(), reqd: 1 }],
-				__("Mark Sent to Bank"),
-				(v) => ({ date: v.date })
-			);
+				__("Mark Sent to Bank"), (v) => ({ date: v.date }));
 		});
 
 		listview.page.add_actions_menu_item(__("Mark Deposited"), () => {
-			prompt_then(
-				"deposited",
+			prompt_then("deposited",
 				[{ fieldname: "date", fieldtype: "Date", label: __("Deposit Date"), default: today(), reqd: 1 }],
-				__("Mark Deposited"),
-				(v) => ({ date: v.date })
-			);
+				__("Mark Deposited"), (v) => ({ date: v.date }));
 		});
 
 		listview.page.add_actions_menu_item(__("Mark Cleared"), () => {
-			prompt_then(
-				"cleared",
-				[{
-					fieldname: "date", fieldtype: "Date", label: __("Cleared Date"), default: today(), reqd: 1,
-				}, {
-					fieldname: "hint", fieldtype: "HTML",
-					options: `<div class="text-muted small">${__("Posts a Payment Entry / GL for each cheque. Entries without a linked Sales Invoice will be skipped and reported.")}</div>`,
-				}],
-				__("Mark Cleared (posts GL)"),
-				(v) => ({ date: v.date })
-			);
+			prompt_then("cleared",
+				[{ fieldname: "date", fieldtype: "Date", label: __("Cleared Date"), default: today(), reqd: 1 },
+				 { fieldname: "hint", fieldtype: "HTML", options: `<div class="text-muted small">${__("Posts a Payment Entry per cheque. Cheques without an invoice on every row are skipped and reported.")}</div>` }],
+				__("Mark Cleared (posts GL)"), (v) => ({ date: v.date }));
 		});
 
 		listview.page.add_actions_menu_item(__("Mark Bounced"), () => {
-			prompt_then(
-				"bounced",
-				[{ fieldname: "notes", fieldtype: "Small Text", label: __("Bounce Reason") }],
-				__("Mark Bounced"),
-				(v) => ({ notes: v.notes || "" })
-			);
+			prompt_then("bounced",
+				[{ fieldname: "bounce_reason", fieldtype: "Link", label: __("Bounce Reason"), options: "PDC Bounce Reason", reqd: 1 },
+				 { fieldname: "notes", fieldtype: "Small Text", label: __("Extra Notes") }],
+				__("Mark Bounced"), (v) => ({ bounce_reason: v.bounce_reason, notes: v.notes || "" }));
 		});
+
+		listview.page.add_actions_menu_item(__("Mark Returned"), () => {
+			prompt_then("returned",
+				[{ fieldname: "notes", fieldtype: "Small Text", label: __("Notes") }],
+				__("Mark Returned"), (v) => ({ notes: v.notes || "" }));
+		});
+
+		listview.page.add_actions_menu_item(__("Cancel Cheque"), () => {
+			prompt_then("cancelled",
+				[{ fieldname: "notes", fieldtype: "Small Text", label: __("Notes") }],
+				__("Cancel Cheque"), (v) => ({ notes: v.notes || "" }));
+		});
+	},
+
+	formatters: {
+		bounce_reason(value, df, doc) {
+			if (!value) return "";
+			const color = doc.bounce_reason_color || "red";
+			return `<span class="indicator-pill ${color}">${frappe.utils.escape_html(value)}</span>`;
+		},
 	},
 
 	get_indicator(doc) {
@@ -106,7 +107,7 @@ frappe.listview_settings["PDC Entry"] = {
 			"Bounced": "red",
 			"Substituted": "yellow",
 			"Cancelled": "light-gray",
-			"Returned": "red",
+			"Returned": "pink",
 		};
 		return [__(doc.status), map[doc.status] || "gray", "status,=," + doc.status];
 	},

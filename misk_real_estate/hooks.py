@@ -72,8 +72,9 @@ fixtures = [
         "filters": [["name", "like", "Misk%"]]
     },
     {
+        # The dashboard cards used by the Misk Real Estate workspace
         "dt": "Number Card",
-        "filters": [["name", "like", "Misk%"]]
+        "filters": [["name", "in", ["Available Units", "Active Bookings", "Pending PDCs as of Today", "Bounced PDCs"]]]
     },
     {
         "dt": "Item",
