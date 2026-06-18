@@ -25,7 +25,7 @@ frappe.ui.form.on("PDC Batch", {
 			"Sent to Bank": "blue",
 			"Completed":    "green",
 		};
-		frm.page.set_indicator(batch_status, colors[batch_status] || "grey");
+		frm.page.set_indicator(batch_status, colors[batch_status] || "gray");
 
 		if (frm.doc.docstatus !== 1) return;
 

@@ -175,9 +175,17 @@ function _add_action_buttons(frm) {
 	const state = frm.doc.workflow_state;
 
 	if (frm.doc.docstatus === 1 && state === "Confirmed") {
-		frappe.db.get_single_value("Misk Real Estate Settings", "oa_fee_item").then(oa_item => {
+		Promise.all([
+			frappe.db.get_single_value("Misk Real Estate Settings", "oa_fee_item"),
+			frappe.xcall(
+				"misk_real_estate.real_estate.doctype.property_booking.property_booking.get_quotation_booked_units",
+				{ quotation: frm.doc.name }
+			),
+		]).then(([oa_item, booked_units]) => {
+			const booked = new Set(booked_units || []);
+			// A line is "pending" if it has no active booking yet (not the OA fee line)
 			const pending = (frm.doc.items || []).filter(r =>
-				!r.property_booking && r.item_code !== oa_item
+				r.item_code !== oa_item && !booked.has(r.item_code)
 			);
 			pending.forEach(item => {
 				const label = item.item_code + (item.building ? ` — ${item.building}` : "");

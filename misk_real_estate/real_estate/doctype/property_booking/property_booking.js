@@ -220,9 +220,9 @@ frappe.ui.form.on("Property Booking", {
 
 		// Status indicator badge
 		const colors = {
-			"Draft": "grey", "Confirmed": "blue", "Closed": "green", "Cancelled": "red"
+			"Draft": "gray", "Confirmed": "blue", "Closed": "green", "Cancelled": "red"
 		};
-		frm.page.set_indicator(frm.doc.status, colors[frm.doc.status] || "grey");
+		frm.page.set_indicator(frm.doc.status, colors[frm.doc.status] || "gray");
 
 		// PDC Schedule — color-code rows by installment type
 		_style_pdc_schedule(frm);
@@ -439,8 +439,8 @@ function _check_pdc_total(frm) {
 			"orange"
 		);
 	} else {
-		const colors = { "Draft": "grey", "Confirmed": "blue", "Closed": "green", "Cancelled": "red" };
-		frm.page.set_indicator(frm.doc.status, colors[frm.doc.status] || "grey");
+		const colors = { "Draft": "gray", "Confirmed": "blue", "Closed": "green", "Cancelled": "red" };
+		frm.page.set_indicator(frm.doc.status, colors[frm.doc.status] || "gray");
 	}
 }
 

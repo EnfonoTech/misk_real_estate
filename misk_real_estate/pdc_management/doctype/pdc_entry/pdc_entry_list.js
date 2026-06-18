@@ -106,7 +106,7 @@ frappe.listview_settings["PDC Entry"] = {
 			"Cleared": "green",
 			"Bounced": "red",
 			"Substituted": "yellow",
-			"Cancelled": "light-gray",
+			"Cancelled": "gray",
 			"Returned": "pink",
 		};
 		return [__(doc.status), map[doc.status] || "gray", "status,=," + doc.status];

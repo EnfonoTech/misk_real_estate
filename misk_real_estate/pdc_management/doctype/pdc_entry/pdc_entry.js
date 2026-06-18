@@ -45,7 +45,7 @@ frappe.ui.form.on("PDC Entry", {
 			"Cleared":      "green",
 			"Bounced":      "red",
 		};
-		frm.page.set_indicator(status, colors[status] || "grey");
+		frm.page.set_indicator(status, colors[status] || "gray");
 
 		// Only action buttons when not submitted/cancelled through docstatus
 		// PDC Entry is not a submittable doctype — use status field directly

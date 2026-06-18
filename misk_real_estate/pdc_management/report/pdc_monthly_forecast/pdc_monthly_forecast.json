@@ -8,6 +8,7 @@
    "fieldname": "from_date",
    "fieldtype": "Date",
    "label": "From Date",
+   "default": "Today",
    "reqd": 1
   },
   {
@@ -30,9 +31,9 @@
   }
  ],
  "is_standard": "Yes",
- "javascript": "frappe.query_reports[\"PDC Monthly Forecast\"] = {\n\tonload: function(report) {\n\t\tvar today = frappe.datetime.get_today();\n\t\treport.set_filter_value(\"from_date\", today);\n\t\treport.set_filter_value(\"to_date\", frappe.datetime.add_days(today, 30));\n\t}\n};",
+ "javascript": "frappe.query_reports[\"PDC Monthly Forecast\"] = {\n\tonload: function(report) {\n\t\tvar today = frappe.datetime.get_today();\n\t\treport.set_filter_value(\"from_date\", today);\n\t\treport.set_filter_value(\"to_date\", frappe.datetime.add_months(today, 12));\n\t}\n};",
  "json": "",
- "modified": "2026-05-24 00:00:00",
+ "modified": "2026-06-18 13:00:00",
  "module": "PDC Management",
  "name": "PDC Monthly Forecast",
  "owner": "Administrator",

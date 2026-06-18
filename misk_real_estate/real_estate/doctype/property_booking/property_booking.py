@@ -27,6 +27,30 @@ class PropertyBooking(Document):
         self._compute_totals()
         self._compute_installment_progress()
         self._set_status()
+        # Enforce the PDC table is complete + balanced from "Submit for Approval" onward
+        # (the doc stays docstatus 0 through the approval pipeline, so before_submit
+        # alone would only catch it at final Confirmation).
+        if self.workflow_state in (
+            "Pending Sales Approval", "Pending Finance Approval", "Pending Management Approval"
+        ):
+            self._validate_pdc_balanced()
+
+    def _validate_pdc_balanced(self):
+        """Cheque no required on every PDC row, and the table must add up to the
+        expected Installments + OA total."""
+        for row in self.pdc_schedule:
+            if row.get("is_pdc") and not row.cheque_no:
+                frappe.throw(_("Row {0}: Cheque No is required for PDC rows.").format(row.idx))
+        self._compute_totals()
+        if abs(flt(self.table_difference)) > 0.01:
+            frappe.throw(
+                _("PDC Schedule total ({0} OMR) does not match the expected Installments + OA "
+                  "total ({1} OMR). Difference: {2} OMR. Adjust the rows so the difference is "
+                  "zero before submitting for approval.").format(
+                    flt(self.table_total), flt(self.expected_table_total),
+                    flt(self.table_difference)),
+                title=_("PDC Amount Mismatch"),
+            )
 
     def _advance_received(self, purpose):
         """True when a submitted invoice for this purpose is fully paid."""
@@ -37,16 +61,24 @@ class PropertyBooking(Document):
         )
         return outstanding is not None and flt(outstanding) <= 0.01
 
+    def _installment_received(self):
+        """True once any Installment PDC schedule row has cleared."""
+        return any(
+            r.installment_type == "Installment" and r.status == "Cleared"
+            for r in (self.pdc_schedule or [])
+        )
+
     def _set_status(self):
         """Payment status field — separate from the approval workflow_state.
-        Booking Amount / Down Payment receipts (which may land before or after
-        submission) take precedence, so they stay visible at any stage."""
+        Milestone order: Booking Amount -> Down Payment -> Installment received."""
         if self.docstatus == 2:
             self.status = "Cancelled"
             return
         if self.status in ("Closed", "Lost"):
             return  # terminal — Closed via Mark Unit Sold, Lost via Mark Lost
-        if self._advance_received("Down Payment"):
+        if self._installment_received():
+            self.status = "Installments in Progress"
+        elif self._advance_received("Down Payment"):
             self.status = "Down Payment Received"
         elif self._advance_received("Booking Amount"):
             self.status = "Booking Amount Received"
@@ -60,23 +92,8 @@ class PropertyBooking(Document):
         # Generate if somehow still empty and a plan exists (e.g. created programmatically)
         if not self.pdc_schedule and self.payment_plan:
             self.generate_pdc_schedule()
-        # Validate cheque_no mandatory for PDC rows (installments + OA)
-        for row in self.pdc_schedule:
-            if row.get("is_pdc") and not row.cheque_no:
-                frappe.throw(
-                    _("Row {0}: Cheque No is required for PDC rows.").format(row.idx)
-                )
-        # Hard block — the PDC table must add up to the expected Installments + OA total
-        self._compute_totals()
-        if abs(flt(self.table_difference)) > 0.01:
-            frappe.throw(
-                _("PDC Schedule total ({0} OMR) does not match the expected Installments + OA "
-                  "total ({1} OMR). Difference: {2} OMR. Adjust the rows so the difference is "
-                  "zero before submitting.").format(
-                    flt(self.table_total), flt(self.expected_table_total),
-                    flt(self.table_difference)),
-                title=_("PDC Amount Mismatch"),
-            )
+        # Hard block — cheque numbers present and the PDC table balanced
+        self._validate_pdc_balanced()
         # Payment status — advance milestone if received, else Confirmed
         if self._advance_received("Down Payment"):
             self.status = "Down Payment Received"
@@ -98,25 +115,27 @@ class PropertyBooking(Document):
         self._cancel_pdc_entries()
         self._set_unit_status("Available")
         if self.quotation:
-            self._clear_quotation_booking_link()
-            self._update_quotation_status()
+            self._update_quotation_status(exclude=self.name)
 
     def after_insert(self):
-        """Reserve the unit as soon as the booking is created (draft stage).
-        Only claim a free unit — never downgrade a unit already Booked/Sold."""
-        if not self.unit:
-            return
-        current = frappe.db.get_value("Item", self.unit, "unit_status")
-        if current in (None, "", "Available"):
-            self._set_unit_status("Reserved")
+        """Reserve the unit as soon as the booking is created (draft stage) and refresh
+        the Quotation's status (computed from its bookings)."""
+        if self.unit:
+            current = frappe.db.get_value("Item", self.unit, "unit_status")
+            if current in (None, "", "Available"):
+                self._set_unit_status("Reserved")
+        if self.quotation:
+            self._update_quotation_status()
 
     def on_trash(self):
-        """Release a draft reservation if this booking is deleted and no other
-        active booking holds the unit (avoid orphaned 'Reserved' units)."""
+        """Release a draft reservation if this booking is deleted, and refresh the
+        Quotation's status so the unit shows as re-bookable."""
         if self.unit and self.docstatus == 0:
             current = frappe.db.get_value("Item", self.unit, "unit_status")
             if current == "Reserved" and not self._unit_reserved_by_other():
                 self._set_unit_status("Available")
+        if self.quotation:
+            self._update_quotation_status(exclude=self.name)
 
     # ── Validation ────────────────────────────────────────────────────────────
 
@@ -205,8 +224,8 @@ class PropertyBooking(Document):
     def validate_required_fields(self):
         if not self.unit_price or flt(self.unit_price) <= 0:
             frappe.throw(_("Unit Price is required and must be greater than zero."))
-        if not self.booking_amount or flt(self.booking_amount) <= 0:
-            frappe.throw(_("Booking Amount is required and must be greater than zero."))
+        if flt(self.booking_amount) < 0:
+            frappe.throw(_("Booking Amount cannot be negative."))
         if not self.booking_date:
             frappe.throw(_("Booking Date is required."))
 
@@ -219,8 +238,8 @@ class PropertyBooking(Document):
         unit_price = flt(self.unit_price)
         booking_amount = flt(self.booking_amount)
 
-        if not unit_price or not booking_amount:
-            return  # wait until user fills required fields
+        if not unit_price:
+            return  # wait until unit price is set (booking amount may legitimately be 0)
 
         # Down payment %/amount conversion — depends only on unit_price, NOT on a
         # payment plan. Whichever the user entered drives the other.
@@ -479,38 +498,44 @@ class PropertyBooking(Document):
             row.tax_amount = tax
             row.amount     = total
 
-    def _update_quotation_status(self):
-        """Set Quotation status: Ordered / Partially Ordered / Open based on linked bookings."""
+    def _update_quotation_status(self, exclude=None):
+        """Set the Quotation's status from its Property Bookings. The ONLY link is
+        Property Booking -> Quotation (we never write back to Quotation Item, so the
+        booking stays cancellable). Ordered = every unit line has an active booking;
+        Partially Ordered = some; Lost = a booking was lost and none remain; else Open.
+        `exclude` skips a booking being cancelled/deleted (its DB status isn't final yet)."""
+        if not self.quotation:
+            return
         settings = frappe.get_cached_doc("Misk Real Estate Settings")
         oa_item = getattr(settings, "oa_fee_item", None)
 
-        items = frappe.get_all(
-            "Quotation Item",
-            filters={"parent": self.quotation},
-            fields=["item_code", "property_booking"],
-        )
-        unit_lines = [i for i in items if i.item_code != oa_item]
-        if not unit_lines:
+        line_units = {
+            i.item_code for i in frappe.get_all(
+                "Quotation Item", filters={"parent": self.quotation}, fields=["item_code"]
+            ) if i.item_code != oa_item
+        }
+        if not line_units:
             return
 
-        converted = [i for i in unit_lines if i.property_booking]
-        if len(converted) == len(unit_lines):
+        bookings = frappe.get_all(
+            "Property Booking", filters={"quotation": self.quotation},
+            fields=["name", "unit", "status", "docstatus"],
+        )
+        active_units = {
+            b.unit for b in bookings
+            if b.name != exclude and b.docstatus != 2 and b.status not in ("Lost", "Cancelled")
+        }
+        booked = line_units & active_units
+        if booked == line_units:
             status = "Ordered"
-        elif converted:
+        elif booked:
             status = "Partially Ordered"
+        elif any(b.status == "Lost" for b in bookings):
+            status = "Lost"
         else:
             status = "Open"
 
-        frappe.db.set_value("Quotation", self.quotation, "status", status)
-
-    def _clear_quotation_booking_link(self):
-        """On booking cancel, clear the property_booking link from its Quotation Item row."""
-        frappe.db.set_value(
-            "Quotation Item",
-            {"parent": self.quotation, "property_booking": self.name},
-            "property_booking",
-            "",
-        )
+        frappe.db.set_value("Quotation", self.quotation, "status", status, update_modified=False)
 
     def _cancel_pdc_entries(self):
         """Cancel linked PDC Entries (via allocation rows) that haven't been cleared."""
@@ -548,10 +573,19 @@ def update_booking_payment_status(booking_name):
         )
         received[purpose] = bool(si) and flt(si.outstanding_amount) <= 0.01
 
+    rows = frappe.get_all(
+        "PDC Schedule", filters={"parent": booking_name}, fields=["status", "installment_type"]
+    )
+    installment_received = any(
+        r.status == "Cleared" and r.installment_type == "Installment" for r in rows
+    )
+
     # Payment status — milestones take precedence; never override a terminal state
     current = frappe.db.get_value("Property Booking", booking_name, "status")
-    if current not in ("Closed", "Cancelled"):
-        if received["Down Payment"]:
+    if current not in ("Closed", "Cancelled", "Lost"):
+        if installment_received:
+            updates["status"] = "Installments in Progress"
+        elif received["Down Payment"]:
             updates["status"] = "Down Payment Received"
         elif received["Booking Amount"]:
             updates["status"] = "Booking Amount Received"
@@ -561,7 +595,6 @@ def update_booking_payment_status(booking_name):
             updates["status"] = "Draft"
 
     # Installment progress (percent)
-    rows = frappe.get_all("PDC Schedule", filters={"parent": booking_name}, fields=["status"])
     active = [r for r in rows if r.status != "Cancelled"]
     if active:
         cleared = len([r for r in active if r.status == "Cleared"])
@@ -681,6 +714,20 @@ def make_advance_payment(booking_name, purpose):
     if booking.customer_bank_account:
         pe.party_bank_account = booking.customer_bank_account
     return pe.as_dict()
+
+
+@frappe.whitelist()
+def get_quotation_booked_units(quotation):
+    """Unit item codes on this quotation that already have an active (non-Lost,
+    non-Cancelled) Property Booking — used to hide their 'Create Property Booking'
+    button. The link is one-directional (booking -> quotation), so nothing is written
+    back to Quotation Item (keeps the booking cancellable)."""
+    bookings = frappe.get_all(
+        "Property Booking",
+        filters={"quotation": quotation, "status": ("not in", ("Lost", "Cancelled")), "docstatus": ("!=", 2)},
+        fields=["unit"],
+    )
+    return list({b.unit for b in bookings if b.unit})
 
 
 @frappe.whitelist()
@@ -1032,6 +1079,11 @@ def mark_lost(booking_name):
 
     # Set terminal status directly (db_set avoids re-running validate / re-reserving)
     frappe.db.set_value("Property Booking", booking_name, "status", "Lost")
+
+    # Refresh the Quotation status (-> Lost if no active bookings remain, else Partial)
+    if booking.quotation:
+        booking._update_quotation_status()
+
     frappe.msgprint(_("Booking marked Lost. Unit {0} released.").format(booking.unit or ""), alert=True)
 
 
@@ -1091,13 +1143,7 @@ def create_bookings_from_quotation(quotation_name, item_name=None):
             skipped.append(f"{unit} ({unit_status})")
             continue
 
-        booking_amount = flt(item.get("booking_amount") or 0)
-        if not booking_amount:
-            frappe.throw(
-                _("Booking Amount is missing for unit {0} (row {1}). Please fill it in the Quotation items table.").format(
-                    unit, item.idx
-                )
-            )
+        booking_amount = flt(item.get("booking_amount") or 0)  # 0 is allowed
 
         building = frappe.db.get_value("Item", unit, "item_group") or item.get("building") or ""
 
@@ -1130,18 +1176,8 @@ def create_bookings_from_quotation(quotation_name, item_name=None):
             "status": "Draft",
         })
         booking.flags.ignore_permissions = True
-        booking.insert()
-        # Link booking back to this Quotation Item row
-        frappe.db.set_value("Quotation Item", item.name, "property_booking", booking.name)
+        booking.insert()  # after_insert refreshes the Quotation status from its bookings
         created.append(booking.name)
-
-    # Mark Quotation as Ordered only when all lines are converted
-    all_converted = all(
-        frappe.db.get_value("Quotation Item", r.name, "property_booking")
-        for r in quotation.items
-    )
-    if all_converted:
-        frappe.db.set_value("Quotation", quotation_name, "status", "Ordered")
 
     msg_parts = [_("{0} Property Booking(s) created: {1}").format(len(created), ", ".join(created))]
     if skipped:

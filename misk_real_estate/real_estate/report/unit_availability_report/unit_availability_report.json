@@ -15,12 +15,24 @@
    "fieldtype": "Select",
    "label": "Unit Status",
    "options": "\nAvailable\nBooked\nSold\nReserved\nUnder Maintenance"
+  },
+  {
+   "fieldname": "unit_type",
+   "fieldtype": "Link",
+   "label": "Unit Type",
+   "options": "Unit Type"
+  },
+  {
+   "fieldname": "floor_number",
+   "fieldtype": "Link",
+   "label": "Floor",
+   "options": "Floor"
   }
  ],
  "is_standard": "Yes",
  "javascript": "",
  "json": "",
- "modified": "2026-05-25 00:00:00",
+ "modified": "2026-06-18 15:00:00",
  "module": "Real Estate",
  "name": "Unit Availability Report",
  "owner": "Administrator",

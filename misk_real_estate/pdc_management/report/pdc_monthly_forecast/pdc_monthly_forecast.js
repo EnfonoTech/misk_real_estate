@@ -4,6 +4,6 @@ frappe.query_reports["PDC Monthly Forecast"] = {
 	onload: function (report) {
 		var today = frappe.datetime.get_today();
 		report.set_filter_value("from_date", today);
-		report.set_filter_value("to_date", frappe.datetime.add_days(today, 30));
+		report.set_filter_value("to_date", frappe.datetime.add_months(today, 12));
 	},
 };

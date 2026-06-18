@@ -7,6 +7,7 @@ frappe.listview_settings["Property Booking"] = {
 		const status_map = {
 			"Booking Amount Received":["Booking Amount Received", "orange"],
 			"Down Payment Received":  ["Down Payment Received", "purple"],
+			"Installments in Progress":["Installments in Progress", "cyan"],
 			"Confirmed":              ["Confirmed", "blue"],
 			"Closed":                 ["Closed", "green"],
 			"Cancelled":              ["Cancelled", "red"],
@@ -18,7 +19,7 @@ frappe.listview_settings["Property Booking"] = {
 		}
 		// status is still "Draft" → show the approval stage instead
 		const wf_color = {
-			"Draft":                       "grey",
+			"Draft":                       "gray",
 			"Pending Sales Approval":      "orange",
 			"Pending Finance Approval":    "orange",
 			"Pending Management Approval": "orange",
@@ -26,7 +27,7 @@ frappe.listview_settings["Property Booking"] = {
 			"Rejected":                    "red",
 		};
 		const ws = doc.workflow_state || "Draft";
-		return [ws, wf_color[ws] || "grey", "workflow_state,=," + ws];
+		return [ws, wf_color[ws] || "gray", "workflow_state,=," + ws];
 	},
 
 	formatters: {

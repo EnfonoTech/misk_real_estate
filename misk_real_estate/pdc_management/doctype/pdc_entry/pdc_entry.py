@@ -64,14 +64,23 @@ class PDCEntry(Document):
         One cheque may back several installment rows (across bookings), so sync them
         all. Uses db_set to bypass allow_on_submit on submitted bookings."""
         try:
-            rows = frappe.get_all("PDC Schedule", filters={"pdc_entry": self.name}, pluck="name")
+            rows = frappe.get_all(
+                "PDC Schedule", filters={"pdc_entry": self.name}, fields=["name", "parent"]
+            )
             if not rows:
                 return
             update = {"status": self.status}
             if self.status == "Cleared" and self.payment_entry:
                 update["payment_entry"] = self.payment_entry
-            for row_name in rows:
-                frappe.db.set_value("PDC Schedule", row_name, update)
+            for r in rows:
+                frappe.db.set_value("PDC Schedule", r.name, update)
+            # Recompute the affected booking(s) AFTER the rows are synced, so
+            # installment_progress reflects this status change (not the prior state).
+            from misk_real_estate.real_estate.doctype.property_booking.property_booking import (
+                update_booking_payment_status,
+            )
+            for booking in {r.parent for r in rows}:
+                update_booking_payment_status(booking)
         except Exception:
             frappe.log_error(frappe.get_traceback(), "PDC Entry: sync booking schedule failed")
 

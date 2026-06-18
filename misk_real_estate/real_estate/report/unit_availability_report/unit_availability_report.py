@@ -7,15 +7,39 @@ from frappe.utils import flt
 
 def execute(filters=None):
     filters = filters or {}
-    columns = get_columns()
-    data = get_data(filters)
+    price_lists = _get_price_lists(filters)
+    columns = get_columns(price_lists)
+    data = get_data(filters, price_lists)
     summary = get_summary(data)
     chart = get_chart(data)
     return columns, data, None, chart, summary
 
 
-def get_columns():
-    return [
+def _pl_field(price_list):
+    """Safe, unique column fieldname for a price list."""
+    return "pl_" + frappe.scrub(price_list)
+
+
+def _get_price_lists(filters):
+    """The price lists to render as columns: the chosen one, else every enabled
+    selling price list that has at least one Item Price."""
+    if filters.get("price_list"):
+        return [filters["price_list"]]
+    return frappe.db.sql(
+        """
+        SELECT DISTINCT ip.price_list
+        FROM `tabItem Price` ip
+        JOIN `tabPrice List` pl ON pl.name = ip.price_list
+        WHERE ip.selling = 1 AND pl.enabled = 1
+        ORDER BY ip.price_list
+        """,
+        pluck=True,
+    )
+
+
+def get_columns(price_lists=None):
+    price_lists = price_lists or []
+    cols = [
         {
             "fieldname": "building",
             "label": _("Building"),
@@ -37,10 +61,18 @@ def get_columns():
             "width": 160,
         },
         {
+            "fieldname": "unit_type",
+            "label": _("Unit Type"),
+            "fieldtype": "Link",
+            "options": "Unit Type",
+            "width": 120,
+        },
+        {
             "fieldname": "floor_number",
             "label": _("Floor"),
-            "fieldtype": "Int",
-            "width": 70,
+            "fieldtype": "Link",
+            "options": "Floor",
+            "width": 100,
         },
         {
             "fieldname": "unit_area_sqft",
@@ -87,9 +119,19 @@ def get_columns():
             "width": 110,
         },
     ]
+    # One Currency column per price list
+    for pl in price_lists:
+        cols.append({
+            "fieldname": _pl_field(pl),
+            "label": pl,
+            "fieldtype": "Currency",
+            "options": "currency",
+            "width": 130,
+        })
+    return cols
 
 
-def get_data(filters):
+def get_data(filters, price_lists=None):
     conditions = "WHERE i.disabled = 0 AND i.is_sales_item = 1"
     params = {}
 
@@ -101,12 +143,21 @@ def get_data(filters):
         conditions += " AND COALESCE(i.unit_status, 'Available') = %(unit_status)s"
         params["unit_status"] = filters["unit_status"]
 
+    if filters.get("unit_type"):
+        conditions += " AND i.unit_type = %(unit_type)s"
+        params["unit_type"] = filters["unit_type"]
+
+    if filters.get("floor_number"):
+        conditions += " AND i.floor_number = %(floor_number)s"
+        params["floor_number"] = filters["floor_number"]
+
     rows = frappe.db.sql(
         """
         SELECT
             i.item_group          AS building,
             i.item_code           AS unit_id,
             i.item_name           AS unit_name,
+            i.unit_type           AS unit_type,
             i.floor_number        AS floor_number,
             i.unit_area_sqft      AS unit_area_sqft,
             COALESCE(i.unit_status, 'Available') AS unit_status,
@@ -126,7 +177,26 @@ def get_data(filters):
         params,
         as_dict=True,
     )
+
+    _attach_price_list_rates(rows, price_lists or [])
     return rows
+
+
+def _attach_price_list_rates(rows, price_lists):
+    """Set one field per price list on each row (pl_<scrubbed> = rate), so each
+    price list renders as its own column."""
+    if not rows or not price_lists:
+        return
+    units = [r.unit_id for r in rows]
+    prices = frappe.get_all(
+        "Item Price",
+        filters={"item_code": ["in", units], "price_list": ["in", price_lists], "selling": 1},
+        fields=["item_code", "price_list", "price_list_rate"],
+    )
+    rate_map = {(p.item_code, p.price_list): p.price_list_rate for p in prices}
+    for r in rows:
+        for pl in price_lists:
+            r[_pl_field(pl)] = rate_map.get((r.unit_id, pl))
 
 
 def get_summary(data):
@@ -141,7 +211,7 @@ def get_summary(data):
         {"label": _("Available"), "value": available, "datatype": "Int", "indicator": "green"},
         {"label": _("Booked"), "value": booked, "datatype": "Int", "indicator": "orange"},
         {"label": _("Sold"), "value": sold, "datatype": "Int", "indicator": "red"},
-        {"label": _("Reserved"), "value": reserved, "datatype": "Int", "indicator": "grey"},
+        {"label": _("Reserved"), "value": reserved, "datatype": "Int", "indicator": "gray"},
     ]
 
 

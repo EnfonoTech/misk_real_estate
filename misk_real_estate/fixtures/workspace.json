@@ -1,7 +1,7 @@
 [
  {
   "charts": [],
-  "content": "[{\"id\":\"hdr-cards\",\"type\":\"header\",\"data\":{\"text\":\"<span class='h4'><b>Overview</b></span>\",\"col\":12}},{\"id\":\"nc-avail\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Available Units\",\"col\":3}},{\"id\":\"nc-bookings\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Active Bookings\",\"col\":3}},{\"id\":\"nc-pending\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Pending PDCs as of Today\",\"col\":3}},{\"id\":\"nc-bank\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Bounced PDCs\",\"col\":3}},{\"id\":\"hdr-sales\",\"type\":\"header\",\"data\":{\"text\":\"<span class='h4'><b>Sales</b></span>\",\"col\":12}},{\"id\":\"sc-booking\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Property Booking\",\"col\":3}},{\"id\":\"sc-so\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Quotation\",\"col\":3}},{\"id\":\"sc-si\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Sales Invoice\",\"col\":3}},{\"id\":\"sc-customer\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer\",\"col\":3}},{\"id\":\"sc-lead\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Lead\",\"col\":3}},{\"id\":\"hdr-pdc\",\"type\":\"header\",\"data\":{\"text\":\"<span class='h4'><b>PDC Management</b></span>\",\"col\":12}},{\"id\":\"sc-pdc-entry\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"PDC Entry\",\"col\":3}},{\"id\":\"sc-pdc-batch\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"PDC Batch\",\"col\":3}},{\"id\":\"sc-pe\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Payment Entry\",\"col\":3}},{\"id\":\"hdr-masters\",\"type\":\"header\",\"data\":{\"text\":\"<span class='h4'><b>Masters</b></span>\",\"col\":12}},{\"id\":\"sc-item\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Unit / Item\",\"col\":3}},{\"id\":\"sc-pp\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Payment Plan\",\"col\":3}},{\"id\":\"sc-floor\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Floor\",\"col\":3}},{\"id\":\"sc-ut\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Unit Type\",\"col\":3}},{\"id\":\"hdr-reports\",\"type\":\"header\",\"data\":{\"text\":\"<span class='h4'><b>Reports</b></span>\",\"col\":12}},{\"id\":\"sc-rpt-unit\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Unit Availability\",\"col\":4}},{\"id\":\"sc-rpt-pdc-status\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"PDC Status Report\",\"col\":4}},{\"id\":\"sc-rpt-pdc-aging\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"PDC Aging Report\",\"col\":4}},{\"id\":\"sc-rpt-pdc-forecast\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"PDC Monthly Forecast\",\"col\":4}},{\"id\":\"sc-rpt-ar\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Accounts Receivable\",\"col\":4}},{\"id\":\"sc-rpt-cledger\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Customer Ledger Summary\",\"col\":4}}]",
+  "content": "[{\"id\": \"hdr-cards\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Overview</b></span>\", \"col\": 12}}, {\"id\": \"nc-avail\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Available Units\", \"col\": 3}}, {\"id\": \"nc-bookings\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Active Bookings\", \"col\": 3}}, {\"id\": \"nc-pending\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Pending PDCs as of Today\", \"col\": 3}}, {\"id\": \"nc-bank\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Bounced PDCs\", \"col\": 3}}, {\"id\": \"nc-draft-invoices\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Draft Invoices\", \"col\": 3}}, {\"id\": \"nc-unpaid-invoices\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Unpaid Invoices\", \"col\": 3}}, {\"id\": \"nc-sent-to-bank-pdcs\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Sent to Bank PDCs\", \"col\": 3}}, {\"id\": \"nc-deposited-pdcs\", \"type\": \"number_card\", \"data\": {\"number_card_name\": \"Deposited PDCs\", \"col\": 3}}, {\"id\": \"hdr-sales\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Sales</b></span>\", \"col\": 12}}, {\"id\": \"sc-booking\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Property Booking\", \"col\": 3}}, {\"id\": \"sc-so\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Quotation\", \"col\": 3}}, {\"id\": \"sc-si\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Sales Invoice\", \"col\": 3}}, {\"id\": \"sc-customer\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Customer\", \"col\": 3}}, {\"id\": \"sc-lead\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Lead\", \"col\": 3}}, {\"id\": \"hdr-pdc\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>PDC Management</b></span>\", \"col\": 12}}, {\"id\": \"sc-pdc-entry\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"PDC Entry\", \"col\": 3}}, {\"id\": \"sc-pdc-batch\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"PDC Batch\", \"col\": 3}}, {\"id\": \"sc-pe\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Payment Entry\", \"col\": 3}}, {\"id\": \"hdr-masters\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Masters</b></span>\", \"col\": 12}}, {\"id\": \"sc-item\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Unit / Item\", \"col\": 3}}, {\"id\": \"sc-pp\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Payment Plan\", \"col\": 3}}, {\"id\": \"sc-floor\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Floor\", \"col\": 3}}, {\"id\": \"sc-ut\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Unit Type\", \"col\": 3}}, {\"id\": \"hdr-reports\", \"type\": \"header\", \"data\": {\"text\": \"<span class=\\\"h4\\\"><b>Reports</b></span>\", \"col\": 12}}, {\"id\": \"sc-rpt-unit\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Unit Availability\", \"col\": 4}}, {\"id\": \"sc-rpt-pdc-status\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"PDC Status Report\", \"col\": 4}}, {\"id\": \"sc-rpt-pdc-aging\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"PDC Aging Report\", \"col\": 4}}, {\"id\": \"sc-rpt-pdc-forecast\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"PDC Monthly Forecast\", \"col\": 4}}, {\"id\": \"sc-rpt-ar\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Accounts Receivable\", \"col\": 4}}, {\"id\": \"sc-rpt-cledger\", \"type\": \"shortcut\", \"data\": {\"shortcut_name\": \"Customer Ledger Summary\", \"col\": 4}}]",
   "custom_blocks": [],
   "docstatus": 0,
   "doctype": "Workspace",
@@ -12,34 +12,62 @@
   "is_hidden": 0,
   "label": "Misk Real Estate",
   "links": [],
-  "modified": "2026-06-18 13:48:43.839652",
+  "modified": "2026-06-18 16:47:16.242281",
   "module": "Real Estate",
   "name": "Misk Real Estate",
   "number_cards": [
    {
-    "label": null,
+    "label": "Available Units",
     "number_card_name": "Available Units",
     "parent": "Misk Real Estate",
     "parentfield": "number_cards",
     "parenttype": "Workspace"
    },
    {
-    "label": null,
+    "label": "Active Bookings",
     "number_card_name": "Active Bookings",
     "parent": "Misk Real Estate",
     "parentfield": "number_cards",
     "parenttype": "Workspace"
    },
    {
-    "label": null,
+    "label": "Pending PDCs as of Today",
     "number_card_name": "Pending PDCs as of Today",
     "parent": "Misk Real Estate",
     "parentfield": "number_cards",
     "parenttype": "Workspace"
    },
    {
-    "label": null,
+    "label": "Sent to Bank PDCs",
+    "number_card_name": "Sent to Bank PDCs",
+    "parent": "Misk Real Estate",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Deposited PDCs",
+    "number_card_name": "Deposited PDCs",
+    "parent": "Misk Real Estate",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Bounced PDCs",
     "number_card_name": "Bounced PDCs",
+    "parent": "Misk Real Estate",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Draft Invoices",
+    "number_card_name": "Draft Invoices",
+    "parent": "Misk Real Estate",
+    "parentfield": "number_cards",
+    "parenttype": "Workspace"
+   },
+   {
+    "label": "Unpaid Invoices",
+    "number_card_name": "Unpaid Invoices",
     "parent": "Misk Real Estate",
     "parentfield": "number_cards",
     "parenttype": "Workspace"
@@ -247,23 +275,6 @@
     "kanban_board": null,
     "label": "Unit Type",
     "link_to": "Unit Type",
-    "parent": "Misk Real Estate",
-    "parentfield": "shortcuts",
-    "parenttype": "Workspace",
-    "report_ref_doctype": null,
-    "restrict_to_domain": null,
-    "stats_filter": null,
-    "type": "DocType",
-    "url": null
-   },
-   {
-    "color": "Grey",
-    "doc_view": "",
-    "format": null,
-    "icon": "fa fa-cog",
-    "kanban_board": null,
-    "label": "Settings",
-    "link_to": "Misk Real Estate Settings",
     "parent": "Misk Real Estate",
     "parentfield": "shortcuts",
     "parenttype": "Workspace",

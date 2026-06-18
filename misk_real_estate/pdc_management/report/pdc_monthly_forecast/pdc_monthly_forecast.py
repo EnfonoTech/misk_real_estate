@@ -11,8 +11,11 @@ from frappe.utils import flt, getdate, add_months, get_first_day, get_last_day
 
 def execute(filters=None):
     filters = filters or {}
-    if not filters.get("from_date") or not filters.get("to_date"):
-        frappe.throw(_("From Date and To Date are required."))
+    # Default to today .. +1 year so the report always renders (no "required" error)
+    if not filters.get("from_date"):
+        filters["from_date"] = getdate()
+    if not filters.get("to_date"):
+        filters["to_date"] = add_months(getdate(filters["from_date"]), 12)
 
     columns = get_columns()
     data = get_data(filters)
