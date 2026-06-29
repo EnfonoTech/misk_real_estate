@@ -760,10 +760,12 @@ def create_advance_pdc(booking_name, purpose):
         "name", order_by="docstatus desc, creation desc",
     )
     company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
+    mode_of_payment = frappe.db.get_single_value("Misk Real Estate Settings", "pdc_payment_mode") or ""
     return {
         "customer": booking.customer,
         "customer_bank_account": booking.customer_bank_account or "",
         "company": company,
+        "mode_of_payment": mode_of_payment,
         "cheque_date": today(),
         "allocation": {
             "property_booking": booking_name,

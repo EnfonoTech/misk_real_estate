@@ -495,6 +495,7 @@ function _collect_advance_pdc(frm, purpose) {
 				doc.customer = data.customer;
 				doc.customer_bank_account = data.customer_bank_account;
 				doc.company = data.company;
+				doc.mode_of_payment = data.mode_of_payment;
 				doc.cheque_date = data.cheque_date;
 				const a = data.allocation || {};
 				const row = frappe.model.add_child(doc, "PDC Allocation", "allocations");

@@ -518,10 +518,13 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
 
 
 def _get_bank_account(pdc_entry, company):
-    """Get bank account: PDC Entry MOP → batch MOP → company default."""
+    """Resolve the deposit account: PDC Entry MOP → batch MOP → Misk Real Estate
+    Settings pdc_payment_mode → company default bank account."""
+    settings_mop = frappe.db.get_single_value("Misk Real Estate Settings", "pdc_payment_mode")
     for mop in [
         getattr(pdc_entry, "mode_of_payment", None),
         frappe.db.get_value("PDC Batch", pdc_entry.batch, "mode_of_payment") if pdc_entry.batch else None,
+        settings_mop,
     ]:
         if mop:
             mop_account = frappe.db.get_value(
