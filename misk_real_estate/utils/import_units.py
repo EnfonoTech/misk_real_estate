@@ -113,6 +113,7 @@ def _upsert_item(item_code, item_name, building, unit_type, floor, area, min_dp)
     if frappe.db.exists("Item", item_code):
         # Update custom fields only
         frappe.db.set_value("Item", item_code, {
+            "is_unit": 1,
             "unit_type": unit_type or "",
             "floor_number": floor or "",
             "unit_area_sqft": flt(area),
@@ -128,6 +129,7 @@ def _upsert_item(item_code, item_name, building, unit_type, floor, area, min_dp)
         "is_sales_item": 1,
         "is_purchase_item": 0,
         "is_stock_item": 0,
+        "is_unit": 1,
         "unit_status": "Available",
         "unit_type": unit_type or "",
         "floor_number": floor or "",

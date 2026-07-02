@@ -1,8 +1,13 @@
 // Item form — Misk Real Estate
 // Auto-generates item_code from item_group (building) + item_name (unit no.)
 // Format: BUILDING-PREFIX-UNITNO  e.g. FURATH-F9, MISK-WALK-SH-1
+// Only applies to real estate units (doc.is_unit) — normal items keep manual item_code.
 
 frappe.ui.form.on("Item", {
+	is_unit(frm) {
+		_suggest_item_code(frm);
+	},
+
 	item_group(frm) {
 		_suggest_item_code(frm);
 	},
@@ -13,7 +18,7 @@ frappe.ui.form.on("Item", {
 });
 
 function _suggest_item_code(frm) {
-	if (!frm.is_new()) return;
+	if (!frm.is_new() || !frm.doc.is_unit) return;
 
 	const group = (frm.doc.item_group || "").trim();
 	const unit  = (frm.doc.item_name  || "").trim();

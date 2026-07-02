@@ -132,7 +132,7 @@ def get_columns(price_lists=None):
 
 
 def get_data(filters, price_lists=None):
-    conditions = "WHERE i.disabled = 0 AND i.is_sales_item = 1"
+    conditions = "WHERE i.disabled = 0 AND i.is_sales_item = 1 AND i.is_unit = 1"
     params = {}
 
     if filters.get("building"):
