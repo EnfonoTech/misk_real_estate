@@ -132,6 +132,26 @@ function _open_new_booking(frm, item) {
 	});
 }
 
+// ── Open new Reservation pre-filled from Quotation line ──────────────────────
+// Reservation holds its units in a child table ("items"), so the unit/rate
+// details can't be passed via frappe.route_options (that only sets scalar
+// fields on the parent) — build the child row directly instead.
+function _open_new_reservation(frm, item) {
+	frappe.model.with_doctype("Reservation", () => {
+		const doc = frappe.model.get_new_doc("Reservation");
+		doc.quotation = frm.doc.name;
+
+		const row = frappe.model.add_child(doc, "items");
+		row.unit = item.item_code || "";
+		row.building = item.building || "";
+		row.selling_price = item.rate || 0;
+		row.booking_amount = item.booking_amount || 0;
+		row.down_payment_amount = item.down_payment_amount || 0;
+
+		frappe.set_route("Form", "Reservation", doc.name);
+	});
+}
+
 // ── Item query: filter by building + Available units only ─────────────────────
 function _set_item_query(frm) {
 	frm.fields_dict["items"].grid.get_field("item_code").get_query = function(doc, cdt, cdn) {
@@ -181,8 +201,13 @@ function _add_action_buttons(frm) {
 				"misk_real_estate.real_estate.doctype.property_booking.property_booking.get_quotation_booked_units",
 				{ quotation: frm.doc.name }
 			),
-		]).then(([oa_item, booked_units]) => {
+			frappe.xcall(
+				"misk_real_estate.real_estate.doctype.reservation.reservation.get_quotation_reserved_units",
+				{ quotation: frm.doc.name }
+			),
+		]).then(([oa_item, booked_units, reserved_units]) => {
 			const booked = new Set(booked_units || []);
+			const reserved = new Set(reserved_units || []);
 			// A line is "pending" if it has no active booking yet (not the OA fee line)
 			const pending = (frm.doc.items || []).filter(r =>
 				r.item_code !== oa_item && !booked.has(r.item_code)
@@ -193,10 +218,23 @@ function _add_action_buttons(frm) {
 					_open_new_booking(frm, item);
 				}, __("Create Property Booking"));
 			});
+
+			// A line is reservable if it has no active booking AND no active reservation yet
+			const reservable = pending.filter(r => !reserved.has(r.item_code));
+			reservable.forEach(item => {
+				const label = item.item_code + (item.building ? ` — ${item.building}` : "");
+				frm.add_custom_button(__(label), () => {
+					_open_new_reservation(frm, item);
+				}, __("Create Reservation"));
+			});
 		});
 	}
 
 	frm.add_custom_button(__("Property Bookings"), () => {
 		frappe.set_route("List", "Property Booking", { quotation: frm.doc.name });
+	}, __("View"));
+
+	frm.add_custom_button(__("Reservations"), () => {
+		frappe.set_route("List", "Reservation", { quotation: frm.doc.name });
 	}, __("View"));
 }

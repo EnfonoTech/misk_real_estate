@@ -1,0 +1,96 @@
+{
+ "actions": [],
+ "creation": "2026-07-01 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "unit",
+  "building",
+  "column_break_ri1",
+  "selling_price",
+  "booking_amount",
+  "down_payment_amount",
+  "column_break_ri2",
+  "proposed_payment_plan",
+  "property_booking"
+ ],
+ "fields": [
+  {
+   "columns": 3,
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Apartment / Unit",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fetch_from": "unit.item_group",
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Building",
+   "options": "Item Group",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ri1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 2,
+   "fieldname": "selling_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Selling Price",
+   "reqd": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "booking_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Booking Amount"
+  },
+  {
+   "columns": 2,
+   "fieldname": "down_payment_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Down Payment (DP) Amount"
+  },
+  {
+   "fieldname": "column_break_ri2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "proposed_payment_plan",
+   "fieldtype": "Link",
+   "label": "Proposed Installment Period",
+   "options": "Payment Plan"
+  },
+  {
+   "allow_on_submit": 1,
+   "description": "Set once a Property Booking is created for this unit. Prevents auto-release once populated.",
+   "fieldname": "property_booking",
+   "fieldtype": "Link",
+   "label": "Converted Booking",
+   "no_copy": 1,
+   "options": "Property Booking"
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-01 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Real Estate",
+ "name": "Reservation Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

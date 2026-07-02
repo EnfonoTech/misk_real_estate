@@ -45,7 +45,7 @@
    "name": "Purchase Invoice-custom_expense_request",
    "no_copy": 0,
    "non_negative": 0,
-   "options": "Expense Request",
+   "options": "Expense Request Entry",
    "owner": "Administrator",
    "permlevel": 0,
    "placeholder": null,
