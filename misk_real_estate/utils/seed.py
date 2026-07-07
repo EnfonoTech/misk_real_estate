@@ -13,12 +13,25 @@ def run():
 
     # Create bookings
     for spec in BOOKINGS:
-        existing = frappe.db.exists("Property Booking", {"unit": spec["unit"]})
+        existing = frappe.db.exists("Property Booking Unit", {"unit": spec["unit"]})
         if existing:
             print(f"SKIP {spec['unit']}: {existing}")
             continue
         unit_price = flt(frappe.db.get_value("Item", spec["unit"], "standard_rate"))
-        b = frappe.get_doc({"doctype": "Property Booking", "company": COMPANY, **spec, "unit_price": unit_price})
+        b = frappe.get_doc({
+            "doctype": "Property Booking",
+            "company": COMPANY,
+            "customer": spec["customer"],
+            "booking_date": spec["booking_date"],
+            "property_unit": [{
+                "building": spec["building"],
+                "unit": spec["unit"],
+                "unit_price": unit_price,
+                "payment_plan": spec["payment_plan"],
+                "booking_amount": spec["booking_amount"],
+                "down_payment_percentage": spec["down_payment_percentage"],
+            }],
+        })
         b.insert(ignore_permissions=True)
         b.submit()
         frappe.db.commit()

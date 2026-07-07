@@ -1,0 +1,32 @@
+[
+ {
+  "absolute_value": 0,
+  "align_labels_right": 0,
+  "custom_format": 1,
+  "default_print_language": "ar",
+  "disabled": 0,
+  "doc_type": "Sales Agreement",
+  "docstatus": 0,
+  "doctype": "Print Format",
+  "font": null,
+  "font_size": 13,
+  "line_breaks": 0,
+  "margin_bottom": 15.0,
+  "margin_left": 15.0,
+  "margin_right": 15.0,
+  "margin_top": 15.0,
+  "module": "Real Estate",
+  "name": "Sales Agreement (Arabic)",
+  "owner": "Administrator",
+  "page_number": "Hide",
+  "pdf_generator": "wkhtmltopdf",
+  "print_format_builder": 0,
+  "print_format_builder_beta": 0,
+  "print_format_for": "DocType",
+  "print_format_type": "Jinja",
+  "raw_printing": 0,
+  "show_section_headings": 0,
+  "standard": "Yes",
+  "html": "<div dir=\"rtl\" lang=\"ar\" class=\"sa-wrap\">\n<style>\n  .sa-wrap { font-family: 'Noto Naskh Arabic', 'Arial', sans-serif; font-size: 13px; color: #111; padding: 10px; }\n  .sa-wrap h1 { text-align: center; font-size: 20px; margin-bottom: 4px; }\n  .sa-wrap h2 { text-align: center; font-size: 13px; color: #555; margin-top: 0; font-weight: normal; }\n  .sa-section-title { background: #f0f0f0; border: 1px solid #ccc; padding: 6px 10px; font-weight: bold; margin-top: 16px; }\n  .sa-table { width: 100%; border-collapse: collapse; margin-top: 8px; }\n  .sa-table td, .sa-table th { border: 1px solid #ccc; padding: 6px 10px; text-align: right; font-size: 12px; }\n  .sa-table th { background: #fafafa; }\n  .sa-label { color: #555; width: 30%; }\n  .sa-signatures { margin-top: 40px; display: flex; justify-content: space-between; }\n  .sa-signatures div { width: 45%; border-top: 1px solid #333; padding-top: 6px; text-align: center; }\n  .sa-placeholder { border: 1px dashed #999; padding: 10px; margin-top: 16px; color: #777; font-size: 11px; }\n</style>\n\n{% set booking = frappe.get_doc(\"Property Booking\", doc.property_booking) %}\n\n<h1>عقد بوع وتملّك وحدة عقارية</h1>\n<h2>Sales Agreement</h2>\n\n<table class=\"sa-table\">\n  <tr><td class=\"sa-label\">رقم العقد / Contract No.</td><td>{{ doc.name }}</td>\n      <td class=\"sa-label\">تاريخ العقد / Contract Date</td><td>{{ frappe.utils.formatdate(doc.contract_date) }}</td></tr>\n  <tr><td class=\"sa-label\">رقم الحجز / Booking No.</td><td>{{ doc.property_booking }}</td>\n      <td class=\"sa-label\">مندوب المبيعات / Sales Person</td><td>{{ doc.sales_person or \"\" }}</td></tr>\n</table>\n\n<div class=\"sa-section-title\">بيانات العميل / Customer Details</div>\n<table class=\"sa-table\">\n  <tr><td class=\"sa-label\">الاسم / Name</td><td>{{ doc.customer_name or \"\" }}</td>\n      <td class=\"sa-label\">رقم الهوية / ID Number</td><td>{{ doc.customer_id_number or \"\" }}</td></tr>\n  <tr><td class=\"sa-label\">الهاتف / Mobile</td><td>{{ doc.customer_mobile or \"\" }}</td>\n      <td class=\"sa-label\">البريد الالكتروني / Email</td><td>{{ doc.customer_email or \"\" }}</td></tr>\n  <tr><td class=\"sa-label\">العنوان / Address</td><td colspan=\"3\">{{ doc.customer_address or \"\" }}</td></tr>\n</table>\n\n<div class=\"sa-section-title\">بيانات الوحدة / Property Details</div>\n<table class=\"sa-table\">\n  <tr><td class=\"sa-label\">المبنى / Building</td><td>{{ doc.building or \"\" }}</td>\n      <td class=\"sa-label\">الوححة / Unit No.</td><td>{{ doc.unit or \"\" }}</td></tr>\n  <tr><td class=\"sa-label\">المساحة (قدم ²) / Area (Sq Ft)</td><td>{{ doc.unit_area_sqft or \"\" }}</td>\n      <td class=\"sa-label\">الطابق / Floor</td><td>{{ doc.floor_number or \"\" }}</td></tr>\n</table>\n\n<div class=\"sa-section-title\">البيانات التتجارية / Commercial Details</div>\n<table class=\"sa-table\">\n  <tr><td class=\"sa-label\">سعر البيع / Selling Price</td><td>{{ frappe.utils.fmt_money(doc.selling_price) }}</td>\n      <td class=\"sa-label\">مبلٰ الحجز / Booking Amount</td><td>{{ frappe.utils.fmt_money(doc.booking_amount) }}</td></tr>\n  <tr><td class=\"sa-label\">الدفعة المقدمة / Down Payment</td><td>{{ frappe.utils.fmt_money(doc.down_payment_amount) }} ({{ frappe.utils.formatdate(doc.down_payment_date) if doc.down_payment_date else \"\" }})</td>\n      <td class=\"sa-label\">المبلٰ المتبقي / Balance Amount</td><td><b>{{ frappe.utils.fmt_money(doc.balance_amount) }}</b></td></tr>\n</table>\n\n<div class=\"sa-section-title\">تفاصيل الأقساط / Installment Plan</div>\n<table class=\"sa-table\">\n  <tr><td class=\"sa-label\">عدد الأقساط / No. of Installments</td><td>{{ doc.number_of_installments or 0 }}</td>\n      <td class=\"sa-label\">قيمة القسط / Installment Amount</td><td>{{ frappe.utils.fmt_money(doc.monthly_installment) }}</td></tr>\n  <tr><td class=\"sa-label\">تاريخ أول قسط / First Due Date</td><td>{{ frappe.utils.formatdate(doc.first_installment_due_date) if doc.first_installment_due_date else \"\" }}</td>\n      <td class=\"sa-label\">خطة الدفع / Payment Plan</td><td>{{ doc.payment_plan or \"\" }}</td></tr>\n</table>\n\n<div class=\"sa-section-title\">رسوم الإدارة / Management Fee</div>\n<table class=\"sa-table\">\n  <tr><td class=\"sa-label\">المبلٰ / Amount</td><td>{{ frappe.utils.fmt_money(doc.management_fee_amount) }}</td>\n      <td class=\"sa-label\">تاريخ الاستحقاق / Due Date (PDC)</td><td>{{ frappe.utils.formatdate(doc.management_fee_due_date) if doc.management_fee_due_date else \"\" }}</td></tr>\n</table>\n\n<div class=\"sa-section-title\">جدول الشيكات المؤجلة (PDC) / PDC Schedule</div>\n<table class=\"sa-table\">\n  <thead>\n    <tr>\n      <th>#</th>\n      <th>النوع / Type</th>\n      <th>تاريخ الشيك / Cheque Date</th>\n      <th>رقم الشيك / Cheque No.</th>\n      <th>المبلٰ / Amount</th>\n    </tr>\n  </thead>\n  <tbody>\n  {% for row in booking.pdc_schedule %}\n    <tr>\n      <td>{{ row.sequence_no or loop.index }}</td>\n      <td>{{ row.installment_type }}</td>\n      <td>{{ frappe.utils.formatdate(row.cheque_date) if row.cheque_date else \"\" }}</td>\n      <td>{{ row.cheque_no or \"—\" }}</td>\n      <td>{{ frappe.utils.fmt_money(row.amount) }}</td>\n    </tr>\n  {% endfor %}\n  </tbody>\n</table>\n\n<div class=\"sa-placeholder\">\n  [ ADD LEGAL CLAUSES / بنود وشروط العقد القانونية هنا — هذا قالب مبدئي يحوي البيانات المطلوبة فقط — يجب مراجعة النص القانوني الفعلي مع القسم القانوني قبل الاستخدام. This is a structural placeholder only — have Legal review and supply the actual binding Arabic contract clauses before real use. ]\n</div>\n\n<div class=\"sa-signatures\">\n  <div>البائع / Seller</div>\n  <div>المشتري / Buyer</div>\n</div>\n</div>\n"
+ }
+]

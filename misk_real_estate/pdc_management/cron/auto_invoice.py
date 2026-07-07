@@ -41,11 +41,12 @@ def _generate_due_invoices():
             ps.installment_type,
             ps.status,
             pb.customer,
-            pb.unit,
+            pbu.unit,
             pb.company,
             pb.taxes_and_charges
         FROM `tabPDC Schedule` ps
         INNER JOIN `tabProperty Booking` pb ON pb.name = ps.parent
+        INNER JOIN `tabProperty Booking Unit` pbu ON pbu.parent = pb.name
         WHERE pb.docstatus = 1
           AND (pb.invoice_generation = 'Monthly' OR pb.invoice_generation IS NULL OR pb.invoice_generation = '')
           AND ps.cheque_date <= %(today)s

@@ -8,7 +8,30 @@ def before_validate(doc, method):
     Runs BEFORE ERPNext calculates taxes/totals so the OA line is included
     in the standard grand_total and tax calculation.
     """
+    _set_default_sales_person(doc)
     _sync_oa_fee_line(doc)
+
+
+def _resolve_sales_person(user):
+    """Sales Person linked to a user via Employee.user_id -> Sales Person.employee."""
+    employee = frappe.db.get_value("Employee", {"user_id": user}, "name")
+    if not employee:
+        return None
+    return frappe.db.get_value("Sales Person", {"employee": employee}, "name")
+
+
+def _set_default_sales_person(doc):
+    if not doc.is_new() or doc.get("custom_sales_person"):
+        return
+    sales_person = _resolve_sales_person(frappe.session.user)
+    if sales_person:
+        doc.custom_sales_person = sales_person
+
+
+@frappe.whitelist()
+def get_default_sales_person():
+    """Used by quotation.js to pre-fill Sales Person on a new, unsaved Quotation."""
+    return _resolve_sales_person(frappe.session.user) or ""
 
 
 def _sync_oa_fee_line(doc):

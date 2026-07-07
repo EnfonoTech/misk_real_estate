@@ -3,6 +3,17 @@
 // Approval workflow badge + "Create Property Booking" button
 
 frappe.ui.form.on("Quotation", {
+	onload(frm) {
+		if (frm.is_new() && !frm.doc.custom_sales_person) {
+			frappe.call({
+				method: "misk_real_estate.real_estate.custom.quotation_hooks.get_default_sales_person",
+				callback(r) {
+					if (r.message) frm.set_value("custom_sales_person", r.message);
+				},
+			});
+		}
+	},
+
 	refresh(frm) {
 		_set_item_query(frm);
 		_add_action_buttons(frm);
@@ -102,22 +113,11 @@ frappe.ui.form.on("Quotation Item", {
 
 
 // ── Open new Property Booking pre-filled from Quotation line ─────────────────
+// Property Booking holds unit/price/payment-schedule fields on its child table
+// (property_unit), so they can't be passed via frappe.route_options (that only
+// sets scalar fields on the parent) — build the child row directly instead,
+// same pattern as _open_new_reservation below.
 function _open_new_booking(frm, item) {
-	const prefill = {
-		quotation:          frm.doc.name,
-		company:            frm.doc.company || "",
-		building:           item.building || "",
-		unit:               item.item_code || "",
-		unit_price:         item.rate || 0,
-		payment_plan:       item.payment_plan || frm.doc.payment_plan || "",
-		price_list:         item.price_list || frm.doc.selling_price_list || "",
-		taxes_and_charges:  frm.doc.taxes_and_charges || "",
-		booking_amount:     item.booking_amount || 0,
-		down_payment_percentage: item.down_payment_percentage || 0,
-		down_payment_amount: item.down_payment_amount || 0,
-		owners_association_fee: item.owners_association_fee || 0,
-	};
-
 	// Resolve customer (auto-converts Lead → Customer if needed)
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.resolve_customer_for_quotation",
@@ -125,9 +125,27 @@ function _open_new_booking(frm, item) {
 		freeze: true,
 		freeze_message: __("Resolving customer..."),
 		callback(r) {
-			prefill.customer = r.message || "";
-			frappe.route_options = prefill;
-			frappe.new_doc("Property Booking");
+			const customer = r.message || "";
+			frappe.model.with_doctype("Property Booking", () => {
+				const doc = frappe.model.get_new_doc("Property Booking");
+				doc.quotation = frm.doc.name;
+				doc.customer = customer;
+				doc.company = frm.doc.company || "";
+				doc.taxes_and_charges = frm.doc.taxes_and_charges || "";
+
+				const row = frappe.model.add_child(doc, "property_unit");
+				row.building = item.building || "";
+				row.unit = item.item_code || "";
+				row.unit_price = item.rate || 0;
+				row.payment_plan = item.payment_plan || frm.doc.payment_plan || "";
+				row.price_list = item.price_list || frm.doc.selling_price_list || "";
+				row.booking_amount = item.booking_amount || 0;
+				row.down_payment_percentage = item.down_payment_percentage || 0;
+				row.down_payment_amount = item.down_payment_amount || 0;
+				row.owners_association_fee = item.owners_association_fee || 0;
+
+				frappe.set_route("Form", "Property Booking", doc.name);
+			});
 		},
 	});
 }

@@ -167,10 +167,14 @@ def get_data(filters, price_lists=None):
             pb.unit_price         AS unit_price,
             pb.booking_date       AS booking_date
         FROM `tabItem` i
-        LEFT JOIN `tabProperty Booking` pb
-            ON pb.unit = i.item_code
-            AND pb.docstatus = 1
-            AND pb.status NOT IN ('Cancelled')
+        LEFT JOIN (
+            SELECT pbu.unit AS unit, pbu.unit_price AS unit_price,
+                   pb.name AS name, pb.customer AS customer,
+                   pb.customer_name AS customer_name, pb.booking_date AS booking_date
+            FROM `tabProperty Booking` pb
+            INNER JOIN `tabProperty Booking Unit` pbu ON pbu.parent = pb.name
+            WHERE pb.docstatus = 1 AND pb.status NOT IN ('Cancelled')
+        ) pb ON pb.unit = i.item_code
         {conditions}
         ORDER BY i.item_group, i.item_code
         """.format(conditions=conditions),

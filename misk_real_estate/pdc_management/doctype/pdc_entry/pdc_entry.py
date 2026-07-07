@@ -36,9 +36,13 @@ class PDCEntry(Document):
             if not row.purpose:
                 frappe.throw(_("Allocation row {0}: Type is required.").format(row.idx))
             bk = frappe.db.get_value(
-                "Property Booking", row.property_booking,
-                ["customer", "unit", "building"], as_dict=True
+                "Property Booking", row.property_booking, "customer", as_dict=True
             ) or {}
+            unit_row = frappe.db.get_value(
+                "Property Booking Unit", {"parent": row.property_booking},
+                ["unit", "building"], as_dict=True
+            ) or {}
+            bk.update(unit_row)
             if not self.customer:
                 self.customer = bk.get("customer")
             if bk.get("customer") and self.customer and bk["customer"] != self.customer:
@@ -257,15 +261,16 @@ def get_allocation_defaults(booking, purpose=None):
     the suggested amount (tax-inclusive) and existing advance Sales Invoice when the
     type is Booking Amount / Down Payment."""
     b = frappe.get_doc("Property Booking", booking)
-    out = {"building": b.building, "unit": b.unit, "amount": 0, "sales_invoice": None}
+    row = b._get_unit_row()
+    out = {"building": row.building, "unit": row.unit, "amount": 0, "sales_invoice": None}
 
     base, breakdown = 0, None
     if purpose == "Booking Amount":
-        base, breakdown = flt(b.booking_amount), b._get_unit_tax_breakdown
+        base, breakdown = flt(row.booking_amount), b._get_unit_tax_breakdown
     elif purpose == "Down Payment":
-        base, breakdown = flt(b.down_payment_amount), b._get_unit_tax_breakdown
+        base, breakdown = flt(row.down_payment_amount), b._get_unit_tax_breakdown
     elif purpose == "Owners Association Fee":
-        base, breakdown = flt(b.owners_association_fee), b._get_oa_tax_breakdown
+        base, breakdown = flt(row.owners_association_fee), b._get_oa_tax_breakdown
 
     if base > 0 and breakdown:
         out["amount"] = breakdown(base)[2]  # (net, tax, total) -> total
@@ -364,7 +369,7 @@ def _create_allocated_payment_entry(pdc_entry, payment_date):
     if single_booking:
         units = {a.unit for a in pdc_entry.allocations if a.unit}
         single_unit = (next(iter(units)) if len(units) == 1
-                       else frappe.db.get_value("Property Booking", single_booking, "unit"))
+                       else frappe.db.get_value("Property Booking Unit", {"parent": single_booking}, "unit"))
 
     pe = frappe.get_doc({
         "doctype": "Payment Entry",

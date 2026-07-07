@@ -7,6 +7,17 @@ frappe.ui.form.on("Reservation", {
 		}));
 	},
 
+	onload(frm) {
+		if (frm.is_new() && !frm.doc.sales_person) {
+			frappe.call({
+				method: "misk_real_estate.real_estate.doctype.reservation.reservation.get_default_sales_person",
+				callback(r) {
+					if (r.message) frm.set_value("sales_person", r.message);
+				},
+			});
+		}
+	},
+
 	refresh(frm) {
 		_set_unit_query(frm);
 		_add_action_buttons(frm);
@@ -72,6 +83,9 @@ function _add_action_buttons(frm) {
 }
 
 // ── Open new Property Booking pre-filled from a Reservation unit row ─────────
+// Property Booking holds unit/price/payment-schedule fields on its child table
+// (property_unit), so they can't be passed via frappe.route_options (that only
+// sets scalar fields on the parent) — build the child row directly instead.
 function _open_new_booking(frm, row) {
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.resolve_customer_for_quotation",
@@ -85,20 +99,26 @@ function _open_new_booking(frm, row) {
 				frm.doc.quotation,
 				["company", "taxes_and_charges", "selling_price_list"],
 				(q) => {
-					frappe.route_options = {
-						quotation: frm.doc.quotation,
-						customer: customer,
-						company: q.company || "",
-						building: row.building || "",
-						unit: row.unit || "",
-						unit_price: row.selling_price || 0,
-						payment_plan: row.proposed_payment_plan || "",
-						price_list: q.selling_price_list || "",
-						taxes_and_charges: q.taxes_and_charges || "",
-						booking_amount: row.booking_amount || 0,
-						down_payment_amount: row.down_payment_amount || 0,
-					};
-					frappe.new_doc("Property Booking");
+					frappe.model.with_doctype("Property Booking", () => {
+						const doc = frappe.model.get_new_doc("Property Booking");
+						doc.reservation = frm.doc.name;
+						doc.quotation = frm.doc.quotation;
+						doc.customer = customer;
+						doc.company = q.company || "";
+						doc.sales_person = frm.doc.sales_person || "";
+						doc.taxes_and_charges = q.taxes_and_charges || "";
+
+						const unit_row = frappe.model.add_child(doc, "property_unit");
+						unit_row.building = row.building || "";
+						unit_row.unit = row.unit || "";
+						unit_row.unit_price = row.selling_price || 0;
+						unit_row.payment_plan = row.proposed_payment_plan || "";
+						unit_row.price_list = q.selling_price_list || "";
+						unit_row.booking_amount = row.booking_amount || 0;
+						unit_row.down_payment_amount = row.down_payment_amount || 0;
+
+						frappe.set_route("Form", "Property Booking", doc.name);
+					});
 				}
 			);
 		},

@@ -46,7 +46,7 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Employee", "Item", "Quotation", "Quotation Item", "Price List"]]
+            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Employee", "Item", "Quotation", "Quotation Item", "Price List", "Lead"]]
         ]
     },
     {
@@ -97,6 +97,10 @@ fixtures = [
     {
         "dt": "Workspace",
         "filters": [["name", "=", "Misk Real Estate"]]
+    },
+    {
+        "dt": "Print Format",
+        "filters": [["name", "=", "Sales Agreement (Arabic)"]]
     },
 ]
 
