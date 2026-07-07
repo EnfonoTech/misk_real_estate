@@ -92,6 +92,24 @@ class SalesAgreement(Document):
 
         self.sales_person = booking.sales_person
 
+        self.pdc_schedule = []
+        for row in booking.pdc_schedule:
+            self.append("pdc_schedule", {
+                "sequence_no": row.sequence_no,
+                "unit": row.unit,
+                "installment_type": row.installment_type,
+                "is_pdc": row.is_pdc,
+                "cheque_date": row.cheque_date,
+                "net_amount": row.net_amount,
+                "tax_amount": row.tax_amount,
+                "amount": row.amount,
+                "cheque_no": row.cheque_no,
+                "status": row.status,
+                "sales_invoice": row.sales_invoice,
+                "payment_entry": row.payment_entry,
+                "pdc_entry": row.pdc_entry,
+            })
+
     def _first_due_date(self, booking, installment_type):
         dates = [
             getdate(r.cheque_date) for r in booking.pdc_schedule

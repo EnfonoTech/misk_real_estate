@@ -116,6 +116,7 @@ function _open_new_booking(frm, row) {
 						unit_row.price_list = q.selling_price_list || "";
 						unit_row.booking_amount = row.booking_amount || 0;
 						unit_row.down_payment_amount = row.down_payment_amount || 0;
+						unit_row.owners_association_fee = row.owners_association_fee || 0;
 
 						frappe.set_route("Form", "Property Booking", doc.name);
 					});

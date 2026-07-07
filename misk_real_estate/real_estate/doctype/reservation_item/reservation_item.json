@@ -13,6 +13,7 @@
   "down_payment_amount",
   "column_break_ri2",
   "proposed_payment_plan",
+  "owners_association_fee",
   "property_booking"
  ],
  "fields": [
@@ -70,6 +71,12 @@
    "fieldtype": "Link",
    "label": "Proposed Installment Period",
    "options": "Payment Plan"
+  },
+  {
+   "columns": 2,
+   "fieldname": "owners_association_fee",
+   "fieldtype": "Currency",
+   "label": "Owners Association Fee"
   },
   {
    "allow_on_submit": 1,

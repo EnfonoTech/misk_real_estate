@@ -165,6 +165,8 @@ function _open_new_reservation(frm, item) {
 		row.selling_price = item.rate || 0;
 		row.booking_amount = item.booking_amount || 0;
 		row.down_payment_amount = item.down_payment_amount || 0;
+		row.proposed_payment_plan = item.payment_plan || frm.doc.payment_plan || "";
+		row.owners_association_fee = item.owners_association_fee || 0;
 
 		frappe.set_route("Form", "Reservation", doc.name);
 	});
