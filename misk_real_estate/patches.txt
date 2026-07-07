@@ -5,3 +5,5 @@ misk_real_estate.patches.backfill_quotation_booking_links
 [post_model_sync]
 misk_real_estate.patches.backfill_item_is_unit
 misk_real_estate.patches.backfill_property_booking_unit_table
+misk_real_estate.patches.move_booking_payment_fields_to_parent
+misk_real_estate.patches.backfill_sales_agreement_units_table

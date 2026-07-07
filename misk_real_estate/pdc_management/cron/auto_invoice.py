@@ -41,12 +41,11 @@ def _generate_due_invoices():
             ps.installment_type,
             ps.status,
             pb.customer,
-            pbu.unit,
+            ps.unit,
             pb.company,
             pb.taxes_and_charges
         FROM `tabPDC Schedule` ps
         INNER JOIN `tabProperty Booking` pb ON pb.name = ps.parent
-        INNER JOIN `tabProperty Booking Unit` pbu ON pbu.parent = pb.name
         WHERE pb.docstatus = 1
           AND (pb.invoice_generation = 'Monthly' OR pb.invoice_generation IS NULL OR pb.invoice_generation = '')
           AND ps.cheque_date <= %(today)s
@@ -139,6 +138,7 @@ def _create_invoice(row, submit=False, payment_purpose=None):
         ],
         "custom_pdc_schedule_row": row.schedule_row,
         "custom_property_booking": row.booking,
+        "custom_property_unit": row.get("unit"),
         "custom_payment_purpose": payment_purpose or row.get("installment_type") or "Installment",
     })
     si.flags.ignore_permissions = True

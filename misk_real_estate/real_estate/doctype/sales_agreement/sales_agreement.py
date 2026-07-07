@@ -41,9 +41,10 @@ class SalesAgreement(Document):
     def _pull_from_booking(self):
         """One-time snapshot of booking/customer/unit terms at contract creation —
         deliberately not kept in sync afterwards; a generated agreement shouldn't
-        silently drift if the booking record changes later."""
+        silently drift if the booking record changes later. Totals are aggregated
+        across every unit on the booking; the `units` table lists each one with
+        its own price and payment plan."""
         booking = frappe.get_doc("Property Booking", self.property_booking)
-        row = booking._get_unit_row()
 
         customer = frappe.db.get_value(
             "Customer", booking.customer,
@@ -57,31 +58,36 @@ class SalesAgreement(Document):
         self.customer_email = customer.get("email_id")
         self.customer_address = customer.get("primary_address")
 
-        self.building = row.building
-        self.unit = row.unit
-        if row.unit:
+        self.units = []
+        for row in booking.property_unit:
             unit_info = frappe.db.get_value(
                 "Item", row.unit, ["unit_area_sqft", "unit_type", "floor_number"], as_dict=True
-            ) or {}
-            self.unit_area_sqft = unit_info.get("unit_area_sqft")
-            self.unit_type = unit_info.get("unit_type")
-            self.floor_number = unit_info.get("floor_number")
+            ) if row.unit else {}
+            self.append("units", {
+                "building": row.building,
+                "unit": row.unit,
+                "unit_price": row.unit_price,
+                "unit_area_sqft": (unit_info or {}).get("unit_area_sqft"),
+                "unit_type": (unit_info or {}).get("unit_type"),
+                "floor_number": (unit_info or {}).get("floor_number"),
+                "payment_plan": row.payment_plan,
+                "number_of_installments": row.number_of_installments,
+                "monthly_installment": row.monthly_installment,
+            })
 
-        self.selling_price = row.unit_price
-        self.booking_amount = row.booking_amount
+        self.selling_price = booking.total_unit_price
+        self.booking_amount = booking.total_booking_amount
         self.booking_date = booking.booking_date
-        self.down_payment_amount = row.down_payment_amount
-        self.down_payment_date = row.down_payment_date
+        self.down_payment_amount = booking.total_down_payment_amount
+        self.down_payment_date = booking.down_payment_date
         self.balance_amount = round(
-            flt(row.unit_price) - flt(row.booking_amount) - flt(row.down_payment_amount), 3
+            flt(booking.total_unit_price) - flt(booking.total_booking_amount)
+            - flt(booking.total_down_payment_amount), 3
         )
 
-        self.payment_plan = row.payment_plan
-        self.number_of_installments = row.number_of_installments
-        self.monthly_installment = row.monthly_installment
         self.first_installment_due_date = self._first_due_date(booking, "Installment")
 
-        self.management_fee_amount = row.owners_association_fee
+        self.management_fee_amount = booking.total_owners_association_fee
         self.management_fee_due_date = self._first_due_date(booking, "Owners Association Fee")
 
         self.sales_person = booking.sales_person

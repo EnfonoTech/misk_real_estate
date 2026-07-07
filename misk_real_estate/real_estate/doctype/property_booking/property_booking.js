@@ -12,8 +12,7 @@ frappe.ui.form.on("Property Booking", {
 					|| frappe.defaults.get_global_default("company");
 				if (company) frm.set_value("company", company);
 			}
-			// property_unit is a fixed single-row table (add/delete disabled in the
-			// grid) — make sure the one editable row always exists.
+			// Make sure at least one editable unit row exists — more can be added.
 			if (!(frm.doc.property_unit || []).length) {
 				frm.add_child("property_unit");
 				frm.refresh_field("property_unit");
@@ -61,12 +60,6 @@ frappe.ui.form.on("Property Booking", {
 
 	// ── Refresh — build action buttons based on state ─────────────────────────
 	refresh(frm) {
-		// property_unit is always exactly one row — no add/delete affordance
-		const grid = frm.get_field("property_unit").grid;
-		grid.cannot_add_rows = true;
-		grid.cannot_delete_rows = true;
-		grid.refresh();
-
 		frm.trigger("set_unit_filter");
 
 		// Advance payment buttons (Booking Amount / Down Payment) — available on a
@@ -78,7 +71,7 @@ frappe.ui.form.on("Property Booking", {
 		if (frm.doc.docstatus === 0 && !frm.is_new() && frm.doc.status !== "Lost") {
 			frm.add_custom_button(__("Mark Lost"), () => {
 				frappe.confirm(
-					__("Mark this booking as Lost and release unit {0}?", [_get_unit_row(frm).unit || ""]),
+					__("Mark this booking as Lost and release unit(s) {0}?", [_all_units(frm)]),
 					() => {
 						frappe.call({
 							method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.mark_lost",
@@ -214,7 +207,7 @@ frappe.ui.form.on("Property Booking", {
 		if (all_cleared && frm.doc.status !== "Closed") {
 			frm.add_custom_button(__("Mark Unit Sold"), () => {
 				frappe.confirm(
-					__("Mark unit {0} as Sold? This cannot be undone.", [_get_unit_row(frm).unit]),
+					__("Mark unit(s) {0} as Sold? This cannot be undone.", [_all_units(frm)]),
 					() => {
 						frappe.call({
 							method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.mark_unit_sold",
@@ -459,9 +452,14 @@ function _fetch_unit_price(frm, cdt, cdn) {
 	}
 }
 
-// ── First (only) row of the property_unit table ──────────────────────────────
+// ── First unit row — used only as a fallback tax-rate source (mirrors the
+// server's _get_unit_row()); most call sites should loop frm.doc.property_unit ──
 function _get_unit_row(frm) {
 	return (frm.doc.property_unit && frm.doc.property_unit[0]) || {};
+}
+
+function _all_units(frm) {
+	return (frm.doc.property_unit || []).map(r => r.unit).filter(Boolean).join(", ");
 }
 
 // ── Live PDC total vs Expected (Installments + OA) check ─────────────────────
@@ -489,33 +487,40 @@ function _check_pdc_total(frm) {
 }
 
 // ── Advance Payments: Booking Amount & Down Payment invoice/payment buttons ───
+// Each unit has its own booking_amount/down_payment_amount — one set of
+// buttons per unit, labeled with the unit so multi-unit bookings stay clear.
 function _add_advance_buttons(frm) {
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_advance_invoice_status",
 		args: { booking_name: frm.doc.name },
 		callback(r) {
 			if (r.exc) return;
-			const status = r.message || {};
+			const status_by_unit = r.message || {};
 			const grp = __("Advance Payments");
 
-			const block = (amount, si, purpose, invoiceLabel, paymentLabel) => {
-				if (flt(amount) <= 0) return;
-				frm.add_custom_button(si ? __("Open " + invoiceLabel) : __(invoiceLabel),
-					() => _open_advance_invoice(frm, purpose), grp);
-				if (si) {
-					frm.add_custom_button(__(paymentLabel),
-						() => _record_advance_payment(frm, purpose), grp);
-				}
-				// Collect this advance by post-dated cheque (single-purpose; combine manually)
-				frm.add_custom_button(__(purpose + " by PDC"),
-					() => _collect_advance_pdc(frm, purpose), grp);
-			};
+			(frm.doc.property_unit || []).forEach((row) => {
+				if (!row.unit) return;
+				const status = status_by_unit[row.unit] || {};
+				const suffix = ` — ${row.unit}`;
 
-			const unit_row = _get_unit_row(frm);
-			block(unit_row.booking_amount, status["Booking Amount"],
-				"Booking Amount", "Booking Amount Invoice", "Record Booking Payment");
-			block(unit_row.down_payment_amount, status["Down Payment"],
-				"Down Payment", "Down Payment Invoice", "Record Down Payment");
+				const block = (amount, si, purpose, invoiceLabel, paymentLabel) => {
+					if (flt(amount) <= 0) return;
+					frm.add_custom_button(si ? __("Open " + invoiceLabel + suffix) : __(invoiceLabel + suffix),
+						() => _open_advance_invoice(frm, purpose, row.unit), grp);
+					if (si) {
+						frm.add_custom_button(__(paymentLabel + suffix),
+							() => _record_advance_payment(frm, purpose, row.unit), grp);
+					}
+					// Collect this advance by post-dated cheque (single-purpose; combine manually)
+					frm.add_custom_button(__(purpose + " by PDC" + suffix),
+						() => _collect_advance_pdc(frm, purpose, row.unit), grp);
+				};
+
+				block(row.booking_amount, status["Booking Amount"],
+					"Booking Amount", "Booking Amount Invoice", "Record Booking Payment");
+				block(row.down_payment_amount, status["Down Payment"],
+					"Down Payment", "Down Payment Invoice", "Record Down Payment");
+			});
 		},
 	});
 }
@@ -551,14 +556,14 @@ function _add_sales_agreement_button(frm) {
 	});
 }
 
-function _collect_advance_pdc(frm, purpose) {
+function _collect_advance_pdc(frm, purpose, unit) {
 	if (frm.is_dirty()) {
 		frappe.msgprint(__("Please save the booking before collecting an advance by PDC."));
 		return;
 	}
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.create_advance_pdc",
-		args: { booking_name: frm.doc.name, purpose },
+		args: { booking_name: frm.doc.name, purpose, unit },
 		freeze: true,
 		freeze_message: __("Preparing PDC Entry..."),
 		callback(r) {
@@ -587,14 +592,14 @@ function _collect_advance_pdc(frm, purpose) {
 	});
 }
 
-function _open_advance_invoice(frm, purpose) {
+function _open_advance_invoice(frm, purpose, unit) {
 	if (frm.is_dirty()) {
 		frappe.msgprint(__("Please save the booking before raising the invoice."));
 		return;
 	}
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.make_advance_invoice",
-		args: { booking_name: frm.doc.name, purpose },
+		args: { booking_name: frm.doc.name, purpose, unit },
 		freeze: true,
 		freeze_message: __("Preparing invoice..."),
 		callback(r) {
@@ -603,10 +608,10 @@ function _open_advance_invoice(frm, purpose) {
 	});
 }
 
-function _record_advance_payment(frm, purpose) {
+function _record_advance_payment(frm, purpose, unit) {
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.make_advance_payment",
-		args: { booking_name: frm.doc.name, purpose },
+		args: { booking_name: frm.doc.name, purpose, unit },
 		freeze: true,
 		freeze_message: __("Preparing payment entry..."),
 		callback(r) {

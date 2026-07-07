@@ -25,13 +25,19 @@
   "booking_date",
   "section_break_ideo",
   "property_unit",
+  "down_payment_date",
   "section_tax_total",
   "taxes_and_charges",
+  "total_unit_price",
   "total_amount",
   "column_break_tax",
   "tax_amount",
   "total_after_tax",
   "column_break_pgdp",
+  "total_booking_amount",
+  "total_down_payment_amount",
+  "total_owners_association_fee",
+  "column_break_totsum",
   "table_total",
   "expected_table_total",
   "table_difference",
@@ -153,6 +159,12 @@
    "reqd": 1
   },
   {
+   "description": "Applies to every unit's down payment.",
+   "fieldname": "down_payment_date",
+   "fieldtype": "Date",
+   "label": "Down Payment Date"
+  },
+  {
    "fieldname": "section_tax_total",
    "fieldtype": "Section Break",
    "label": "Tax & Totals"
@@ -162,6 +174,12 @@
    "fieldtype": "Link",
    "label": "Taxes and Charges",
    "options": "Sales Taxes and Charges Template"
+  },
+  {
+   "fieldname": "total_unit_price",
+   "fieldtype": "Currency",
+   "label": "Total Unit Price",
+   "read_only": 1
   },
   {
    "fieldname": "total_amount",
@@ -185,6 +203,28 @@
    "fieldtype": "Currency",
    "label": "Grand Total (incl. Tax + OA Fee)",
    "read_only": 1
+  },
+  {
+   "fieldname": "total_booking_amount",
+   "fieldtype": "Currency",
+   "label": "Total Booking Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_down_payment_amount",
+   "fieldtype": "Currency",
+   "label": "Total Down Payment Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_owners_association_fee",
+   "fieldtype": "Currency",
+   "label": "Total Owners Association Fee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_totsum",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "expected_table_total",
@@ -268,7 +308,7 @@
    "link_fieldname": "property_booking"
   }
  ],
- "modified": "2026-07-04 00:00:00.000000",
+ "modified": "2026-07-07 14:45:51.367111",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Property Booking",

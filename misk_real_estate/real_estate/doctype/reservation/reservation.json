@@ -46,7 +46,6 @@
    "in_standard_filter": 1,
    "label": "Enquiry No",
    "options": "Quotation",
-   "reqd": 1,
    "search_index": 1
   },
   {
@@ -86,9 +85,10 @@
   {
    "fetch_from": "quotation.customer_name",
    "fieldname": "customer_name",
-   "fieldtype": "Data",
+   "fieldtype": "Link",
    "in_global_search": 1,
    "label": "Customer Name",
+   "options": "Customer",
    "read_only": 1
   },
   {
@@ -138,8 +138,7 @@
    "fieldname": "sales_person",
    "fieldtype": "Link",
    "label": "Sales Person",
-   "options": "Sales Person",
-   "reqd": 1
+   "options": "Sales Person"
   },
   {
    "fieldname": "remarks",
@@ -221,7 +220,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-01 00:00:00.000000",
+ "modified": "2026-07-07 14:54:44.106123",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Reservation",
@@ -254,6 +253,7 @@
    "write": 1
   },
   {
+   "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,
@@ -263,6 +263,7 @@
    "write": 1
   },
   {
+   "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,
@@ -287,6 +288,7 @@
    "write": 1
   },
   {
+   "create": 1,
    "email": 1,
    "export": 1,
    "print": 1,

@@ -1,22 +1,19 @@
 {
  "actions": [],
- "creation": "2026-07-02 00:00:00",
+ "creation": "2026-07-07 00:00:00",
  "doctype": "DocType",
  "editable_grid": 1,
  "engine": "InnoDB",
  "field_order": [
   "building",
   "unit",
-  "column_break_pbu1",
-  "price_list",
+  "column_break_sau1",
+  "unit_area_sqft",
+  "unit_type",
+  "floor_number",
+  "column_break_sau2",
   "unit_price",
-  "column_break_pbu2",
-  "booking_amount",
-  "down_payment_percentage",
-  "down_payment_amount",
-  "column_break_pbu3",
   "payment_plan",
-  "owners_association_fee",
   "number_of_installments",
   "monthly_installment"
  ],
@@ -28,65 +25,58 @@
    "in_list_view": 1,
    "label": "Building",
    "options": "Item Group",
-   "reqd": 1
+   "read_only": 1
   },
   {
-   "columns": 3,
+   "columns": 2,
    "fieldname": "unit",
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Apartment / Unit",
    "options": "Item",
-   "reqd": 1
+   "read_only": 1
   },
   {
-   "fieldname": "column_break_pbu1",
+   "fieldname": "column_break_sau1",
    "fieldtype": "Column Break"
   },
   {
-   "columns": 2,
-   "fieldname": "price_list",
+   "columns": 1,
+   "fieldname": "unit_area_sqft",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Area (Sq Ft)",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "unit_type",
    "fieldtype": "Link",
    "in_list_view": 1,
-   "label": "Price List",
-   "options": "Price List"
+   "label": "Unit Type",
+   "options": "Unit Type",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "floor_number",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Floor",
+   "options": "Floor",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_sau2",
+   "fieldtype": "Column Break"
   },
   {
    "columns": 2,
    "fieldname": "unit_price",
    "fieldtype": "Currency",
    "in_list_view": 1,
-   "label": "Unit Price",
-   "reqd": 1
-  },
-  {
-   "fieldname": "column_break_pbu2",
-   "fieldtype": "Column Break"
-  },
-  {
-   "columns": 2,
-   "fieldname": "booking_amount",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Booking Amount"
-  },
-  {
-   "columns": 2,
-   "fieldname": "down_payment_percentage",
-   "fieldtype": "Percent",
-   "in_list_view": 1,
-   "label": "Down Payment %"
-  },
-  {
-   "columns": 2,
-   "fieldname": "down_payment_amount",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Down Payment Amount"
-  },
-  {
-   "fieldname": "column_break_pbu3",
-   "fieldtype": "Column Break"
+   "label": "Selling Price",
+   "read_only": 1
   },
   {
    "columns": 2,
@@ -94,17 +84,11 @@
    "fieldtype": "Link",
    "in_list_view": 1,
    "label": "Payment Plan",
-   "options": "Payment Plan"
+   "options": "Payment Plan",
+   "read_only": 1
   },
   {
-   "columns": 2,
-   "fieldname": "owners_association_fee",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Owners Association Fee"
-  },
-  {
-   "columns": 2,
+   "columns": 1,
    "fieldname": "number_of_installments",
    "fieldtype": "Int",
    "in_list_view": 1,
@@ -122,10 +106,10 @@
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-07-07 14:40:57.976584",
+ "modified": "2026-07-07 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Real Estate",
- "name": "Property Booking Unit",
+ "name": "Sales Agreement Unit",
  "owner": "Administrator",
  "permissions": [],
  "row_format": "Dynamic",

@@ -20,12 +20,7 @@
   "customer_email",
   "customer_address",
   "section_break_property",
-  "building",
-  "unit",
-  "column_break_prop",
-  "unit_area_sqft",
-  "unit_type",
-  "floor_number",
+  "units",
   "section_break_commercial",
   "selling_price",
   "booking_amount",
@@ -35,10 +30,6 @@
   "down_payment_date",
   "balance_amount",
   "section_break_installment",
-  "payment_plan",
-  "number_of_installments",
-  "column_break_inst",
-  "monthly_installment",
   "first_installment_due_date",
   "section_break_mgmt",
   "management_fee_amount",
@@ -134,42 +125,10 @@
    "label": "Property Details"
   },
   {
-   "fieldname": "building",
-   "fieldtype": "Link",
-   "label": "Building",
-   "options": "Item Group",
-   "read_only": 1
-  },
-  {
-   "fieldname": "unit",
-   "fieldtype": "Link",
-   "label": "Apartment / Unit",
-   "options": "Item",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_prop",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "unit_area_sqft",
-   "fieldtype": "Float",
-   "label": "Area (Sq Ft)",
-   "read_only": 1
-  },
-  {
-   "fieldname": "unit_type",
-   "fieldtype": "Link",
-   "label": "Unit Type",
-   "options": "Unit Type",
-   "read_only": 1
-  },
-  {
-   "fieldname": "floor_number",
-   "fieldtype": "Link",
-   "label": "Floor",
-   "options": "Floor",
-   "read_only": 1
+   "fieldname": "units",
+   "fieldtype": "Table",
+   "label": "Units",
+   "options": "Sales Agreement Unit"
   },
   {
    "fieldname": "section_break_commercial",
@@ -179,13 +138,13 @@
   {
    "fieldname": "selling_price",
    "fieldtype": "Currency",
-   "label": "Selling Price",
+   "label": "Total Selling Price",
    "read_only": 1
   },
   {
    "fieldname": "booking_amount",
    "fieldtype": "Currency",
-   "label": "Booking Amount",
+   "label": "Total Booking Amount",
    "read_only": 1
   },
   {
@@ -201,7 +160,7 @@
   {
    "fieldname": "down_payment_amount",
    "fieldtype": "Currency",
-   "label": "Down Payment Amount",
+   "label": "Total Down Payment Amount",
    "read_only": 1
   },
   {
@@ -223,29 +182,6 @@
    "label": "Installment Plan"
   },
   {
-   "fieldname": "payment_plan",
-   "fieldtype": "Link",
-   "label": "Payment Plan",
-   "options": "Payment Plan",
-   "read_only": 1
-  },
-  {
-   "fieldname": "number_of_installments",
-   "fieldtype": "Int",
-   "label": "No. of Installments",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_inst",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "monthly_installment",
-   "fieldtype": "Currency",
-   "label": "Installment Amount",
-   "read_only": 1
-  },
-  {
    "fieldname": "first_installment_due_date",
    "fieldtype": "Date",
    "label": "First Due Date",
@@ -259,7 +195,7 @@
   {
    "fieldname": "management_fee_amount",
    "fieldtype": "Currency",
-   "label": "Management Fee Amount",
+   "label": "Total Owners Association Fee",
    "read_only": 1
   },
   {
@@ -282,7 +218,7 @@
  ],
  "is_submittable": 0,
  "links": [],
- "modified": "2026-07-04 00:00:00.000000",
+ "modified": "2026-07-07 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Sales Agreement",
