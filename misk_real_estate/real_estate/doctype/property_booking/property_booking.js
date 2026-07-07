@@ -12,6 +12,11 @@ frappe.ui.form.on("Property Booking", {
 					|| frappe.defaults.get_global_default("company");
 				if (company) frm.set_value("company", company);
 			}
+			// Make sure at least one editable unit row exists — more can be added.
+			if (!(frm.doc.property_unit || []).length) {
+				frm.add_child("property_unit");
+				frm.refresh_field("property_unit");
+			}
 		}
 		// Cache tax rate from existing taxes_and_charges
 		if (frm.doc.taxes_and_charges) _cache_tax_rate(frm);
@@ -20,25 +25,36 @@ frappe.ui.form.on("Property Booking", {
 		frm.set_query("customer_bank_account", () => ({
 			filters: { party_type: "Customer", party: frm.doc.customer || "" },
 		}));
-
-		frm._last_cheque_prefix = frm.doc.cheque_prefix || "";
 	},
 
-	// Cheque No Prefix — fill every PDC row's cheque_no with the prefix so the user
-	// only has to type the last digits per row. Non-destructive: rows the user has
-	// already completed (value differs from the prefix) are left untouched; blank
-	// rows and rows still holding the old prefix are updated.
+	// Cheque No Prefix — auto-number every PDC row starting from this value, e.g.
+	// entering "100" fills 100, 101, 102, ... (a trailing non-numeric prefix like
+	// "CHQ-100" is kept fixed while "100" increments, zero-padding preserved).
+	// A prefix with no trailing digits is just repeated on every row as-is.
+	// Non-destructive: rows the user has hand-edited (value differs from what we
+	// last auto-generated for that row) are left untouched.
 	cheque_prefix(frm) {
-		const prefix = (frm.doc.cheque_prefix || "").trim();
-		const old = frm._last_cheque_prefix || "";
-		(frm.doc.pdc_schedule || []).forEach(r => {
-			if (!r.is_pdc) return;
+		const raw = (frm.doc.cheque_prefix || "").trim();
+		const match = raw.match(/^(.*?)(\d+)$/);
+		const last = frm._last_generated_cheque_nos || {};
+		const generated = {};
+
+		(frm.doc.pdc_schedule || []).filter(r => r.is_pdc).forEach((r, i) => {
+			let value = raw;
+			if (match) {
+				const [, prefixPart, numPart] = match;
+				const next = String(parseInt(numPart, 10) + i).padStart(numPart.length, "0");
+				value = prefixPart + next;
+			}
+			generated[r.name] = value;
+
 			const cur = (r.cheque_no || "").trim();
-			if (!cur || cur === old) {
-				frappe.model.set_value(r.doctype, r.name, "cheque_no", prefix);
+			if (!cur || cur === last[r.name]) {
+				frappe.model.set_value(r.doctype, r.name, "cheque_no", value);
 			}
 		});
-		frm._last_cheque_prefix = prefix;
+
+		frm._last_generated_cheque_nos = generated;
 		frm.refresh_field("pdc_schedule");
 	},
 
@@ -55,7 +71,7 @@ frappe.ui.form.on("Property Booking", {
 		if (frm.doc.docstatus === 0 && !frm.is_new() && frm.doc.status !== "Lost") {
 			frm.add_custom_button(__("Mark Lost"), () => {
 				frappe.confirm(
-					__("Mark this booking as Lost and release unit {0}?", [frm.doc.unit || ""]),
+					__("Mark this booking as Lost and release unit(s) {0}?", [_all_units(frm)]),
 					() => {
 						frappe.call({
 							method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.mark_lost",
@@ -125,6 +141,11 @@ frappe.ui.form.on("Property Booking", {
 			frappe.set_route("List", "Payment Entry", { property_booking: frm.doc.name });
 		}, __("View"));
 
+		// Sales Agreement — generate once eligible (Booking Amount/Down Payment
+		// fully received, every Installment/Management Fee PDC registered), or
+		// open the existing one.
+		_add_sales_agreement_button(frm);
+
 		// View source Quotation
 		if (frm.doc.quotation) {
 			frm.add_custom_button(__("Quotation"), () => {
@@ -186,7 +207,7 @@ frappe.ui.form.on("Property Booking", {
 		if (all_cleared && frm.doc.status !== "Closed") {
 			frm.add_custom_button(__("Mark Unit Sold"), () => {
 				frappe.confirm(
-					__("Mark unit {0} as Sold? This cannot be undone.", [frm.doc.unit]),
+					__("Mark unit(s) {0} as Sold? This cannot be undone.", [_all_units(frm)]),
 					() => {
 						frappe.call({
 							method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.mark_unit_sold",
@@ -253,125 +274,135 @@ frappe.ui.form.on("Property Booking", {
 
 	// ── Unit filter — only show units in selected building ───────────────────
 	set_unit_filter(frm) {
-		frm.set_query("unit", () => {
+		frm.set_query("unit", "property_unit", (doc, cdt, cdn) => {
+			const row = locals[cdt][cdn];
 			const filters = { unit_status: "Available" };
-			if (frm.doc.building) filters["item_group"] = frm.doc.building;
+			if (row.building) filters["item_group"] = row.building;
 			return { filters };
-		});
-	},
-
-	building(frm) {
-		if (!frm._route_loading) {
-			frm.set_value("unit", "");
-			frm.set_value("unit_price", "");
-		}
-		frm.trigger("set_unit_filter");
-	},
-
-	unit(frm) {
-		// Filter price_list to only those that have a price for this unit
-		frm.set_query("price_list", () => ({
-			query: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_price_lists_for_unit",
-			filters: { unit: frm.doc.unit },
-		}));
-		if (!frm._route_loading) {
-			frm.set_value("price_list", "");
-			frm.set_value("unit_price", "");
-		}
-		// Reset tax cache — unit's Item Tax Template may differ
-		frm._tax_rate = undefined;
-		_cache_tax_rate(frm);
-		_fetch_unit_price(frm);
-	},
-
-	price_list(frm) {
-		_fetch_unit_price(frm);
-		// Auto-fetch default down payment % from Price List
-		if (frm.doc.price_list) {
-			frappe.db.get_value("Price List", frm.doc.price_list, "down_payment_percentage", (r) => {
-				if (r && r.down_payment_percentage) {
-					frm.set_value("down_payment_percentage", r.down_payment_percentage);
-				}
-			});
-		}
-	},
-
-	// ── Live calculation ──────────────────────────────────────────────────────
-	unit_price(frm)    { frm.trigger("recalculate"); },
-	booking_amount(frm){ frm.trigger("recalculate"); },
-	payment_plan(frm)  { frm.trigger("recalculate"); },
-
-	down_payment_percentage(frm) {
-		// % of unit_price → calculate amount
-		const price = flt(frm.doc.unit_price);
-		const pct = flt(frm.doc.down_payment_percentage);
-		if (!price || !pct) return;
-		frm.set_value("down_payment_amount", flt((price * pct / 100).toFixed(3)));
-		frm.trigger("_recalc_installment");
-	},
-
-	down_payment_amount(frm) {
-		// Amount → back-calculate % against unit_price
-		const price = flt(frm.doc.unit_price);
-		const dp = flt(frm.doc.down_payment_amount);
-		if (!price || !dp) return;
-		frm.set_value("down_payment_percentage", flt((dp / price * 100).toFixed(3)));
-		frm.trigger("_recalc_installment");
-	},
-
-	_recalc_installment(frm) {
-		const n = cint(frm.doc.number_of_installments);
-		const price = flt(frm.doc.unit_price), booking = flt(frm.doc.booking_amount);
-		const dp = flt(frm.doc.down_payment_amount);
-		if (!n || !price) return;
-		const after_dp = (price - booking) - dp;
-		if (after_dp > 0) frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
-	},
-
-	recalculate(frm) {
-		const price = flt(frm.doc.unit_price);
-		if (!price) return;
-
-		// Down payment conversion — independent of payment plan, so changing
-		// unit price / booking amount keeps the down payment in sync.
-		const dp_amount = flt(frm.doc.down_payment_amount);
-		const dp_pct = flt(frm.doc.down_payment_percentage);
-		if (dp_amount > 0) {
-			frm.set_value("down_payment_percentage", flt((dp_amount / price * 100).toFixed(3)));
-		} else if (dp_pct > 0) {
-			frm.set_value("down_payment_amount", flt((price * dp_pct / 100).toFixed(3)));
-		}
-
-		// Installments need a plan.
-		if (!frm.doc.payment_plan) return;
-		frappe.db.get_value("Payment Plan", frm.doc.payment_plan,
-			["number_of_installments", "is_full_payment"], (r) => {
-			if (!r) return;
-			const booking = flt(frm.doc.booking_amount);
-
-			const n = (!r.is_full_payment && r.number_of_installments) ? r.number_of_installments : 0;
-
-			if (r.is_full_payment || n === 0) {
-				frm.set_value("number_of_installments", 0);
-				frm.set_value("down_payment_amount", 0);
-				frm.set_value("down_payment_percentage", 0);
-				frm.set_value("monthly_installment", 0);
-				return;
-			}
-
-			frm.set_value("number_of_installments", n);
-			const dp_pct = flt(frm.doc.down_payment_percentage) || 50;
-			if (!frm.doc.down_payment_percentage) frm.set_value("down_payment_percentage", 50);
-			const dp = flt((price * dp_pct / 100).toFixed(3));
-			frm.set_value("down_payment_amount", dp);
-			const after_dp = (price - booking) - dp;
-			if (n > 0 && after_dp > 0) frm.set_value("monthly_installment", flt((after_dp / n).toFixed(3)));
 		});
 	},
 
 	pdc_schedule_add(frm)    { _check_pdc_total(frm); },
 	pdc_schedule_remove(frm) { _check_pdc_total(frm); },
 });
+
+// ── Property Details — single-row table, mirrors Reservation's Units grid ────
+frappe.ui.form.on("Property Booking Unit", {
+	building(frm, cdt, cdn) {
+		if (!frm._route_loading) {
+			frappe.model.set_value(cdt, cdn, "unit", "");
+			frappe.model.set_value(cdt, cdn, "unit_price", "");
+		}
+		frm.trigger("set_unit_filter");
+	},
+
+	unit(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		// Filter price_list to only those that have a price for this unit
+		frm.set_query("price_list", "property_unit", () => ({
+			query: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_price_lists_for_unit",
+			filters: { unit: row.unit },
+		}));
+		if (!frm._route_loading) {
+			frappe.model.set_value(cdt, cdn, "price_list", "");
+			frappe.model.set_value(cdt, cdn, "unit_price", "");
+		}
+		// Reset tax cache — unit's Item Tax Template may differ
+		frm._tax_rate = undefined;
+		_cache_tax_rate(frm);
+		_fetch_unit_price(frm, cdt, cdn);
+	},
+
+	price_list(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		_fetch_unit_price(frm, cdt, cdn);
+		// Auto-fetch default down payment % from Price List
+		if (row.price_list) {
+			frappe.db.get_value("Price List", row.price_list, "down_payment_percentage", (r) => {
+				if (r && r.down_payment_percentage) {
+					frappe.model.set_value(cdt, cdn, "down_payment_percentage", r.down_payment_percentage);
+				}
+			});
+		}
+	},
+
+	// ── Live calculation (row-scoped — these fields live on the unit row) ────
+	unit_price(frm, cdt, cdn)     { _recalculate_row(frm, cdt, cdn); },
+	booking_amount(frm, cdt, cdn) { _recalculate_row(frm, cdt, cdn); },
+	payment_plan(frm, cdt, cdn)   { _recalculate_row(frm, cdt, cdn); },
+
+	down_payment_percentage(frm, cdt, cdn) {
+		// % of unit_price → calculate amount
+		const row = locals[cdt][cdn];
+		const price = flt(row.unit_price);
+		const pct = flt(row.down_payment_percentage);
+		if (!price || !pct) return;
+		frappe.model.set_value(cdt, cdn, "down_payment_amount", flt((price * pct / 100).toFixed(3)));
+		_recalc_installment_row(frm, cdt, cdn);
+	},
+
+	down_payment_amount(frm, cdt, cdn) {
+		// Amount → back-calculate % against unit_price
+		const row = locals[cdt][cdn];
+		const price = flt(row.unit_price);
+		const dp = flt(row.down_payment_amount);
+		if (!price || !dp) return;
+		frappe.model.set_value(cdt, cdn, "down_payment_percentage", flt((dp / price * 100).toFixed(3)));
+		_recalc_installment_row(frm, cdt, cdn);
+	},
+});
+
+function _recalc_installment_row(frm, cdt, cdn) {
+	const row = locals[cdt][cdn];
+	const n = cint(row.number_of_installments);
+	const price = flt(row.unit_price), booking = flt(row.booking_amount);
+	const dp = flt(row.down_payment_amount);
+	if (!n || !price) return;
+	const after_dp = (price - booking) - dp;
+	if (after_dp > 0) frappe.model.set_value(cdt, cdn, "monthly_installment", flt((after_dp / n).toFixed(3)));
+}
+
+function _recalculate_row(frm, cdt, cdn) {
+	const row = locals[cdt][cdn];
+	const price = flt(row.unit_price);
+	if (!price) return;
+
+	// Down payment conversion — independent of payment plan, so changing
+	// unit price / booking amount keeps the down payment in sync.
+	const dp_amount = flt(row.down_payment_amount);
+	const dp_pct = flt(row.down_payment_percentage);
+	if (dp_amount > 0) {
+		frappe.model.set_value(cdt, cdn, "down_payment_percentage", flt((dp_amount / price * 100).toFixed(3)));
+	} else if (dp_pct > 0) {
+		frappe.model.set_value(cdt, cdn, "down_payment_amount", flt((price * dp_pct / 100).toFixed(3)));
+	}
+
+	// Installments need a plan.
+	if (!row.payment_plan) return;
+	frappe.db.get_value("Payment Plan", row.payment_plan,
+		["number_of_installments", "is_full_payment"], (r) => {
+		if (!r) return;
+		const booking = flt(row.booking_amount);
+
+		const n = (!r.is_full_payment && r.number_of_installments) ? r.number_of_installments : 0;
+
+		if (r.is_full_payment || n === 0) {
+			frappe.model.set_value(cdt, cdn, "number_of_installments", 0);
+			frappe.model.set_value(cdt, cdn, "down_payment_amount", 0);
+			frappe.model.set_value(cdt, cdn, "down_payment_percentage", 0);
+			frappe.model.set_value(cdt, cdn, "monthly_installment", 0);
+			return;
+		}
+
+		frappe.model.set_value(cdt, cdn, "number_of_installments", n);
+		const dp_pct = flt(row.down_payment_percentage) || 50;
+		if (!row.down_payment_percentage) frappe.model.set_value(cdt, cdn, "down_payment_percentage", 50);
+		const dp = flt((price * dp_pct / 100).toFixed(3));
+		frappe.model.set_value(cdt, cdn, "down_payment_amount", dp);
+		const after_dp = (price - booking) - dp;
+		if (n > 0 && after_dp > 0) frappe.model.set_value(cdt, cdn, "monthly_installment", flt((after_dp / n).toFixed(3)));
+	});
+}
 
 // ── PDC Schedule: recalc net/tax when user edits Total Amount ────────────────
 frappe.ui.form.on("PDC Schedule", {
@@ -398,26 +429,37 @@ frappe.ui.form.on("PDC Schedule", {
 });
 
 // ── Unit price fetch (price list aware) ──────────────────────────────────────
-function _fetch_unit_price(frm) {
-	if (!frm.doc.unit) return;
-	if (frm.doc.price_list) {
+function _fetch_unit_price(frm, cdt, cdn) {
+	const row = locals[cdt][cdn];
+	if (!row.unit) return;
+	if (row.price_list) {
 		frappe.db.get_value(
 			"Item Price",
-			{ item_code: frm.doc.unit, price_list: frm.doc.price_list },
+			{ item_code: row.unit, price_list: row.price_list },
 			"price_list_rate",
 			(r) => {
 				if (r && r.price_list_rate) {
-					frm.set_value("unit_price", r.price_list_rate);
+					frappe.model.set_value(cdt, cdn, "unit_price", r.price_list_rate);
 				}
 			}
 		);
 	} else {
-		frappe.db.get_value("Item", frm.doc.unit, "standard_rate", (r) => {
+		frappe.db.get_value("Item", row.unit, "standard_rate", (r) => {
 			if (r && r.standard_rate) {
-				frm.set_value("unit_price", r.standard_rate);
+				frappe.model.set_value(cdt, cdn, "unit_price", r.standard_rate);
 			}
 		});
 	}
+}
+
+// ── First unit row — used only as a fallback tax-rate source (mirrors the
+// server's _get_unit_row()); most call sites should loop frm.doc.property_unit ──
+function _get_unit_row(frm) {
+	return (frm.doc.property_unit && frm.doc.property_unit[0]) || {};
+}
+
+function _all_units(frm) {
+	return (frm.doc.property_unit || []).map(r => r.unit).filter(Boolean).join(", ");
 }
 
 // ── Live PDC total vs Expected (Installments + OA) check ─────────────────────
@@ -445,44 +487,83 @@ function _check_pdc_total(frm) {
 }
 
 // ── Advance Payments: Booking Amount & Down Payment invoice/payment buttons ───
+// Each unit has its own booking_amount/down_payment_amount — one set of
+// buttons per unit, labeled with the unit so multi-unit bookings stay clear.
 function _add_advance_buttons(frm) {
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_advance_invoice_status",
 		args: { booking_name: frm.doc.name },
 		callback(r) {
 			if (r.exc) return;
-			const status = r.message || {};
+			const status_by_unit = r.message || {};
 			const grp = __("Advance Payments");
 
-			const block = (amount, si, purpose, invoiceLabel, paymentLabel) => {
-				if (flt(amount) <= 0) return;
-				frm.add_custom_button(si ? __("Open " + invoiceLabel) : __(invoiceLabel),
-					() => _open_advance_invoice(frm, purpose), grp);
-				if (si) {
-					frm.add_custom_button(__(paymentLabel),
-						() => _record_advance_payment(frm, purpose), grp);
-				}
-				// Collect this advance by post-dated cheque (single-purpose; combine manually)
-				frm.add_custom_button(__(purpose + " by PDC"),
-					() => _collect_advance_pdc(frm, purpose), grp);
-			};
+			(frm.doc.property_unit || []).forEach((row) => {
+				if (!row.unit) return;
+				const status = status_by_unit[row.unit] || {};
+				const suffix = ` — ${row.unit}`;
 
-			block(frm.doc.booking_amount, status["Booking Amount"],
-				"Booking Amount", "Booking Amount Invoice", "Record Booking Payment");
-			block(frm.doc.down_payment_amount, status["Down Payment"],
-				"Down Payment", "Down Payment Invoice", "Record Down Payment");
+				const block = (amount, si, purpose, invoiceLabel, paymentLabel) => {
+					if (flt(amount) <= 0) return;
+					frm.add_custom_button(si ? __("Open " + invoiceLabel + suffix) : __(invoiceLabel + suffix),
+						() => _open_advance_invoice(frm, purpose, row.unit), grp);
+					if (si) {
+						frm.add_custom_button(__(paymentLabel + suffix),
+							() => _record_advance_payment(frm, purpose, row.unit), grp);
+					}
+					// Collect this advance by post-dated cheque (single-purpose; combine manually)
+					frm.add_custom_button(__(purpose + " by PDC" + suffix),
+						() => _collect_advance_pdc(frm, purpose, row.unit), grp);
+				};
+
+				block(row.booking_amount, status["Booking Amount"],
+					"Booking Amount", "Booking Amount Invoice", "Record Booking Payment");
+				block(row.down_payment_amount, status["Down Payment"],
+					"Down Payment", "Down Payment Invoice", "Record Down Payment");
+			});
 		},
 	});
 }
 
-function _collect_advance_pdc(frm, purpose) {
+// ── Sales Agreement (Contract Generation) ─────────────────────────────────────
+function _add_sales_agreement_button(frm) {
+	frappe.call({
+		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_sales_agreement",
+		args: { booking_name: frm.doc.name },
+		callback(r) {
+			if (r.exc) return;
+			const existing = r.message;
+			if (existing) {
+				frm.add_custom_button(__("Sales Agreement"), () => {
+					frappe.set_route("Form", "Sales Agreement", existing);
+				}, __("View"));
+				return;
+			}
+			frm.add_custom_button(__("Generate Sales Agreement"), () => {
+				frappe.call({
+					method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.create_sales_agreement",
+					args: { booking_name: frm.doc.name },
+					freeze: true,
+					freeze_message: __("Checking eligibility..."),
+					callback(res) {
+						if (!res.exc && res.message) {
+							frappe.set_route("Form", "Sales Agreement", res.message);
+						}
+					},
+				});
+			}, __("Actions"));
+		},
+	});
+}
+
+function _collect_advance_pdc(frm, purpose, unit) {
 	if (frm.is_dirty()) {
 		frappe.msgprint(__("Please save the booking before collecting an advance by PDC."));
 		return;
 	}
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.create_advance_pdc",
-		args: { booking_name: frm.doc.name, purpose },
+		args: { booking_name: frm.doc.name, purpose, unit },
 		freeze: true,
 		freeze_message: __("Preparing PDC Entry..."),
 		callback(r) {
@@ -511,14 +592,14 @@ function _collect_advance_pdc(frm, purpose) {
 	});
 }
 
-function _open_advance_invoice(frm, purpose) {
+function _open_advance_invoice(frm, purpose, unit) {
 	if (frm.is_dirty()) {
 		frappe.msgprint(__("Please save the booking before raising the invoice."));
 		return;
 	}
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.make_advance_invoice",
-		args: { booking_name: frm.doc.name, purpose },
+		args: { booking_name: frm.doc.name, purpose, unit },
 		freeze: true,
 		freeze_message: __("Preparing invoice..."),
 		callback(r) {
@@ -527,10 +608,10 @@ function _open_advance_invoice(frm, purpose) {
 	});
 }
 
-function _record_advance_payment(frm, purpose) {
+function _record_advance_payment(frm, purpose, unit) {
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.make_advance_payment",
-		args: { booking_name: frm.doc.name, purpose },
+		args: { booking_name: frm.doc.name, purpose, unit },
 		freeze: true,
 		freeze_message: __("Preparing payment entry..."),
 		callback(r) {
@@ -545,7 +626,8 @@ function _record_advance_payment(frm, purpose) {
 
 // ── Cache tax rate for PDC Schedule inline calculation ───────────────────────
 function _cache_tax_rate(frm, callback) {
-	if (!frm.doc.taxes_and_charges && !frm.doc.unit) {
+	const unit = _get_unit_row(frm).unit;
+	if (!frm.doc.taxes_and_charges && !unit) {
 		frm._tax_rate = 0;
 		if (callback) callback();
 		return;
@@ -554,7 +636,7 @@ function _cache_tax_rate(frm, callback) {
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_tax_rate_from_template",
 		args: {
 			taxes_and_charges: frm.doc.taxes_and_charges || "",
-			unit: frm.doc.unit || "",
+			unit: unit || "",
 		},
 		callback(r) {
 			frm._tax_rate = flt(r.message) || 0;

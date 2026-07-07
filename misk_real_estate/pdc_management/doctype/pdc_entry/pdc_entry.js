@@ -427,6 +427,9 @@ function _confirm_substitute(frm) {
 frappe.ui.form.on("PDC Allocation", {
 	property_booking(frm, cdt, cdn) { _fill_allocation(frm, cdt, cdn, false); },
 	purpose(frm, cdt, cdn) { _fill_allocation(frm, cdt, cdn, true); },
+	// Booking may hold several units — amount/invoice can't be resolved until
+	// the unit is picked (or is the booking's only one).
+	unit(frm, cdt, cdn) { _fill_allocation(frm, cdt, cdn, true); },
 	allocated_amount: (frm) => _recalc_cheque_amount(frm),
 });
 
@@ -442,7 +445,7 @@ function _fill_allocation(frm, cdt, cdn, overwrite_amount) {
 	if (!row.property_booking) return;
 	frappe.call({
 		method: "misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry.get_allocation_defaults",
-		args: { booking: row.property_booking, purpose: row.purpose || "" },
+		args: { booking: row.property_booking, purpose: row.purpose || "", unit: row.unit || "" },
 		callback(r) {
 			if (r.exc || !r.message) return;
 			const d = r.message;

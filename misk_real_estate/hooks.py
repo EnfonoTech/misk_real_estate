@@ -17,6 +17,10 @@ app_include_js  = ["/assets/misk_real_estate/js/misk_icons.js"]
 scheduler_events = {
     "daily_long": [
         "misk_real_estate.pdc_management.cron.auto_invoice.run"
+    ],
+    # Release units whose Reservation validity period has passed without conversion
+    "daily": [
+        "misk_real_estate.real_estate.doctype.reservation.reservation.release_expired_reservations"
     ]
 }
 
@@ -42,7 +46,7 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Employee", "Item", "Quotation", "Quotation Item", "Price List"]]
+            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Employee", "Item", "Quotation", "Quotation Item", "Price List", "Lead"]]
         ]
     },
     {
@@ -53,7 +57,8 @@ fixtures = [
         "dt": "Workflow State",
         "filters": [["workflow_state_name", "in", [
             "Draft", "Pending Sales Approval", "Pending Finance Approval",
-            "Pending Management Approval", "Confirmed", "Rejected"
+            "Pending Management Approval", "Confirmed", "Rejected",
+            "Pending GM Approval", "Approved"
         ]]]
     },
     {
@@ -65,7 +70,7 @@ fixtures = [
     },
     {
         "dt": "Workflow",
-        "filters": [["document_type", "in", ["Quotation", "Property Booking"]]]
+        "filters": [["document_type", "in", ["Quotation", "Property Booking", "Reservation"]]]
     },
     {
         "dt": "Role",
@@ -92,6 +97,10 @@ fixtures = [
     {
         "dt": "Workspace",
         "filters": [["name", "=", "Misk Real Estate"]]
+    },
+    {
+        "dt": "Print Format",
+        "filters": [["name", "=", "Sales Agreement (Arabic)"]]
     },
 ]
 

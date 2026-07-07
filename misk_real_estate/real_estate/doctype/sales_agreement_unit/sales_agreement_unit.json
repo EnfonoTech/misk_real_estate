@@ -1,0 +1,119 @@
+{
+ "actions": [],
+ "creation": "2026-07-07 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "building",
+  "unit",
+  "column_break_sau1",
+  "unit_area_sqft",
+  "unit_type",
+  "floor_number",
+  "column_break_sau2",
+  "unit_price",
+  "payment_plan",
+  "number_of_installments",
+  "monthly_installment"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Building",
+   "options": "Item Group",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Apartment / Unit",
+   "options": "Item",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_sau1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 1,
+   "fieldname": "unit_area_sqft",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Area (Sq Ft)",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "unit_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Unit Type",
+   "options": "Unit Type",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "floor_number",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Floor",
+   "options": "Floor",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_sau2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 2,
+   "fieldname": "unit_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Selling Price",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "payment_plan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Payment Plan",
+   "options": "Payment Plan",
+   "read_only": 1
+  },
+  {
+   "columns": 1,
+   "fieldname": "number_of_installments",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "No. of Installments",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "monthly_installment",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Monthly Installment",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-07 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Real Estate",
+ "name": "Sales Agreement Unit",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

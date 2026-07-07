@@ -1,0 +1,295 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "SA-.YYYY.-.####",
+ "creation": "2026-07-04 00:00:00",
+ "doctype": "DocType",
+ "document_type": "Document",
+ "engine": "InnoDB",
+ "field_order": [
+  "property_booking",
+  "contract_date",
+  "status",
+  "contract_pdf",
+  "section_break_customer",
+  "customer",
+  "customer_name",
+  "customer_id_number",
+  "column_break_cust",
+  "customer_mobile",
+  "customer_email",
+  "customer_address",
+  "section_break_property",
+  "units",
+  "section_break_commercial",
+  "selling_price",
+  "booking_amount",
+  "booking_date",
+  "column_break_comm",
+  "down_payment_amount",
+  "down_payment_date",
+  "balance_amount",
+  "section_break_installment",
+  "first_installment_due_date",
+  "section_break_mgmt",
+  "management_fee_amount",
+  "column_break_mgmt",
+  "management_fee_due_date",
+  "sales_person"
+ ],
+ "fields": [
+  {
+   "fieldname": "property_booking",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Property Booking",
+   "options": "Property Booking",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "contract_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Contract Date",
+   "reqd": 1
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Contract Status",
+   "options": "Draft\nGenerated\nSigned\nRegistered",
+   "read_only": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "contract_pdf",
+   "fieldtype": "Attach",
+   "label": "Contract PDF",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_customer",
+   "fieldtype": "Section Break",
+   "label": "Customer Details"
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "read_only": 1
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Data",
+   "label": "Customer Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "customer_id_number",
+   "fieldtype": "Data",
+   "label": "ID Number",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_cust",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "customer_mobile",
+   "fieldtype": "Data",
+   "label": "Mobile No",
+   "read_only": 1
+  },
+  {
+   "fieldname": "customer_email",
+   "fieldtype": "Data",
+   "label": "Email",
+   "read_only": 1
+  },
+  {
+   "fieldname": "customer_address",
+   "fieldtype": "Small Text",
+   "label": "Address",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_property",
+   "fieldtype": "Section Break",
+   "label": "Property Details"
+  },
+  {
+   "fieldname": "units",
+   "fieldtype": "Table",
+   "label": "Units",
+   "options": "Sales Agreement Unit"
+  },
+  {
+   "fieldname": "section_break_commercial",
+   "fieldtype": "Section Break",
+   "label": "Commercial Details"
+  },
+  {
+   "fieldname": "selling_price",
+   "fieldtype": "Currency",
+   "label": "Total Selling Price",
+   "read_only": 1
+  },
+  {
+   "fieldname": "booking_amount",
+   "fieldtype": "Currency",
+   "label": "Total Booking Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "booking_date",
+   "fieldtype": "Date",
+   "label": "Booking Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_comm",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "down_payment_amount",
+   "fieldtype": "Currency",
+   "label": "Total Down Payment Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "down_payment_date",
+   "fieldtype": "Date",
+   "label": "Down Payment Date",
+   "read_only": 1
+  },
+  {
+   "bold": 1,
+   "fieldname": "balance_amount",
+   "fieldtype": "Currency",
+   "label": "Balance Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_installment",
+   "fieldtype": "Section Break",
+   "label": "Installment Plan"
+  },
+  {
+   "fieldname": "first_installment_due_date",
+   "fieldtype": "Date",
+   "label": "First Due Date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_mgmt",
+   "fieldtype": "Section Break",
+   "label": "Management Fee"
+  },
+  {
+   "fieldname": "management_fee_amount",
+   "fieldtype": "Currency",
+   "label": "Total Owners Association Fee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_mgmt",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "management_fee_due_date",
+   "fieldtype": "Date",
+   "label": "Management Fee Due Date (PDC)",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sales_person",
+   "fieldtype": "Link",
+   "label": "Sales Person",
+   "options": "Sales Person",
+   "read_only": 1
+  }
+ ],
+ "is_submittable": 0,
+ "links": [],
+ "modified": "2026-07-07 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Real Estate",
+ "name": "Sales Agreement",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Misk Sales",
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Sales Manager",
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Misk Finance",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Misk Admin",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Misk Management",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

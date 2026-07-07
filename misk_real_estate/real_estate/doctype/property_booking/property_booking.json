@@ -14,38 +14,30 @@
   "column_break_1",
   "customer_bank_account",
   "company",
+  "sales_person",
   "invoice_generation",
   "column_break_jlmv",
+  "reservation",
   "quotation",
   "installment_progress",
   "workflow_state",
   "status",
-  "section_break_property",
-  "building",
-  "unit",
-  "column_break_wkrs",
-  "price_list",
-  "unit_price",
-  "column_break_rndp",
   "booking_date",
-  "booking_amount",
-  "section_break_payment",
-  "down_payment_amount",
-  "down_payment_percentage",
+  "section_break_ideo",
+  "property_unit",
   "down_payment_date",
-  "column_break_calc",
-  "payment_plan",
-  "number_of_installments",
-  "monthly_installment",
-  "column_break_fsrv",
-  "owners_association_fee",
   "section_tax_total",
   "taxes_and_charges",
+  "total_unit_price",
   "total_amount",
   "column_break_tax",
   "tax_amount",
   "total_after_tax",
   "column_break_pgdp",
+  "total_booking_amount",
+  "total_down_payment_amount",
+  "total_owners_association_fee",
+  "column_break_totsum",
   "table_total",
   "expected_table_total",
   "table_difference",
@@ -107,6 +99,12 @@
    "reqd": 1
   },
   {
+   "fieldname": "sales_person",
+   "fieldtype": "Link",
+   "label": "Sales Person",
+   "options": "Sales Person"
+  },
+  {
    "allow_on_submit": 1,
    "fieldname": "workflow_state",
    "fieldtype": "Link",
@@ -138,6 +136,15 @@
    "reqd": 1
   },
   {
+   "description": "Set automatically when this booking is converted from a Reservation.",
+   "fieldname": "reservation",
+   "fieldtype": "Link",
+   "label": "Reservation",
+   "no_copy": 1,
+   "options": "Reservation",
+   "read_only": 1
+  },
+  {
    "fieldname": "quotation",
    "fieldtype": "Link",
    "label": "Quotation",
@@ -145,97 +152,17 @@
    "read_only": 1
   },
   {
-   "fieldname": "section_break_property",
-   "fieldtype": "Section Break",
-   "label": "Property Details"
-  },
-  {
-   "fieldname": "building",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Building",
-   "options": "Item Group",
-   "reqd": 1,
-   "search_index": 1
-  },
-  {
-   "fieldname": "unit",
-   "fieldtype": "Link",
-   "in_global_search": 1,
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Apartment / Unit",
-   "options": "Item",
-   "reqd": 1,
-   "search_index": 1
-  },
-  {
-   "fieldname": "price_list",
-   "fieldtype": "Link",
-   "label": "Price List",
-   "options": "Price List"
-  },
-  {
-   "fieldname": "unit_price",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Unit Price",
+   "fieldname": "property_unit",
+   "fieldtype": "Table",
+   "label": "Unit",
+   "options": "Property Booking Unit",
    "reqd": 1
   },
   {
-   "fieldname": "payment_plan",
-   "fieldtype": "Link",
-   "label": "Payment Plan",
-   "options": "Payment Plan"
-  },
-  {
-   "fieldname": "section_break_payment",
-   "fieldtype": "Section Break",
-   "label": "Payment Schedule"
-  },
-  {
-   "fieldname": "booking_amount",
-   "fieldtype": "Currency",
-   "label": "Booking Amount"
-  },
-  {
-   "depends_on": "eval:doc.payment_plan !== 'Full Payment'",
-   "fieldname": "down_payment_percentage",
-   "fieldtype": "Percent",
-   "label": "Down Payment %"
-  },
-  {
-   "fieldname": "column_break_calc",
-   "fieldtype": "Column Break"
-  },
-  {
-   "depends_on": "eval:doc.payment_plan !== 'Full Payment'",
-   "fieldname": "down_payment_amount",
-   "fieldtype": "Currency",
-   "label": "Down Payment Amount"
-  },
-  {
+   "description": "Applies to every unit's down payment.",
    "fieldname": "down_payment_date",
    "fieldtype": "Date",
    "label": "Down Payment Date"
-  },
-  {
-   "fieldname": "monthly_installment",
-   "fieldtype": "Currency",
-   "label": "Monthly Installment",
-   "read_only": 1
-  },
-  {
-   "fieldname": "number_of_installments",
-   "fieldtype": "Int",
-   "label": "No. of Installments",
-   "read_only": 1
-  },
-  {
-   "fieldname": "owners_association_fee",
-   "fieldtype": "Currency",
-   "label": "Owners Association Fee"
   },
   {
    "fieldname": "section_tax_total",
@@ -247,6 +174,12 @@
    "fieldtype": "Link",
    "label": "Taxes and Charges",
    "options": "Sales Taxes and Charges Template"
+  },
+  {
+   "fieldname": "total_unit_price",
+   "fieldtype": "Currency",
+   "label": "Total Unit Price",
+   "read_only": 1
   },
   {
    "fieldname": "total_amount",
@@ -270,6 +203,28 @@
    "fieldtype": "Currency",
    "label": "Grand Total (incl. Tax + OA Fee)",
    "read_only": 1
+  },
+  {
+   "fieldname": "total_booking_amount",
+   "fieldtype": "Currency",
+   "label": "Total Booking Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_down_payment_amount",
+   "fieldtype": "Currency",
+   "label": "Total Down Payment Amount",
+   "read_only": 1
+  },
+  {
+   "fieldname": "total_owners_association_fee",
+   "fieldtype": "Currency",
+   "label": "Total Owners Association Fee",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_totsum",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "expected_table_total",
@@ -321,28 +276,24 @@
    "read_only": 1
   },
   {
-   "fieldname": "column_break_wkrs",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "column_break_jlmv",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_rndp",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_fsrv",
    "fieldtype": "Column Break"
   },
   {
    "fieldname": "column_break_pgdp",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_ideo",
+   "fieldtype": "Section Break"
   }
  ],
  "is_submittable": 1,
  "links": [
+  {
+   "link_doctype": "Sales Agreement",
+   "link_fieldname": "property_booking"
+  },
   {
    "link_doctype": "PDC Entry",
    "link_fieldname": "property_booking",
@@ -357,7 +308,7 @@
    "link_fieldname": "property_booking"
   }
  ],
- "modified": "2026-06-18 12:13:46.867389",
+ "modified": "2026-07-07 14:45:51.367111",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Property Booking",

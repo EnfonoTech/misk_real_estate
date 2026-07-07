@@ -41,7 +41,7 @@ def _generate_due_invoices():
             ps.installment_type,
             ps.status,
             pb.customer,
-            pb.unit,
+            ps.unit,
             pb.company,
             pb.taxes_and_charges
         FROM `tabPDC Schedule` ps
@@ -138,6 +138,7 @@ def _create_invoice(row, submit=False, payment_purpose=None):
         ],
         "custom_pdc_schedule_row": row.schedule_row,
         "custom_property_booking": row.booking,
+        "custom_property_unit": row.get("unit"),
         "custom_payment_purpose": payment_purpose or row.get("installment_type") or "Installment",
     })
     si.flags.ignore_permissions = True

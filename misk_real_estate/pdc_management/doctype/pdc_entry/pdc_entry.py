@@ -36,9 +36,17 @@ class PDCEntry(Document):
             if not row.purpose:
                 frappe.throw(_("Allocation row {0}: Type is required.").format(row.idx))
             bk = frappe.db.get_value(
-                "Property Booking", row.property_booking,
-                ["customer", "unit", "building"], as_dict=True
+                "Property Booking", row.property_booking, "customer", as_dict=True
             ) or {}
+            # Only auto-fill unit/building when the booking has exactly one unit —
+            # with several units there's no single row to default to; the user
+            # picks the unit explicitly on the allocation row.
+            unit_rows = frappe.get_all(
+                "Property Booking Unit", filters={"parent": row.property_booking},
+                fields=["unit", "building"],
+            )
+            if len(unit_rows) == 1:
+                bk.update(unit_rows[0])
             if not self.customer:
                 self.customer = bk.get("customer")
             if bk.get("customer") and self.customer and bk["customer"] != self.customer:
@@ -252,26 +260,37 @@ def pending_pdcs_card(filters=None):
 
 
 @frappe.whitelist()
-def get_allocation_defaults(booking, purpose=None):
-    """Auto-fill values for an allocation row: building/unit from the booking, plus
-    the suggested amount (tax-inclusive) and existing advance Sales Invoice when the
-    type is Booking Amount / Down Payment."""
+def get_allocation_defaults(booking, purpose=None, unit=None):
+    """Auto-fill values for an allocation row: building/unit from the booking
+    (when it holds exactly one unit, or `unit` is already given), plus the
+    suggested amount (tax-inclusive) and existing advance Sales Invoice when
+    the type is Booking Amount / Down Payment / Owners Association Fee."""
     b = frappe.get_doc("Property Booking", booking)
-    out = {"building": b.building, "unit": b.unit, "amount": 0, "sales_invoice": None}
+    row = None
+    if unit:
+        row = next((r for r in b.property_unit if r.unit == unit), None)
+    elif len(b.property_unit) == 1:
+        row = b.property_unit[0]
+
+    if not row:
+        return {"building": None, "unit": None, "amount": 0, "sales_invoice": None}
+
+    out = {"building": row.building, "unit": row.unit, "amount": 0, "sales_invoice": None}
 
     base, breakdown = 0, None
     if purpose == "Booking Amount":
-        base, breakdown = flt(b.booking_amount), b._get_unit_tax_breakdown
+        base, breakdown = flt(row.booking_amount), lambda amt: b._get_unit_tax_breakdown(amt, row.unit)
     elif purpose == "Down Payment":
-        base, breakdown = flt(b.down_payment_amount), b._get_unit_tax_breakdown
+        base, breakdown = flt(row.down_payment_amount), lambda amt: b._get_unit_tax_breakdown(amt, row.unit)
     elif purpose == "Owners Association Fee":
-        base, breakdown = flt(b.owners_association_fee), b._get_oa_tax_breakdown
+        base, breakdown = flt(row.owners_association_fee), b._get_oa_tax_breakdown
 
     if base > 0 and breakdown:
         out["amount"] = breakdown(base)[2]  # (net, tax, total) -> total
         out["sales_invoice"] = frappe.db.get_value(
             "Sales Invoice",
-            {"custom_property_booking": booking, "custom_payment_purpose": purpose, "docstatus": ("<", 2)},
+            {"custom_property_booking": booking, "custom_property_unit": row.unit,
+             "custom_payment_purpose": purpose, "docstatus": ("<", 2)},
             "name", order_by="docstatus desc, creation desc",
         )
     return out
@@ -357,14 +376,14 @@ def _create_allocated_payment_entry(pdc_entry, payment_date):
     ) or getattr(pdc_entry, "currency", None) or "OMR"
 
     # Header property_booking / property_unit only when the whole cheque is for ONE
-    # booking; otherwise leave blank (the per-invoice booking is on each SI reference).
+    # booking and ONE unit; otherwise leave blank (the per-invoice booking/unit is
+    # on each SI reference) — with several units there's no single row to default to.
     bookings = {a.property_booking for a in pdc_entry.allocations if a.property_booking}
     single_booking = next(iter(bookings)) if len(bookings) == 1 else ""
     single_unit = ""
     if single_booking:
         units = {a.unit for a in pdc_entry.allocations if a.unit}
-        single_unit = (next(iter(units)) if len(units) == 1
-                       else frappe.db.get_value("Property Booking", single_booking, "unit"))
+        single_unit = next(iter(units)) if len(units) == 1 else ""
 
     pe = frappe.get_doc({
         "doctype": "Payment Entry",

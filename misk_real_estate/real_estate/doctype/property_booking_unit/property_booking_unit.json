@@ -1,0 +1,135 @@
+{
+ "actions": [],
+ "creation": "2026-07-02 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "building",
+  "unit",
+  "column_break_pbu1",
+  "price_list",
+  "unit_price",
+  "column_break_pbu2",
+  "booking_amount",
+  "down_payment_percentage",
+  "down_payment_amount",
+  "column_break_pbu3",
+  "payment_plan",
+  "owners_association_fee",
+  "number_of_installments",
+  "monthly_installment"
+ ],
+ "fields": [
+  {
+   "columns": 2,
+   "fieldname": "building",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Building",
+   "options": "Item Group",
+   "reqd": 1
+  },
+  {
+   "columns": 3,
+   "fieldname": "unit",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Apartment / Unit",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_pbu1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 2,
+   "fieldname": "price_list",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Price List",
+   "options": "Price List"
+  },
+  {
+   "columns": 2,
+   "fieldname": "unit_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Unit Price",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_pbu2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 2,
+   "fieldname": "booking_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Booking Amount"
+  },
+  {
+   "columns": 2,
+   "fieldname": "down_payment_percentage",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Down Payment %"
+  },
+  {
+   "columns": 2,
+   "fieldname": "down_payment_amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Down Payment Amount"
+  },
+  {
+   "fieldname": "column_break_pbu3",
+   "fieldtype": "Column Break"
+  },
+  {
+   "columns": 2,
+   "fieldname": "payment_plan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Payment Plan",
+   "options": "Payment Plan"
+  },
+  {
+   "columns": 2,
+   "fieldname": "owners_association_fee",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Owners Association Fee"
+  },
+  {
+   "columns": 2,
+   "fieldname": "number_of_installments",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "No. of Installments",
+   "read_only": 1
+  },
+  {
+   "columns": 2,
+   "fieldname": "monthly_installment",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Monthly Installment",
+   "read_only": 1
+  }
+ ],
+ "istable": 1,
+ "links": [],
+ "modified": "2026-07-07 14:40:57.976584",
+ "modified_by": "Administrator",
+ "module": "Real Estate",
+ "name": "Property Booking Unit",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}
