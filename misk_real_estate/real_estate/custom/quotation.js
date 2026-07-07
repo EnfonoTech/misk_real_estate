@@ -155,20 +155,33 @@ function _open_new_booking(frm, item) {
 // details can't be passed via frappe.route_options (that only sets scalar
 // fields on the parent) — build the child row directly instead.
 function _open_new_reservation(frm, item) {
-	frappe.model.with_doctype("Reservation", () => {
-		const doc = frappe.model.get_new_doc("Reservation");
-		doc.quotation = frm.doc.name;
+	// Resolve customer (auto-converts Lead → Customer if needed) — same as
+	// _open_new_booking, so a Quotation raised against a Lead doesn't try to
+	// set a Customer link to a name that was never created as one.
+	frappe.call({
+		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.resolve_customer_for_quotation",
+		args: { quotation_name: frm.doc.name },
+		freeze: true,
+		freeze_message: __("Resolving customer..."),
+		callback(r) {
+			const customer = r.message || "";
+			frappe.model.with_doctype("Reservation", () => {
+				const doc = frappe.model.get_new_doc("Reservation");
+				doc.quotation = frm.doc.name;
+				doc.customer_name = customer;
 
-		const row = frappe.model.add_child(doc, "items");
-		row.unit = item.item_code || "";
-		row.building = item.building || "";
-		row.selling_price = item.rate || 0;
-		row.booking_amount = item.booking_amount || 0;
-		row.down_payment_amount = item.down_payment_amount || 0;
-		row.proposed_payment_plan = item.payment_plan || frm.doc.payment_plan || "";
-		row.owners_association_fee = item.owners_association_fee || 0;
+				const row = frappe.model.add_child(doc, "items");
+				row.unit = item.item_code || "";
+				row.building = item.building || "";
+				row.selling_price = item.rate || 0;
+				row.booking_amount = item.booking_amount || 0;
+				row.down_payment_amount = item.down_payment_amount || 0;
+				row.proposed_payment_plan = item.payment_plan || frm.doc.payment_plan || "";
+				row.owners_association_fee = item.owners_association_fee || 0;
 
-		frappe.set_route("Form", "Reservation", doc.name);
+				frappe.set_route("Form", "Reservation", doc.name);
+			});
+		},
 	});
 }
 
@@ -212,9 +225,7 @@ function _recalc_row(cdt, cdn) {
 
 // ── Action buttons ────────────────────────────────────────────────────────────
 function _add_action_buttons(frm) {
-	const state = frm.doc.workflow_state;
-
-	if (frm.doc.docstatus === 1 && state === "Confirmed") {
+	if (frm.doc.docstatus === 1) {
 		Promise.all([
 			frappe.db.get_single_value("Misk Real Estate Settings", "oa_fee_item"),
 			frappe.xcall(

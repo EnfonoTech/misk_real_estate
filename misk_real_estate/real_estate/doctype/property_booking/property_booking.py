@@ -1400,8 +1400,8 @@ def create_bookings_from_quotation(quotation_name, item_name=None):
 
     quotation = frappe.get_doc("Quotation", quotation_name)
 
-    if quotation.workflow_state != "Confirmed":
-        frappe.throw(_("Quotation must be fully approved before creating bookings."))
+    if quotation.docstatus != 1:
+        frappe.throw(_("Quotation must be submitted before creating bookings."))
 
     # Resolve or create customer
     if quotation.quotation_to == "Lead":

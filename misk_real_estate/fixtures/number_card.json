@@ -1,6 +1,7 @@
 [
  {
   "aggregate_function_based_on": null,
+  "background_color": null,
   "color": "#4CAF50",
   "currency": null,
   "docstatus": 0,
@@ -21,12 +22,14 @@
   "report_field": null,
   "report_function": null,
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 0,
   "stats_time_interval": null,
   "type": null
  },
  {
   "aggregate_function_based_on": null,
+  "background_color": null,
   "color": "#2196F3",
   "currency": null,
   "docstatus": 0,
@@ -47,12 +50,14 @@
   "report_field": null,
   "report_function": null,
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 1,
   "stats_time_interval": "Weekly",
   "type": "Document Type"
  },
  {
   "aggregate_function_based_on": null,
+  "background_color": null,
   "color": "#FF9800",
   "currency": null,
   "docstatus": 0,
@@ -73,12 +78,14 @@
   "report_field": null,
   "report_function": null,
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 0,
   "stats_time_interval": null,
   "type": "Custom"
  },
  {
   "aggregate_function_based_on": null,
+  "background_color": null,
   "color": "#F44336",
   "currency": null,
   "docstatus": 0,
@@ -99,12 +106,14 @@
   "report_field": null,
   "report_function": null,
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 0,
   "stats_time_interval": "Daily",
   "type": "Document Type"
  },
  {
   "aggregate_function_based_on": null,
+  "background_color": null,
   "color": "#FF9800",
   "currency": "OMR",
   "docstatus": 0,
@@ -125,12 +134,14 @@
   "report_field": null,
   "report_function": "Sum",
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 1,
   "stats_time_interval": "Daily",
   "type": "Document Type"
  },
  {
   "aggregate_function_based_on": null,
+  "background_color": null,
   "color": "#E74C3C",
   "currency": "OMR",
   "docstatus": 0,
@@ -151,12 +162,14 @@
   "report_field": null,
   "report_function": "Sum",
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 1,
   "stats_time_interval": "Daily",
   "type": "Document Type"
  },
  {
   "aggregate_function_based_on": null,
+  "background_color": null,
   "color": "#9C27B0",
   "currency": "OMR",
   "docstatus": 0,
@@ -177,12 +190,14 @@
   "report_field": null,
   "report_function": "Sum",
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 1,
   "stats_time_interval": "Daily",
   "type": "Document Type"
  },
  {
   "aggregate_function_based_on": null,
+  "background_color": null,
   "color": "#FF9800",
   "currency": "OMR",
   "docstatus": 0,
@@ -203,6 +218,7 @@
   "report_field": null,
   "report_function": "Sum",
   "report_name": null,
+  "show_full_number": 0,
   "show_percentage_stats": 1,
   "stats_time_interval": "Daily",
   "type": "Document Type"

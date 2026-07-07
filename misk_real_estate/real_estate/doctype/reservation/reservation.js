@@ -3,7 +3,7 @@
 frappe.ui.form.on("Reservation", {
 	setup(frm) {
 		frm.set_query("quotation", () => ({
-			filters: { workflow_state: "Confirmed" },
+			filters: { docstatus: 1 },
 		}));
 	},
 

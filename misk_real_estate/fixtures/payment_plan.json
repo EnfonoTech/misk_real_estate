@@ -2,15 +2,6 @@
  {
   "docstatus": 0,
   "doctype": "Payment Plan",
-  "is_full_payment": 1,
-  "modified": "2026-06-17 16:18:28.993292",
-  "name": "Full Payment",
-  "number_of_installments": 0,
-  "plan_name": "Full Payment"
- },
- {
-  "docstatus": 0,
-  "doctype": "Payment Plan",
   "is_full_payment": 0,
   "modified": "2026-06-17 16:18:29.003940",
   "name": "Installment 12M",
@@ -52,5 +43,14 @@
   "name": "Installment 48M",
   "number_of_installments": 48,
   "plan_name": "Installment 48M"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Payment Plan",
+  "is_full_payment": 1,
+  "modified": "2026-06-17 16:18:28.993292",
+  "name": "Full Payment",
+  "number_of_installments": 0,
+  "plan_name": "Full Payment"
  }
 ]
