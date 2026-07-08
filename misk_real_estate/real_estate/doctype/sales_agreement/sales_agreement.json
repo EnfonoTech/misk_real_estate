@@ -35,7 +35,9 @@
   "management_fee_amount",
   "column_break_mgmt",
   "management_fee_due_date",
-  "sales_person"
+  "sales_person",
+  "section_break_pdc_schedule",
+  "pdc_schedule"
  ],
  "fields": [
   {
@@ -213,6 +215,18 @@
    "fieldtype": "Link",
    "label": "Sales Person",
    "options": "Sales Person",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_pdc_schedule",
+   "fieldtype": "Section Break",
+   "label": "PDC Schedule"
+  },
+  {
+   "fieldname": "pdc_schedule",
+   "fieldtype": "Table",
+   "label": "PDC Schedule",
+   "options": "PDC Schedule",
    "read_only": 1
   }
  ],

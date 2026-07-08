@@ -9,6 +9,8 @@ from frappe.utils import cint, flt, cstr, today, add_days, add_months, getdate
 class PropertyBooking(Document):
     def validate(self):
         self._validate_amend_not_contracted()
+        if self.docstatus == 1:
+            self._validate_pdc_schedule_not_locked()
         # Auto-fill taxes_and_charges only on new documents (don't override if user cleared it)
         if self.is_new() and not self.taxes_and_charges and self.company and not self.quotation:
             self.taxes_and_charges = _get_default_taxes(self.company)
@@ -68,6 +70,28 @@ class PropertyBooking(Document):
                     flt(self.table_total), flt(self.expected_table_total),
                     flt(self.table_difference)),
                 title=_("PDC Amount Mismatch"),
+            )
+
+    def _validate_pdc_schedule_not_locked(self):
+        """Once a PDC Entry has been created against this booking's schedule, its
+        rows are already reflected on a physical cheque record — block any further
+        add/remove/edit of the PDC Schedule table from a user save. Backend
+        automation (create_pdc_entries, cheque clearing, etc.) writes via
+        frappe.db.set_value directly, bypassing doc.save(), so it is unaffected
+        by this check."""
+        before = self.get_doc_before_save()
+        if not before or not any(r.pdc_entry for r in before.pdc_schedule):
+            return  # no PDC Entries yet — table stays editable post-submit
+
+        fields = ("unit", "installment_type", "cheque_date", "net_amount",
+                  "tax_amount", "amount", "cheque_no", "status")
+        before_snapshot = [{f: r.get(f) for f in fields} for r in before.pdc_schedule]
+        current_snapshot = [{f: r.get(f) for f in fields} for r in self.pdc_schedule]
+        if before_snapshot != current_snapshot:
+            frappe.throw(
+                _("PDC Schedule cannot be edited — PDC Entries have already been "
+                  "created against it."),
+                title=_("PDC Schedule Locked"),
             )
 
     def _advance_received(self, purpose):
@@ -143,11 +167,24 @@ class PropertyBooking(Document):
         every unit that owes one, as soon as the booking is Confirmed. Finance
         reviews and submits them manually — same as the existing advance-payment
         buttons, just triggered automatically instead of by hand."""
+        created = []
         for row in self.property_unit:
             if not row.unit:
                 continue
             for purpose in ("Booking Amount", "Down Payment"):
-                _ensure_advance_invoice(self, purpose, row.unit, throw_if_zero=False)
+                si_name = _ensure_advance_invoice(self, purpose, row.unit, throw_if_zero=False)
+                if si_name:
+                    created.append((purpose, row.unit, si_name))
+        if created:
+            lines = [
+                _("{0} ({1}): {2}").format(purpose, unit, si_name)
+                for purpose, unit, si_name in created
+            ]
+            frappe.msgprint(
+                "<br>".join(lines),
+                title=_("Advance Invoices Created"),
+                indicator="green",
+            )
 
     def on_cancel(self):
         self.status = "Cancelled"
@@ -909,49 +946,6 @@ def get_booking_pdc_entries(booking_name):
     )))
 
 
-@frappe.whitelist()
-def create_advance_pdc(booking_name, purpose, unit):
-    """Return the field values to seed a single-purpose PDC Entry (Booking Amount
-    OR Down Payment) for one unit on this booking — the normal case. The UI opens
-    a fresh PDC Entry pre-filled with booking, unit, amount and invoice. To
-    combine purposes / units / other bookings on one cheque, the user adds
-    allocation rows manually."""
-    frappe.has_permission("Property Booking", "write", throw=True)
-    if purpose not in ("Booking Amount", "Down Payment"):
-        frappe.throw(_("Invalid purpose: {0}").format(purpose))
-
-    booking = frappe.get_doc("Property Booking", booking_name)
-    unit_row = _get_unit_row_by_unit(booking, unit)
-    base = flt(unit_row.booking_amount) if purpose == "Booking Amount" else flt(unit_row.down_payment_amount)
-    if base <= 0:
-        frappe.throw(_("This unit has no {0} to collect.").format(purpose))
-
-    _net, _tax, total = booking._get_unit_tax_breakdown(base, unit)
-    si = frappe.db.get_value(
-        "Sales Invoice",
-        {"custom_property_booking": booking_name, "custom_property_unit": unit,
-         "custom_payment_purpose": purpose, "docstatus": ("<", 2)},
-        "name", order_by="docstatus desc, creation desc",
-    )
-    company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
-    mode_of_payment = frappe.db.get_single_value("Misk Real Estate Settings", "pdc_payment_mode") or ""
-    return {
-        "customer": booking.customer,
-        "customer_bank_account": booking.customer_bank_account or "",
-        "company": company,
-        "mode_of_payment": mode_of_payment,
-        "cheque_date": today(),
-        "allocation": {
-            "property_booking": booking_name,
-            "purpose": purpose,
-            "building": unit_row.building,
-            "unit": unit_row.unit,
-            "sales_invoice": si or "",
-            "allocated_amount": total,
-        },
-    }
-
-
 # ── Whitelisted API ───────────────────────────────────────────────────────────
 
 @frappe.whitelist()
@@ -985,6 +979,68 @@ def trigger_invoice_generation(booking_name):
         booking_name=booking_name,
     )
     return True
+
+
+@frappe.whitelist()
+def update_pdc_schedule(booking_name, rows):
+    """Apply edits from the "Allow Edit" dialog to existing PDC Schedule rows
+    on a submitted booking. Writes each row via frappe.db.set_value — same
+    pattern as create_pdc_entries / cheque clearing — since editing a
+    submitted child table's values through doc.save() would require every
+    touched child field to carry allow_on_submit individually. Blocked
+    entirely once any row already has a PDC Entry (rows are then locked for
+    good; see _validate_pdc_schedule_not_locked, the doc.save() backstop)."""
+    frappe.has_permission("Property Booking", "write", throw=True)
+    if isinstance(rows, str):
+        rows = frappe.parse_json(rows)
+
+    booking = frappe.get_doc("Property Booking", booking_name)
+    if booking.docstatus != 1:
+        frappe.throw(_("Booking must be submitted."))
+    if any(r.pdc_entry for r in booking.pdc_schedule):
+        frappe.throw(
+            _("PDC Schedule cannot be edited — PDC Entries have already been "
+              "created against it."),
+            title=_("PDC Schedule Locked"),
+        )
+
+    rows_by_name = {r.name: r for r in booking.pdc_schedule}
+    for row in rows:
+        pdc_row = rows_by_name.get(row.get("row_name"))
+        if not pdc_row:
+            continue
+
+        cheque_no = (row.get("cheque_no") or "").strip()
+        if pdc_row.get("is_pdc") and not cheque_no:
+            frappe.throw(_("Row for unit {0}: Cheque No is required.").format(pdc_row.unit))
+
+        amount = flt(row.get("amount"))
+        rate = get_tax_rate_from_template(booking.taxes_and_charges or "", pdc_row.unit)
+        if rate:
+            net = round(amount / (1 + rate / 100), 3)
+            tax = round(amount - net, 3)
+        else:
+            net, tax = amount, 0.0
+
+        frappe.db.set_value("PDC Schedule", pdc_row.name, {
+            "installment_type": row.get("installment_type"),
+            "cheque_date": row.get("cheque_date"),
+            "cheque_no": cheque_no,
+            "amount": amount,
+            "net_amount": net,
+            "tax_amount": tax,
+        }, update_modified=False)
+
+    booking = frappe.get_doc("Property Booking", booking_name)
+    booking._compute_totals()
+    booking._compute_installment_progress()
+    frappe.db.set_value("Property Booking", booking_name, {
+        "table_total": booking.table_total,
+        "table_difference": booking.table_difference,
+        "expected_table_total": booking.expected_table_total,
+        "installment_progress": booking.installment_progress,
+    }, update_modified=False)
+    frappe.db.commit()
 
 
 @frappe.whitelist()
@@ -1344,8 +1400,8 @@ def create_bookings_from_quotation(quotation_name, item_name=None):
 
     quotation = frappe.get_doc("Quotation", quotation_name)
 
-    if quotation.workflow_state != "Confirmed":
-        frappe.throw(_("Quotation must be fully approved before creating bookings."))
+    if quotation.docstatus != 1:
+        frappe.throw(_("Quotation must be submitted before creating bookings."))
 
     # Resolve or create customer
     if quotation.quotation_to == "Lead":

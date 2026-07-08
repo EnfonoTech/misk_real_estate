@@ -26,6 +26,7 @@
   "section_break_ideo",
   "property_unit",
   "down_payment_date",
+  "payment_plan",
   "section_tax_total",
   "taxes_and_charges",
   "total_unit_price",
@@ -286,6 +287,12 @@
   {
    "fieldname": "section_break_ideo",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "payment_plan",
+   "fieldtype": "Link",
+   "label": "Payment Plan",
+   "options": "Payment Plan"
   }
  ],
  "is_submittable": 1,
@@ -308,7 +315,7 @@
    "link_fieldname": "property_booking"
   }
  ],
- "modified": "2026-07-07 14:45:51.367111",
+ "modified": "2026-07-07 21:52:37.704586",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Property Booking",

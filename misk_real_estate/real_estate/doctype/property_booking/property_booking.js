@@ -62,10 +62,9 @@ frappe.ui.form.on("Property Booking", {
 	refresh(frm) {
 		frm.trigger("set_unit_filter");
 
-		// Advance payment buttons (Booking Amount / Down Payment) — available on a
-		// saved Draft and on submitted bookings, since advance may be collected
-		// before the booking is confirmed.
-		if (!frm.is_new()) _add_advance_buttons(frm);
+		// Advance payment buttons (Booking Amount / Down Payment) — only once the
+		// booking has cleared the full approval workflow (Confirmed / docstatus 1).
+		if (frm.doc.docstatus === 1) _add_advance_buttons(frm);
 
 		// Mark Lost — release the reserved unit on a Draft that won't proceed
 		if (frm.doc.docstatus === 0 && !frm.is_new() && frm.doc.status !== "Lost") {
@@ -88,45 +87,46 @@ frappe.ui.form.on("Property Booking", {
 
 		const has_pdc = (frm.doc.pdc_schedule || []).some(r => r.pdc_entry);
 
-		// Create PDC Entries — show when submitted, no entries created yet
+		// PDC Schedule is locked (read-only) on the submitted form itself — Frappe
+		// doesn't support unlocking a submitted child table for inline editing.
+		// "Allow Edit" opens a dialog with an editable copy of the rows instead;
+		// changes are applied server-side, blocked once any row has a PDC Entry
+		// (server-enforced — see _validate_pdc_schedule_not_locked in property_booking.py).
 		if (!has_pdc) {
-			frm.add_custom_button(__("Create PDC Entries"), () => {
-				frappe.confirm(
-					__("Create PDC Entry records for all {0} schedule rows?",
-						[frm.doc.pdc_schedule ? frm.doc.pdc_schedule.length : 0]),
-					() => {
-						frappe.call({
-							method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.create_pdc_entries",
-							args: { booking_name: frm.doc.name },
-							freeze: true,
-							freeze_message: __("Creating PDC Entries..."),
-							callback(r) {
-								if (!r.exc) {
-									frappe.show_alert({
-										message: __("{0} PDC Entries created.", [r.message.length]),
-										indicator: "green"
-									});
-									frm.reload_doc();
-								}
-							},
-						});
-					}
-				);
-			}, __("PDC"));
+			frm.add_custom_button(__("Allow Edit"), () => _edit_pdc_schedule(frm), __("PDC"));
 		}
 
-		// View PDC Entries (resolved via allocation rows)
+		// View PDC Entries — creates them on the fly if none exist yet, then opens the list.
 		frm.add_custom_button(__("PDC Entries"), () => {
 			frappe.call({
 				method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_booking_pdc_entries",
 				args: { booking_name: frm.doc.name },
 				callback(r) {
 					const names = r.message || [];
-					if (!names.length) {
-						frappe.msgprint(__("No PDC Entries for this booking yet."));
+					if (names.length) {
+						frappe.set_route("List", "PDC Entry", { name: ["in", names] });
 						return;
 					}
-					frappe.set_route("List", "PDC Entry", { name: ["in", names] });
+					frappe.call({
+						method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.create_pdc_entries",
+						args: { booking_name: frm.doc.name },
+						freeze: true,
+						freeze_message: __("Creating PDC Entries..."),
+						callback(r2) {
+							if (r2.exc) return;
+							const created = r2.message || [];
+							if (!created.length) {
+								frappe.msgprint(__("No PDC Entries for this booking yet."));
+								return;
+							}
+							frappe.show_alert({
+								message: __("{0} PDC Entries created.", [created.length]),
+								indicator: "green"
+							});
+							frm.reload_doc();
+							frappe.set_route("List", "PDC Entry", { name: ["in", created] });
+						},
+					});
 				},
 			});
 		}, __("View"));
@@ -511,9 +511,6 @@ function _add_advance_buttons(frm) {
 						frm.add_custom_button(__(paymentLabel + suffix),
 							() => _record_advance_payment(frm, purpose, row.unit), grp);
 					}
-					// Collect this advance by post-dated cheque (single-purpose; combine manually)
-					frm.add_custom_button(__(purpose + " by PDC" + suffix),
-						() => _collect_advance_pdc(frm, purpose, row.unit), grp);
 				};
 
 				block(row.booking_amount, status["Booking Amount"],
@@ -552,42 +549,6 @@ function _add_sales_agreement_button(frm) {
 					},
 				});
 			}, __("Actions"));
-		},
-	});
-}
-
-function _collect_advance_pdc(frm, purpose, unit) {
-	if (frm.is_dirty()) {
-		frappe.msgprint(__("Please save the booking before collecting an advance by PDC."));
-		return;
-	}
-	frappe.call({
-		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.create_advance_pdc",
-		args: { booking_name: frm.doc.name, purpose, unit },
-		freeze: true,
-		freeze_message: __("Preparing PDC Entry..."),
-		callback(r) {
-			if (r.exc || !r.message) return;
-			const data = r.message;
-			// Build a fresh local PDC Entry (get_new_doc assigns a usable name) and
-			// pre-fill the header + one allocation row. To combine, add more rows.
-			frappe.model.with_doctype("PDC Entry", () => {
-				const doc = frappe.model.get_new_doc("PDC Entry");
-				doc.customer = data.customer;
-				doc.customer_bank_account = data.customer_bank_account;
-				doc.company = data.company;
-				doc.mode_of_payment = data.mode_of_payment;
-				doc.cheque_date = data.cheque_date;
-				const a = data.allocation || {};
-				const row = frappe.model.add_child(doc, "PDC Allocation", "allocations");
-				row.property_booking = a.property_booking;
-				row.purpose = a.purpose;
-				row.building = a.building;
-				row.unit = a.unit;
-				row.sales_invoice = a.sales_invoice;
-				row.allocated_amount = a.allocated_amount;
-				frappe.set_route("Form", "PDC Entry", doc.name);
-			});
 		},
 	});
 }
@@ -643,6 +604,63 @@ function _cache_tax_rate(frm, callback) {
 			if (callback) callback();
 		},
 	});
+}
+
+// ── PDC Schedule edit (post-submit) ──────────────────────────────────────────
+// The submitted form's own PDC Schedule grid can't be unlocked for inline
+// editing (Frappe always renders a submitted child table read-only). Instead,
+// open a dialog with an independent editable copy of the rows and push
+// changes back through a dedicated server call — blocked once any row has a
+// PDC Entry (see _validate_pdc_schedule_not_locked / update_pdc_schedule in
+// property_booking.py).
+function _edit_pdc_schedule(frm) {
+	const dialog = new frappe.ui.Dialog({
+		title: __("Edit PDC Schedule"),
+		size: "extra-large",
+		fields: [{
+			fieldname: "pdc_rows",
+			fieldtype: "Table",
+			label: __("PDC Schedule"),
+			cannot_add_rows: true,
+			cannot_delete_rows: true,
+			in_place_edit: false,
+			fields: [
+				{ fieldname: "row_name", fieldtype: "Data", hidden: 1 },
+				{ fieldname: "unit", label: __("Unit"), fieldtype: "Data", read_only: 1, in_list_view: 1 },
+				{ fieldname: "installment_type", label: __("Type"), fieldtype: "Select",
+					options: "Booking Amount\nDown Payment\nInstallment\nOwners Association Fee",
+					in_list_view: 1, columns: 2 },
+				{ fieldname: "cheque_date", label: __("Cheque Date"), fieldtype: "Date", in_list_view: 1 },
+				{ fieldname: "cheque_no", label: __("Cheque No"), fieldtype: "Data", in_list_view: 1 },
+				{ fieldname: "amount", label: __("Total Amount"), fieldtype: "Currency", in_list_view: 1 },
+			],
+			data: (frm.doc.pdc_schedule || []).map((r) => ({
+				row_name: r.name,
+				unit: r.unit,
+				installment_type: r.installment_type,
+				cheque_date: r.cheque_date,
+				cheque_no: r.cheque_no,
+				amount: r.amount,
+			})),
+		}],
+		primary_action_label: __("Save"),
+		primary_action(values) {
+			frappe.call({
+				method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.update_pdc_schedule",
+				args: { booking_name: frm.doc.name, rows: values.pdc_rows },
+				freeze: true,
+				freeze_message: __("Updating PDC Schedule..."),
+				callback(r) {
+					if (!r.exc) {
+						dialog.hide();
+						frappe.show_alert({ message: __("PDC Schedule updated."), indicator: "green" });
+						frm.reload_doc();
+					}
+				},
+			});
+		},
+	});
+	dialog.show();
 }
 
 // ── PDC Schedule visual grouping ─────────────────────────────────────────────
