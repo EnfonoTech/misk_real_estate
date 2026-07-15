@@ -64,8 +64,8 @@ frappe.ui.form.on("PDC Entry", {
 			}, __("Actions"));
 		}
 
-		// Mark Cleared — available when Deposited or In Batch, GL not yet posted
-		if (["Deposited", "In Batch"].includes(status) && !frm.doc.gl_posted) {
+		// Mark Cleared — available when Pending, Deposited or In Batch, GL not yet posted
+		if (["Pending", "Deposited", "In Batch"].includes(status) && !frm.doc.gl_posted) {
 			frm.add_custom_button(__("Mark Cleared"), () => {
 				_confirm_clearance(frm);
 			}, __("Actions"));
