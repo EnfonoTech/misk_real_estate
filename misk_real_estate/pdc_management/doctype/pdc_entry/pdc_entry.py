@@ -118,7 +118,7 @@ def mark_cleared(pdc_entry_name, cleared_date=None):
     if entry.status == "Cleared" and entry.gl_posted:
         frappe.throw(_("PDC Entry {0} is already cleared and GL posted.").format(pdc_entry_name))
 
-    if entry.status not in ("Deposited", "In Batch", "Cleared"):
+    if entry.status not in ("Pending", "Deposited", "In Batch", "Cleared"):
         frappe.throw(
             _("Cannot post GL for entry with status: {0}").format(entry.status)
         )
