@@ -14,6 +14,7 @@
   "booking_amount",
   "down_payment_percentage",
   "down_payment_amount",
+  "down_payment_plan",
   "column_break_pbu3",
   "payment_plan",
   "owners_association_fee",
@@ -85,6 +86,15 @@
    "label": "Down Payment Amount"
   },
   {
+   "columns": 2,
+   "fieldname": "down_payment_plan",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Down Payment Plan",
+   "options": "Down Payment Plan",
+   "description": "Optional — splits the Down Payment into tranches. Leave blank to invoice it in full, upfront."
+  },
+  {
    "fieldname": "column_break_pbu3",
    "fieldtype": "Column Break"
   },
@@ -122,7 +132,7 @@
  ],
  "istable": 1,
  "links": [],
- "modified": "2026-07-07 14:40:57.976584",
+ "modified": "2026-07-20 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Property Booking Unit",

@@ -487,37 +487,30 @@ function _check_pdc_total(frm) {
 }
 
 // ── Advance Payments: Booking Amount & Down Payment invoice/payment buttons ───
-// Each unit has its own booking_amount/down_payment_amount — one set of
-// buttons per unit, labeled with the unit so multi-unit bookings stay clear.
+// One combined invoice per purpose covers every unit on the booking, so one
+// set of buttons per purpose (not per unit).
 function _add_advance_buttons(frm) {
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.get_advance_invoice_status",
 		args: { booking_name: frm.doc.name },
 		callback(r) {
 			if (r.exc) return;
-			const status_by_unit = r.message || {};
+			const status_by_purpose = r.message || {};
 			const grp = __("Advance Payments");
 
-			(frm.doc.property_unit || []).forEach((row) => {
-				if (!row.unit) return;
-				const status = status_by_unit[row.unit] || {};
-				const suffix = ` — ${row.unit}`;
+			const block = (amount, purpose, invoiceLabel, paymentLabel) => {
+				if (flt(amount) <= 0) return;
+				const si = status_by_purpose[purpose];
+				frm.add_custom_button(si ? __("Open " + invoiceLabel) : __(invoiceLabel),
+					() => _open_advance_invoice(frm, purpose), grp);
+				if (si) {
+					frm.add_custom_button(__(paymentLabel),
+						() => _record_advance_payment(frm, purpose), grp);
+				}
+			};
 
-				const block = (amount, si, purpose, invoiceLabel, paymentLabel) => {
-					if (flt(amount) <= 0) return;
-					frm.add_custom_button(si ? __("Open " + invoiceLabel + suffix) : __(invoiceLabel + suffix),
-						() => _open_advance_invoice(frm, purpose, row.unit), grp);
-					if (si) {
-						frm.add_custom_button(__(paymentLabel + suffix),
-							() => _record_advance_payment(frm, purpose, row.unit), grp);
-					}
-				};
-
-				block(row.booking_amount, status["Booking Amount"],
-					"Booking Amount", "Booking Amount Invoice", "Record Booking Payment");
-				block(row.down_payment_amount, status["Down Payment"],
-					"Down Payment", "Down Payment Invoice", "Record Down Payment");
-			});
+			block(frm.doc.total_booking_amount, "Booking Amount", "Booking Amount Invoice", "Record Booking Payment");
+			block(frm.doc.total_down_payment_amount, "Down Payment", "Down Payment Invoice", "Record Down Payment");
 		},
 	});
 }
@@ -553,14 +546,14 @@ function _add_sales_agreement_button(frm) {
 	});
 }
 
-function _open_advance_invoice(frm, purpose, unit) {
+function _open_advance_invoice(frm, purpose) {
 	if (frm.is_dirty()) {
 		frappe.msgprint(__("Please save the booking before raising the invoice."));
 		return;
 	}
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.make_advance_invoice",
-		args: { booking_name: frm.doc.name, purpose, unit },
+		args: { booking_name: frm.doc.name, purpose },
 		freeze: true,
 		freeze_message: __("Preparing invoice..."),
 		callback(r) {
@@ -569,10 +562,10 @@ function _open_advance_invoice(frm, purpose, unit) {
 	});
 }
 
-function _record_advance_payment(frm, purpose, unit) {
+function _record_advance_payment(frm, purpose) {
 	frappe.call({
 		method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.make_advance_payment",
-		args: { booking_name: frm.doc.name, purpose, unit },
+		args: { booking_name: frm.doc.name, purpose },
 		freeze: true,
 		freeze_message: __("Preparing payment entry..."),
 		callback(r) {
@@ -683,6 +676,14 @@ function _style_pdc_schedule(frm) {
 		grid.wrapper.find(".grid-row[data-name]").each(function() {
 			const row = rowMap[$(this).data("name")];
 			if (!row) return;
+			// Down Payment / OA Fee rows are still generated, still invoiced (cron /
+			// All-at-Once) and still get PDC Entries — only hidden here so this table
+			// reads as pure cheque-Installment schedule. Edit via "Allow Edit" dialog
+			// or the Cheque Prefix auto-fill still reach every row regardless.
+			if (row.installment_type !== "Installment") {
+				$(this).hide();
+				return;
+			}
 			$(this).find(".data-row").css("background-color", colors[row.installment_type] || "#fff");
 		});
 
