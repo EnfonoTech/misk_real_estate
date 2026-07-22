@@ -1,5 +1,7 @@
 # apps/misk_real_estate/misk_real_estate/real_estate/doctype/property_booking/property_booking.py
 
+import json
+
 import frappe
 from frappe import _
 from frappe.model.document import Document
@@ -371,21 +373,34 @@ class PropertyBooking(Document):
 
     def generate_pdc_schedule(self):
         """
-        Populate pdc_schedule child table with Installment + OA Fee rows for
-        every unit, each row tagged with the unit it belongs to. Booking Amount
-        and Down Payment are collected separately (cash / bank / cheque) via
-        their own Sales Invoices — they are NOT part of this table.
-        No GL, no Payment Entry — only the plan (B7 requirement).
+        Populate pdc_schedule child table with Installment + OA Fee rows.
+        Every unit's contributions are first computed independently, then
+        merged by (type, due date) — units due on the same date combine into
+        ONE row (one physical cheque for the total) via _combined_pdc_row;
+        a date with only one contributing unit keeps today's single-unit row
+        shape exactly. Booking Amount and Down Payment are collected
+        separately (cash / bank / cheque) via their own Sales Invoices — they
+        are NOT part of this table. No GL, no Payment Entry — only the plan
+        (B7 requirement).
         """
         booking_date = getdate(self.booking_date)
-        seq = 1
         settings = frappe.get_cached_doc("Misk Real Estate Settings")
         dp_days = cint(settings.down_payment_days) or 2
 
+        buckets = {}  # (installment_type, cheque_date) -> [pdc_row dict, ...]
         for row in self.property_unit:
-            seq = self._generate_unit_pdc_rows(row, booking_date, dp_days, seq)
+            self._collect_unit_pdc_contributions(row, booking_date, dp_days, buckets)
 
-    def _generate_unit_pdc_rows(self, row, booking_date, dp_days, seq):
+        seq = 1
+        for key in sorted(buckets, key=lambda k: (k[1], k[0])):
+            self.append("pdc_schedule", self._combined_pdc_row(seq, key[0], key[1], buckets[key]))
+            seq += 1
+
+    def _collect_unit_pdc_contributions(self, row, booking_date, dp_days, buckets):
+        """Compute one unit's Installment + OA Fee amounts (same math as
+        before) and stash each as a pdc_row dict into `buckets`, keyed by
+        (installment_type, cheque_date) — generate_pdc_schedule merges same-key
+        entries across units into a single combined row."""
         plan_doc = frappe.db.get_value(
             "Payment Plan", row.payment_plan,
             ["number_of_installments", "is_full_payment"], as_dict=True
@@ -405,7 +420,7 @@ class PropertyBooking(Document):
             running = 0.0
             for i in range(1, n + 1):
                 inst_date = add_months(booking_date, i)
-                pdc_row = self._pdc_row(seq, "Installment", inst_date, flt(row.monthly_installment), unit=row.unit)
+                pdc_row = self._pdc_row(0, "Installment", inst_date, flt(row.monthly_installment), unit=row.unit)
                 if i == n:
                     total = round(inst_target - running, 3)
                     rate = (flt(pdc_row["tax_amount"]) / flt(pdc_row["net_amount"]) * 100) if flt(pdc_row["net_amount"]) else 0
@@ -414,8 +429,7 @@ class PropertyBooking(Document):
                     pdc_row["net_amount"] = net
                     pdc_row["tax_amount"] = round(total - net, 3)
                 running = round(running + flt(pdc_row["amount"]), 3)
-                self.append("pdc_schedule", pdc_row)
-                seq += 1
+                buckets.setdefault(("Installment", inst_date), []).append(pdc_row)
             oa_date = add_months(booking_date, n)
         else:
             oa_date = add_days(booking_date, dp_days)
@@ -423,12 +437,39 @@ class PropertyBooking(Document):
         # Owners Association Fee row — use OA item's tax rate
         if flt(row.owners_association_fee) > 0:
             oa_bd = self._get_oa_tax_breakdown(flt(row.owners_association_fee))
-            self.append("pdc_schedule", self._pdc_row(
-                seq, "Owners Association Fee", oa_date, flt(row.owners_association_fee),
+            oa_row = self._pdc_row(
+                0, "Owners Association Fee", oa_date, flt(row.owners_association_fee),
                 breakdown=oa_bd, unit=row.unit,
-            ))
-            seq += 1
-        return seq
+            )
+            buckets.setdefault(("Owners Association Fee", oa_date), []).append(oa_row)
+
+    def _combined_pdc_row(self, seq, installment_type, cheque_date, contributions):
+        """Merge 1+ per-unit pdc_row dicts due on the same (type, date) into
+        one row. A single contributor keeps today's row shape exactly (unit
+        set, no breakdown) — every single-unit booking is unaffected. 2+
+        contributors combine into one row — one physical cheque for the total
+        — with `unit` left blank and `unit_breakdown` holding each unit's
+        share, used later to build one invoice line per unit."""
+        if len(contributions) == 1:
+            row = contributions[0]
+            row["sequence_no"] = seq
+            return row
+        return {
+            "sequence_no": seq,
+            "unit": "",
+            "installment_type": installment_type,
+            "is_pdc": 1,
+            "cheque_date": cheque_date,
+            "net_amount": round(sum(flt(c["net_amount"]) for c in contributions), 3),
+            "tax_amount": round(sum(flt(c["tax_amount"]) for c in contributions), 3),
+            "amount": round(sum(flt(c["amount"]) for c in contributions), 3),
+            "cheque_no": "",
+            "status": "Pending",
+            "unit_breakdown": json.dumps([
+                {"unit": c["unit"], "net_amount": c["net_amount"], "tax_amount": c["tax_amount"], "amount": c["amount"]}
+                for c in contributions
+            ]),
+        }
 
     def _compute_totals(self):
         """Compute booking-wide totals (summed across every unit row) and the
@@ -1117,31 +1158,20 @@ def generate_invoices_for_booking(booking_name):
     settings = frappe.get_cached_doc("Misk Real Estate Settings")
     oa_item = getattr(settings, "oa_fee_item", None)
 
+    from misk_real_estate.pdc_management.cron.auto_invoice import build_pdc_row_invoice_items
+
     for row in booking.pdc_schedule:
         if row.sales_invoice:
             continue  # already has SI
         if row.status in ("Cancelled",):
             continue
 
-        # Use OA-FEE item for OA rows, this row's own unit for all others
-        item_code = (oa_item if row.installment_type == "Owners Association Fee" and oa_item
-                     else row.unit or _get_or_create_default_item(company))
         type_label = row.installment_type or "Installment"
         description = f"{type_label} — Cheque {row.cheque_no or 'TBC'} — Due {formatdate(row.cheque_date)}"
-
-        from misk_real_estate.pdc_management.cron.auto_invoice import (
-            _invoice_item_rate, _build_tax_rows_from_item_template
-        )
         taxes_and_charges = booking.taxes_and_charges or ""
-        if taxes_and_charges:
-            rate = _invoice_item_rate(
-                frappe._dict(amount=row.amount, net_amount=row.net_amount),
-                taxes_and_charges,
-            )
-            tax_rows = []
-        else:
-            tax_rows = _build_tax_rows_from_item_template(item_code)
-            rate = flt(row.net_amount or row.amount) if tax_rows else flt(row.amount)
+        items, tax_rows, custom_property_unit = build_pdc_row_invoice_items(
+            row, taxes_and_charges, oa_item, company, description
+        )
 
         posting_date = getdate(booking.booking_date)
         due_date = max(posting_date, getdate(row.cheque_date)) if row.cheque_date else posting_date
@@ -1155,15 +1185,10 @@ def generate_invoices_for_booking(booking_name):
             "due_date": due_date,
             "taxes_and_charges": taxes_and_charges,
             "taxes": tax_rows,
-            "items": [{
-                "item_code": item_code,
-                "qty": 1,
-                "rate": rate,
-                "description": description,
-            }],
+            "items": items,
             "custom_pdc_schedule_row": row.name,
             "custom_property_booking": booking_name,
-            "custom_property_unit": row.unit,
+            "custom_property_unit": custom_property_unit,
             "custom_payment_purpose": row.installment_type or "Installment",
         })
         si.flags.ignore_permissions = True
@@ -1192,9 +1217,7 @@ def create_missing_invoices(booking_name):
     if booking.docstatus != 1:
         frappe.throw(_("Booking must be submitted."))
 
-    from misk_real_estate.pdc_management.cron.auto_invoice import (
-        _invoice_item_rate, _build_tax_rows_from_item_template
-    )
+    from misk_real_estate.pdc_management.cron.auto_invoice import build_pdc_row_invoice_items
     from frappe.utils import formatdate
 
     company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
@@ -1207,23 +1230,13 @@ def create_missing_invoices(booking_name):
         if row.sales_invoice or row.status == "Cancelled":
             continue
 
-        item_code = (oa_item if row.installment_type == "Owners Association Fee" and oa_item
-                     else row.unit or _get_or_create_default_item(company))
-
-        if taxes_and_charges:
-            rate = _invoice_item_rate(
-                frappe._dict(amount=row.amount, net_amount=row.net_amount),
-                taxes_and_charges,
-            )
-            tax_rows = []
-        else:
-            tax_rows = _build_tax_rows_from_item_template(item_code)
-            rate = flt(row.net_amount or row.amount) if tax_rows else flt(row.amount)
-
         posting_date = getdate(today())
         due_date = max(posting_date, getdate(row.cheque_date)) if row.cheque_date else posting_date
         description = (f"{row.installment_type or 'Installment'} — "
                        f"Cheque {row.cheque_no or 'TBC'} — Due {formatdate(row.cheque_date)}")
+        items, tax_rows, custom_property_unit = build_pdc_row_invoice_items(
+            row, taxes_and_charges, oa_item, company, description
+        )
 
         si = frappe.get_doc({
             "doctype": "Sales Invoice",
@@ -1234,15 +1247,10 @@ def create_missing_invoices(booking_name):
             "due_date": due_date,
             "taxes_and_charges": taxes_and_charges,
             "taxes": tax_rows,
-            "items": [{
-                "item_code": item_code,
-                "qty": 1,
-                "rate": rate,
-                "description": description,
-            }],
+            "items": items,
             "custom_pdc_schedule_row": row.name,
             "custom_property_booking": booking_name,
-            "custom_property_unit": row.unit,
+            "custom_property_unit": custom_property_unit,
             "custom_payment_purpose": row.installment_type or "Installment",
         })
         si.flags.ignore_permissions = True
@@ -1264,24 +1272,6 @@ def create_missing_invoices(booking_name):
             title=_("Invoices Created (Draft)"),
         )
     return created
-
-
-def _get_or_create_default_item(company):
-    """Fallback item for invoice lines when unit item not usable."""
-    item = frappe.db.get_value("Item", {"item_name": "Real Estate Installment", "disabled": 0}, "name")
-    if item:
-        return item
-    i = frappe.get_doc({
-        "doctype": "Item",
-        "item_code": "RE-INSTALLMENT",
-        "item_name": "Real Estate Installment",
-        "item_group": "Services",
-        "is_sales_item": 1,
-        "is_purchase_item": 0,
-        "is_stock_item": 0,
-    })
-    i.insert(ignore_permissions=True)
-    return i.name
 
 
 @frappe.whitelist()

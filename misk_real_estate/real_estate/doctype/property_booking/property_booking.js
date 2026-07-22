@@ -629,7 +629,7 @@ function _edit_pdc_schedule(frm) {
 			],
 			data: (frm.doc.pdc_schedule || []).map((r) => ({
 				row_name: r.name,
-				unit: r.unit,
+				unit: r.unit || _units_for_pdc_row(r),
 				installment_type: r.installment_type,
 				cheque_date: r.cheque_date,
 				cheque_no: r.cheque_no,
@@ -656,6 +656,18 @@ function _edit_pdc_schedule(frm) {
 	dialog.show();
 }
 
+// unit_breakdown is stored as a JSON string (see _combined_pdc_row in
+// property_booking.py) — parse it into "UNIT-A, UNIT-B" for display on a
+// combined row (unit field blank). Returns "" for single-unit rows.
+function _units_for_pdc_row(row) {
+	if (!row.unit_breakdown) return "";
+	try {
+		return JSON.parse(row.unit_breakdown).map((c) => c.unit).join(", ");
+	} catch (e) {
+		return "";
+	}
+}
+
 // ── PDC Schedule visual grouping ─────────────────────────────────────────────
 function _style_pdc_schedule(frm) {
 	const colors = {
@@ -676,6 +688,13 @@ function _style_pdc_schedule(frm) {
 		grid.wrapper.find(".grid-row[data-name]").each(function() {
 			const row = rowMap[$(this).data("name")];
 			if (!row) return;
+			// Combined row (one cheque covering several units on the same due
+			// date) — the header `unit` field is blank, so show the unit list
+			// from unit_breakdown instead of a blank cell.
+			const units = _units_for_pdc_row(row);
+			if (!row.unit && units) {
+				$(this).find('.grid-static-col[data-fieldname="unit"] .static-area').text(units);
+			}
 			// Down Payment / OA Fee rows are still generated, still invoiced (cron /
 			// All-at-Once) and still get PDC Entries — only hidden here so this table
 			// reads as pure cheque-Installment schedule. Edit via "Allow Edit" dialog

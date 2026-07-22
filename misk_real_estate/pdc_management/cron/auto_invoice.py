@@ -42,6 +42,7 @@ def _generate_due_invoices():
             ps.status,
             pb.customer,
             ps.unit,
+            ps.unit_breakdown,
             pb.company,
             pb.taxes_and_charges
         FROM `tabPDC Schedule` ps
@@ -97,25 +98,13 @@ def _create_invoice(row, submit=False, payment_purpose=None):
     (Booking Amount / Down Payment / Installment / Owners Association Fee).
     """
     company = row.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
-
-    # Use OA-FEE item for Owners Association Fee rows
     settings = frappe.get_cached_doc("Misk Real Estate Settings")
     oa_item = getattr(settings, "oa_fee_item", None)
-    if row.get("installment_type") == "Owners Association Fee" and oa_item:
-        item_code = oa_item
-    else:
-        item_code = row.unit or _get_default_item(company)
-
     taxes_and_charges = row.get("taxes_and_charges") or ""
 
-    if taxes_and_charges:
-        rate = _invoice_item_rate(row, taxes_and_charges)
-        tax_rows = []
-    else:
-        # No transaction-level template — build tax rows from item's Item Tax Template
-        tax_rows = _build_tax_rows_from_item_template(item_code)
-        # Use net_amount when we have tax rows (exclusive); otherwise use total
-        rate = flt(row.get("net_amount") or row.get("amount")) if tax_rows else flt(row.get("amount"))
+    items, tax_rows, custom_property_unit = build_pdc_row_invoice_items(
+        row, taxes_and_charges, oa_item, company, _get_description(row)
+    )
 
     posting_date = getdate(row.cheque_date or today())
     due_date = max(posting_date, getdate(row.cheque_date)) if row.cheque_date else posting_date
@@ -129,17 +118,10 @@ def _create_invoice(row, submit=False, payment_purpose=None):
         "due_date": due_date,
         "taxes_and_charges": taxes_and_charges,
         "taxes": tax_rows,
-        "items": [
-            {
-                "item_code": item_code,
-                "qty": 1,
-                "rate": rate,
-                "description": _get_description(row),
-            }
-        ],
+        "items": items,
         "custom_pdc_schedule_row": row.schedule_row,
         "custom_property_booking": row.booking,
-        "custom_property_unit": row.get("unit"),
+        "custom_property_unit": custom_property_unit,
         "custom_payment_purpose": payment_purpose or row.get("installment_type") or "Installment",
     })
     si.flags.ignore_permissions = True
@@ -147,6 +129,47 @@ def _create_invoice(row, submit=False, payment_purpose=None):
     if submit:
         si.submit()
     return si.name
+
+
+def build_pdc_row_invoice_items(row, taxes_and_charges, oa_item, company, base_description):
+    """Build Sales Invoice items (+ tax rows, + custom_property_unit) for one
+    PDC Schedule row. A single-unit row (row.unit set, no unit_breakdown)
+    produces today's exact single line item, using base_description as-is. A
+    combined multi-unit row (row.unit blank, unit_breakdown populated — see
+    Property Booking's _combined_pdc_row) produces one line per contributing
+    unit, each tagged with its unit in the description — mirrors the
+    multi-line invoice _ensure_advance_invoice already builds for Booking
+    Amount / Down Payment in property_booking.py.
+    Returns (items, tax_rows, custom_property_unit)."""
+    is_oa = row.get("installment_type") == "Owners Association Fee"
+    raw_breakdown = row.get("unit_breakdown")
+    if isinstance(raw_breakdown, str) and raw_breakdown:
+        contributions = frappe.parse_json(raw_breakdown)
+    else:
+        contributions = raw_breakdown or [{
+            "unit": row.get("unit"),
+            "net_amount": row.get("net_amount"),
+            "tax_amount": row.get("tax_amount"),
+            "amount": row.get("amount"),
+        }]
+
+    multi = len(contributions) > 1
+    items, tax_rows = [], []
+    for idx, c in enumerate(contributions):
+        item_code = oa_item if (is_oa and oa_item) else (c.get("unit") or _get_default_item(company))
+        description = f"{base_description} — {c.get('unit')}" if multi else base_description
+        if taxes_and_charges:
+            rate = _invoice_item_rate(
+                frappe._dict(amount=c.get("amount"), net_amount=c.get("net_amount")), taxes_and_charges
+            )
+        else:
+            if idx == 0:
+                tax_rows = _build_tax_rows_from_item_template(item_code)
+            rate = flt(c.get("net_amount") or c.get("amount")) if tax_rows else flt(c.get("amount"))
+        items.append({"item_code": item_code, "qty": 1, "rate": rate, "description": description})
+
+    custom_property_unit = contributions[0].get("unit") if not multi else ""
+    return items, tax_rows, custom_property_unit
 
 
 def _build_tax_rows_from_item_template(item_code):

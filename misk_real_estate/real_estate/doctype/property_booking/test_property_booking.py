@@ -3,7 +3,7 @@
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import today
+from frappe.utils import today, flt
 
 
 def _make_unit(code):
@@ -53,7 +53,10 @@ class TestPropertyBooking(FrappeTestCase):
 		self.assertEqual(booking.total_owners_association_fee, 360)
 		self.assertEqual(booking.total_amount, 30360)
 
-	def test_pdc_schedule_rows_tagged_with_owning_unit(self):
+	def test_pdc_schedule_stays_per_unit_when_due_dates_dont_coincide(self):
+		"""Different plans (12 monthly installments vs. Full Payment) put each
+		unit's rows on different dates, so nothing combines — every row keeps
+		today's single-unit shape (unit set, no unit_breakdown)."""
 		booking = self._new_booking([
 			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000,
 			 "booking_amount": 500, "down_payment_percentage": 10,
@@ -65,12 +68,33 @@ class TestPropertyBooking(FrappeTestCase):
 
 		units_in_schedule = {row.unit for row in booking.pdc_schedule}
 		self.assertEqual(units_in_schedule, {self.unit_a, self.unit_b})
+		self.assertTrue(all(not r.unit_breakdown for r in booking.pdc_schedule))
 		# Unit A has 12 monthly installments + its own OA fee row; Unit B (Full
 		# Payment) only gets an OA fee row.
 		unit_a_rows = [r for r in booking.pdc_schedule if r.unit == self.unit_a]
 		unit_b_rows = [r for r in booking.pdc_schedule if r.unit == self.unit_b]
 		self.assertEqual(len(unit_a_rows), 13)
 		self.assertEqual(len(unit_b_rows), 1)
+
+	def test_pdc_schedule_combines_matching_installment_dates_across_units(self):
+		"""Two units on the SAME Payment Plan share every due date — their
+		installment amounts combine into ONE row (one physical cheque) instead
+		of one row per unit."""
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 12000,
+			 "down_payment_percentage": 50, "payment_plan": "Installment 12M"},
+			{"building": "Consumable", "unit": self.unit_b, "unit_price": 24000,
+			 "down_payment_percentage": 50, "payment_plan": "Installment 12M"},
+		])
+		booking.insert(ignore_permissions=True)
+
+		installment_rows = [r for r in booking.pdc_schedule if r.installment_type == "Installment"]
+		self.assertEqual(len(installment_rows), 12)  # combined, not 24
+		for row in installment_rows:
+			self.assertEqual(row.unit, "")
+			self.assertEqual(flt(row.amount), 1500)
+			breakdown = {c["unit"]: flt(c["amount"]) for c in frappe.parse_json(row.unit_breakdown)}
+			self.assertEqual(breakdown, {self.unit_a: 500, self.unit_b: 1000})
 
 	def test_reserves_every_unit_on_insert(self):
 		booking = self._new_booking([
@@ -118,3 +142,30 @@ class TestPropertyBooking(FrappeTestCase):
 			"Sales Invoice",
 			{"custom_property_booking": booking.name, "custom_payment_purpose": "Down Payment"},
 		))
+
+	def test_build_pdc_row_invoice_items_combined_vs_single(self):
+		"""A single-unit PDC row still produces one invoice line; a combined
+		row (unit_breakdown populated) produces one line per unit."""
+		from misk_real_estate.pdc_management.cron.auto_invoice import build_pdc_row_invoice_items
+
+		single_row = frappe._dict(
+			installment_type="Installment", unit=self.unit_a,
+			net_amount=500, tax_amount=0, amount=500, unit_breakdown=None,
+		)
+		items, _tax_rows, custom_unit = build_pdc_row_invoice_items(single_row, "", None, self.company, "desc")
+		self.assertEqual(len(items), 1)
+		self.assertEqual(items[0]["item_code"], self.unit_a)
+		self.assertEqual(items[0]["rate"], 500)
+		self.assertEqual(custom_unit, self.unit_a)
+
+		combined_row = frappe._dict(
+			installment_type="Installment", unit="", net_amount=1500, tax_amount=0, amount=1500,
+			unit_breakdown=[
+				{"unit": self.unit_a, "net_amount": 500, "tax_amount": 0, "amount": 500},
+				{"unit": self.unit_b, "net_amount": 1000, "tax_amount": 0, "amount": 1000},
+			],
+		)
+		items, _tax_rows, custom_unit = build_pdc_row_invoice_items(combined_row, "", None, self.company, "desc")
+		self.assertEqual({i["item_code"] for i in items}, {self.unit_a, self.unit_b})
+		self.assertEqual(sum(flt(i["rate"]) for i in items), 1500)
+		self.assertEqual(custom_unit, "")

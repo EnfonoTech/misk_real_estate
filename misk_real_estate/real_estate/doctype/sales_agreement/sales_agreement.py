@@ -108,6 +108,7 @@ class SalesAgreement(Document):
                 "sales_invoice": row.sales_invoice,
                 "payment_entry": row.payment_entry,
                 "pdc_entry": row.pdc_entry,
+                "unit_breakdown": row.unit_breakdown,
             })
 
     def _first_due_date(self, booking, installment_type):

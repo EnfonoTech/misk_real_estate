@@ -18,7 +18,8 @@
   "status",
   "sales_invoice",
   "payment_entry",
-  "pdc_entry"
+  "pdc_entry",
+  "unit_breakdown"
  ],
  "fields": [
   {
@@ -124,6 +125,12 @@
   {
    "fieldname": "column_break_hxjk",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "unit_breakdown",
+   "fieldtype": "JSON",
+   "hidden": 1,
+   "label": "Unit Breakdown"
   }
  ],
  "istable": 1,
