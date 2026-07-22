@@ -125,6 +125,7 @@ def _create_invoice(row, submit=False, payment_purpose=None):
         "customer": row.customer,
         "company": company,
         "posting_date": posting_date,
+        "set_posting_time": 1,
         "due_date": due_date,
         "taxes_and_charges": taxes_and_charges,
         "taxes": tax_rows,

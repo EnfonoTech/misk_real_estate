@@ -277,19 +277,19 @@ def get_allocation_defaults(booking, purpose=None, unit=None):
 
     out = {"building": row.building, "unit": row.unit, "amount": 0, "sales_invoice": None}
 
-    base, breakdown = 0, None
-    if purpose == "Booking Amount":
-        base, breakdown = flt(row.booking_amount), lambda amt: b._get_unit_tax_breakdown(amt, row.unit)
-    elif purpose == "Down Payment":
-        base, breakdown = flt(row.down_payment_amount), lambda amt: b._get_unit_tax_breakdown(amt, row.unit)
-    elif purpose == "Owners Association Fee":
-        base, breakdown = flt(row.owners_association_fee), b._get_oa_tax_breakdown
+    if purpose == "Booking Amount" and flt(row.booking_amount) > 0:
+        out["amount"] = b._get_unit_tax_breakdown(flt(row.booking_amount), row.unit)[2]
+    elif purpose == "Down Payment" and flt(row.down_payment_amount) > 0:
+        # Only the upfront (first) tranche is billed on the combined invoice —
+        # any remaining tranches are separate PDC Schedule rows, not this allocation.
+        out["amount"] = b._down_payment_upfront_total(row)
+    elif purpose == "Owners Association Fee" and flt(row.owners_association_fee) > 0:
+        out["amount"] = b._get_oa_tax_breakdown(flt(row.owners_association_fee))[2]
 
-    if base > 0 and breakdown:
-        out["amount"] = breakdown(base)[2]  # (net, tax, total) -> total
+    if out["amount"] > 0:
         out["sales_invoice"] = frappe.db.get_value(
             "Sales Invoice",
-            {"custom_property_booking": booking, "custom_property_unit": row.unit,
+            {"custom_property_booking": booking,
              "custom_payment_purpose": purpose, "docstatus": ("<", 2)},
             "name", order_by="docstatus desc, creation desc",
         )

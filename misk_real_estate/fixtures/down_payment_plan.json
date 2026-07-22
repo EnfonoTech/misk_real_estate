@@ -1,0 +1,18 @@
+[
+ {
+  "docstatus": 0,
+  "doctype": "Down Payment Plan",
+  "modified": "2026-07-20 00:00:00.000000",
+  "name": "2 Tranches",
+  "number_of_tranches": 2,
+  "plan_name": "2 Tranches"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Down Payment Plan",
+  "modified": "2026-07-20 00:00:00.000000",
+  "name": "3 Tranches",
+  "number_of_tranches": 3,
+  "plan_name": "3 Tranches"
+ }
+]
