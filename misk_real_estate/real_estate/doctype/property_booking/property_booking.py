@@ -21,12 +21,11 @@ class PropertyBooking(Document):
             self.down_payment_date = add_days(getdate(self.booking_date), cint(settings.down_payment_days) or 2)
         self.validate_duplicate_booking()
         self._check_unit_availability()
-        # Generate the installment + OA (+ Down Payment tranche) schedule on first
-        # save (only when at least one unit has a plan set). Booking Amount and
-        # the Down Payment's upfront (first) tranche are handled separately, NOT
-        # in this table. Use "Regenerate PDC Schedule" to rebuild.
+        # Generate the installment + OA schedule on first save (only when at least
+        # one unit has a plan set). Booking Amount and Down Payment are handled
+        # separately, NOT in this table. Use "Regenerate PDC Schedule" to rebuild.
         if self.docstatus == 0 and not self.pdc_schedule \
-                and any(row.payment_plan or row.down_payment_plan for row in self.property_unit):
+                and any(row.payment_plan for row in self.property_unit):
             self.generate_pdc_schedule()
         self._compute_totals()
         self._compute_installment_progress()
@@ -138,7 +137,7 @@ class PropertyBooking(Document):
     def before_submit(self):
         self.validate_required_fields()
         # Generate if somehow still empty and a plan exists (e.g. created programmatically)
-        if not self.pdc_schedule and any(row.payment_plan or row.down_payment_plan for row in self.property_unit):
+        if not self.pdc_schedule and any(row.payment_plan for row in self.property_unit):
             self.generate_pdc_schedule()
         # Hard block — cheque numbers present and the PDC table balanced
         self._validate_pdc_balanced()
@@ -163,9 +162,7 @@ class PropertyBooking(Document):
     def _create_advance_invoices(self):
         """Auto-create (as Draft) ONE combined Booking Amount invoice and ONE
         combined Down Payment invoice — each with one line per unit that owes
-        that purpose — as soon as the booking is Confirmed. When a unit has a
-        Down Payment Plan with more than one tranche, only the first tranche is
-        billed here; the rest are scheduled in the PDC Schedule. Finance reviews
+        that purpose — as soon as the booking is Confirmed. Finance reviews
         and submits the invoices manually — same as the existing advance-payment
         buttons, just triggered automatically instead of by hand."""
         created = []
@@ -423,8 +420,6 @@ class PropertyBooking(Document):
         else:
             oa_date = add_days(booking_date, dp_days)
 
-        seq = self._generate_down_payment_tranche_rows(row, booking_date, dp_days, seq)
-
         # Owners Association Fee row — use OA item's tax rate
         if flt(row.owners_association_fee) > 0:
             oa_bd = self._get_oa_tax_breakdown(flt(row.owners_association_fee))
@@ -434,52 +429,6 @@ class PropertyBooking(Document):
             ))
             seq += 1
         return seq
-
-    def _generate_down_payment_tranche_rows(self, row, booking_date, dp_days, seq):
-        """Down Payment Plan tranches 2..N — the 1st tranche is billed immediately
-        in the combined Down Payment invoice on submit (see _ensure_advance_invoice),
-        so only the remaining tranches land here, due monthly from the Down
-        Payment Date. No-op when no plan is set (or the plan is a single
-        tranche) — the full amount is then invoiced upfront, same as before."""
-        n = self._down_payment_tranche_count(row)
-        if n <= 1 or not flt(row.down_payment_amount):
-            return seq
-
-        dp_date = getdate(self.down_payment_date) if self.down_payment_date else add_days(booking_date, dp_days)
-        _x, _y, dp_total = self._get_unit_tax_breakdown(flt(row.down_payment_amount), row.unit)
-        tranche_base = round(flt(row.down_payment_amount) / n, 3)
-
-        running = round(dp_total / n, 3)  # tranche 1 already invoiced upfront — not appended here
-        for i in range(2, n + 1):
-            tranche_date = add_months(dp_date, i - 1)
-            pdc_row = self._pdc_row(seq, "Down Payment", tranche_date, tranche_base, unit=row.unit)
-            if i == n:
-                total = round(dp_total - running, 3)
-                rate = (flt(pdc_row["tax_amount"]) / flt(pdc_row["net_amount"]) * 100) if flt(pdc_row["net_amount"]) else 0
-                net = round(total / (1 + rate / 100), 3) if rate else total
-                pdc_row["amount"] = total
-                pdc_row["net_amount"] = net
-                pdc_row["tax_amount"] = round(total - net, 3)
-            running = round(running + flt(pdc_row["amount"]), 3)
-            self.append("pdc_schedule", pdc_row)
-            seq += 1
-        return seq
-
-    def _down_payment_tranche_count(self, row):
-        """Number of tranches the Down Payment is split into (1 = paid in full,
-        upfront — the default when no Down Payment Plan is set on the unit row)."""
-        if not row.down_payment_plan:
-            return 1
-        return cint(frappe.db.get_value("Down Payment Plan", row.down_payment_plan, "number_of_tranches")) or 1
-
-    def _down_payment_upfront_total(self, row):
-        """Tax-inclusive amount of the Down Payment invoiced immediately on
-        submit — the full amount when no plan (or a 1-tranche plan) is set on
-        the unit row, else just the first tranche (the rest are scheduled as
-        rows in the PDC Schedule via _generate_down_payment_tranche_rows)."""
-        _n, _t, dp_total = self._get_unit_tax_breakdown(flt(row.down_payment_amount), row.unit)
-        n = self._down_payment_tranche_count(row)
-        return round(dp_total / n, 3) if n > 1 else dp_total
 
     def _compute_totals(self):
         """Compute booking-wide totals (summed across every unit row) and the
@@ -519,13 +468,10 @@ class PropertyBooking(Document):
             tax_amount += unit_tax + oa_tax
             total_after_tax += unit_total + oa_total
 
-            # Booking Amount is always collected outside the table (incl. tax).
-            # Down Payment is outside the table only up to its upfront (first
-            # tranche) portion — remaining tranches (if a Down Payment Plan
-            # with >1 tranches is set) are scheduled inside the table instead.
+            # Booking Amount and Down Payment are collected outside the table (incl. tax)
             _n, _t, booking_total = self._get_unit_tax_breakdown(booking_amount, row.unit)
-            dp_upfront_total = self._down_payment_upfront_total(row)
-            expected_table_total += (unit_total + oa_total) - booking_total - dp_upfront_total
+            _n, _t, dp_total = self._get_unit_tax_breakdown(dp_amount, row.unit)
+            expected_table_total += (unit_total + oa_total) - booking_total - dp_total
 
         self.total_unit_price = round(total_unit_price, 3)
         self.total_amount = round(total_unit_price + total_oa_fee, 3)  # pre-tax subtotal
@@ -855,11 +801,8 @@ def on_payment_entry_change(doc, method=None):
 def _ensure_advance_invoice(booking, purpose, throw_if_zero=True):
     """Create (as Draft) and return ONE combined Sales Invoice — one line per
     unit — covering every unit's Booking Amount or Down Payment on this
-    booking. When a unit has a Down Payment Plan with more than one tranche,
-    only the first tranche is billed here (the rest are scheduled as rows in
-    the PDC Schedule — see _generate_down_payment_tranche_rows).
-    If a combined invoice already exists (draft or submitted) for this
-    purpose, return it instead. Returns None (instead of throwing) when
+    booking. If a combined invoice already exists (draft or submitted) for
+    this purpose, return it instead. Returns None (instead of throwing) when
     nothing is owed and throw_if_zero is False — used by the on-submit
     auto-creation."""
     existing = frappe.db.get_value(
@@ -894,12 +837,7 @@ def _ensure_advance_invoice(booking, purpose, throw_if_zero=True):
     items = []
     tax_rows = []
     for idx, row in enumerate(rows_owing):
-        if purpose == "Down Payment":
-            n = booking._down_payment_tranche_count(row)
-            net_full, _tax, total_full = booking._get_unit_tax_breakdown(flt(row.down_payment_amount), row.unit)
-            net, total = (round(net_full / n, 3), round(total_full / n, 3)) if n > 1 else (net_full, total_full)
-        else:
-            net, _tax, total = booking._get_unit_tax_breakdown(flt(row.get(field)), row.unit)
+        net, _tax, total = booking._get_unit_tax_breakdown(flt(row.get(field)), row.unit)
 
         if taxes_and_charges:
             rate = _invoice_item_rate(frappe._dict(amount=total, net_amount=net), taxes_and_charges)
@@ -1415,12 +1353,11 @@ def check_contract_eligibility(booking):
         failures.append(_("Down Payment is not fully received yet (all units)."))
     pending = [
         r for r in booking.pdc_schedule
-        if r.installment_type in ("Installment", "Owners Association Fee", "Down Payment") and not r.pdc_entry
+        if r.installment_type in ("Installment", "Owners Association Fee") and not r.pdc_entry
     ]
     if pending:
         failures.append(
-            _("{0} PDC row(s) still need a PDC Entry registered "
-              "(Installments / Management Fee / Down Payment tranches).").format(
+            _("{0} PDC row(s) still need a PDC Entry registered (Installments / Management Fee).").format(
                 len(pending)
             )
         )

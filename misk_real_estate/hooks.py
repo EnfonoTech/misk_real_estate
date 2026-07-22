@@ -89,9 +89,6 @@ fixtures = [
         "dt": "Payment Plan"
     },
     {
-        "dt": "Down Payment Plan"
-    },
-    {
         "dt": "Unit Type"
     },
     {

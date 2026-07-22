@@ -280,9 +280,7 @@ def get_allocation_defaults(booking, purpose=None, unit=None):
     if purpose == "Booking Amount" and flt(row.booking_amount) > 0:
         out["amount"] = b._get_unit_tax_breakdown(flt(row.booking_amount), row.unit)[2]
     elif purpose == "Down Payment" and flt(row.down_payment_amount) > 0:
-        # Only the upfront (first) tranche is billed on the combined invoice —
-        # any remaining tranches are separate PDC Schedule rows, not this allocation.
-        out["amount"] = b._down_payment_upfront_total(row)
+        out["amount"] = b._get_unit_tax_breakdown(flt(row.down_payment_amount), row.unit)[2]
     elif purpose == "Owners Association Fee" and flt(row.owners_association_fee) > 0:
         out["amount"] = b._get_oa_tax_breakdown(flt(row.owners_association_fee))[2]
 
