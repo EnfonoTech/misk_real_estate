@@ -103,8 +103,11 @@ def _create_invoice(row, submit=False, payment_purpose=None):
     taxes_and_charges = row.get("taxes_and_charges") or ""
 
     items, tax_rows, custom_property_unit = build_pdc_row_invoice_items(
-        row, taxes_and_charges, oa_item, company, _get_description(row)
+        row, taxes_and_charges, oa_item, company, _get_description(row), row.booking
     )
+
+    from misk_real_estate.real_estate.doctype.property_booking.property_booking import get_booking_dimensions
+    project, cost_center = get_booking_dimensions(row.booking)
 
     posting_date = getdate(row.cheque_date or today())
     due_date = max(posting_date, getdate(row.cheque_date)) if row.cheque_date else posting_date
@@ -113,6 +116,8 @@ def _create_invoice(row, submit=False, payment_purpose=None):
         "doctype": "Sales Invoice",
         "customer": row.customer,
         "company": company,
+        "project": project,
+        "cost_center": cost_center,
         "posting_date": posting_date,
         "set_posting_time": 1,
         "due_date": due_date,
@@ -131,7 +136,7 @@ def _create_invoice(row, submit=False, payment_purpose=None):
     return si.name
 
 
-def build_pdc_row_invoice_items(row, taxes_and_charges, oa_item, company, base_description):
+def build_pdc_row_invoice_items(row, taxes_and_charges, oa_item, company, base_description, booking_name):
     """Build Sales Invoice items (+ tax rows, + custom_property_unit) for one
     PDC Schedule row. A single-unit row (row.unit set, no unit_breakdown)
     produces today's exact single line item, using base_description as-is. A
@@ -139,8 +144,12 @@ def build_pdc_row_invoice_items(row, taxes_and_charges, oa_item, company, base_d
     Property Booking's _combined_pdc_row) produces one line per contributing
     unit, each tagged with its unit in the description — mirrors the
     multi-line invoice _ensure_advance_invoice already builds for Booking
-    Amount / Down Payment in property_booking.py.
+    Amount / Down Payment in property_booking.py. Each line's project/cost
+    center resolves via get_booking_dimensions (unit-level override, else the
+    booking's own default).
     Returns (items, tax_rows, custom_property_unit)."""
+    from misk_real_estate.real_estate.doctype.property_booking.property_booking import get_booking_dimensions
+
     is_oa = row.get("installment_type") == "Owners Association Fee"
     raw_breakdown = row.get("unit_breakdown")
     if isinstance(raw_breakdown, str) and raw_breakdown:
@@ -166,7 +175,11 @@ def build_pdc_row_invoice_items(row, taxes_and_charges, oa_item, company, base_d
             if idx == 0:
                 tax_rows = _build_tax_rows_from_item_template(item_code)
             rate = flt(c.get("net_amount") or c.get("amount")) if tax_rows else flt(c.get("amount"))
-        items.append({"item_code": item_code, "qty": 1, "rate": rate, "description": description})
+        project, cost_center = get_booking_dimensions(booking_name, c.get("unit"))
+        items.append({
+            "item_code": item_code, "qty": 1, "rate": rate, "description": description,
+            "project": project, "cost_center": cost_center,
+        })
 
     custom_property_unit = contributions[0].get("unit") if not multi else ""
     return items, tax_rows, custom_property_unit

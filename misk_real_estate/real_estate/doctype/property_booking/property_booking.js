@@ -25,6 +25,12 @@ frappe.ui.form.on("Property Booking", {
 		frm.set_query("customer_bank_account", () => ({
 			filters: { party_type: "Customer", party: frm.doc.customer || "" },
 		}));
+
+		// Project / Cost Center — scoped to the booking's company, header + per-unit
+		frm.set_query("project", () => ({ filters: { company: frm.doc.company || "" } }));
+		frm.set_query("cost_center", () => ({ filters: { company: frm.doc.company || "", is_group: 0 } }));
+		frm.set_query("project", "property_unit", () => ({ filters: { company: frm.doc.company || "" } }));
+		frm.set_query("cost_center", "property_unit", () => ({ filters: { company: frm.doc.company || "", is_group: 0 } }));
 	},
 
 	// Cheque No Prefix — auto-number every PDC row starting from this value, e.g.
@@ -272,6 +278,14 @@ frappe.ui.form.on("Property Booking", {
 		_cache_tax_rate(frm);
 	},
 
+	// Booking-level Project/Cost Center/Payment Plan are the default for every
+	// unit row — push into rows that don't already have their own value set.
+	// Rows a user has explicitly overridden (or already inherited) are left
+	// untouched.
+	project(frm)       { _fill_blank_unit_field(frm, "project"); },
+	cost_center(frm)   { _fill_blank_unit_field(frm, "cost_center"); },
+	payment_plan(frm)  { _fill_blank_unit_field(frm, "payment_plan"); },
+
 	// ── Unit filter — only show units in selected building ───────────────────
 	set_unit_filter(frm) {
 		frm.set_query("unit", "property_unit", (doc, cdt, cdn) => {
@@ -284,7 +298,24 @@ frappe.ui.form.on("Property Booking", {
 
 	pdc_schedule_add(frm)    { _check_pdc_total(frm); },
 	pdc_schedule_remove(frm) { _check_pdc_total(frm); },
+
+	// New unit rows default to the booking's own Project/Cost Center/Payment
+	// Plan — still overridable per row.
+	property_unit_add(frm, cdt, cdn) {
+		const row = locals[cdt][cdn];
+		if (!row.project) row.project = frm.doc.project;
+		if (!row.cost_center) row.cost_center = frm.doc.cost_center;
+		if (!row.payment_plan) row.payment_plan = frm.doc.payment_plan;
+	},
 });
+
+function _fill_blank_unit_field(frm, fieldname) {
+	(frm.doc.property_unit || []).forEach((row) => {
+		if (!row[fieldname]) {
+			frappe.model.set_value(row.doctype, row.name, fieldname, frm.doc[fieldname]);
+		}
+	});
+}
 
 // ── Property Details — single-row table, mirrors Reservation's Units grid ────
 frappe.ui.form.on("Property Booking Unit", {

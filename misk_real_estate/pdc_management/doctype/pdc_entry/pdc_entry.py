@@ -383,6 +383,16 @@ def _create_allocated_payment_entry(pdc_entry, payment_date):
         units = {a.unit for a in pdc_entry.allocations if a.unit}
         single_unit = next(iter(units)) if len(units) == 1 else ""
 
+    # Project/Cost Center: same "single value if every allocation agrees, else
+    # blank" rule — Payment Entry has no per-line dimension (unlike Sales
+    # Invoice Item), so a cheque spanning several units/projects can't carry one.
+    from misk_real_estate.real_estate.doctype.property_booking.property_booking import get_booking_dimensions
+    dims = [get_booking_dimensions(a.property_booking, a.unit) for a in pdc_entry.allocations if a.property_booking]
+    projects = {d[0] for d in dims if d[0]}
+    cost_centers = {d[1] for d in dims if d[1]}
+    project = next(iter(projects)) if len(projects) == 1 else ""
+    cost_center = next(iter(cost_centers)) if len(cost_centers) == 1 else ""
+
     pe = frappe.get_doc({
         "doctype": "Payment Entry",
         "payment_type": "Receive",
@@ -403,6 +413,8 @@ def _create_allocated_payment_entry(pdc_entry, payment_date):
         "remarks": f"PDC Clearance — {pdc_entry.cheque_no} / {len(pdc_entry.allocations)} allocation(s)",
         "property_booking": single_booking,
         "property_unit": single_unit,
+        "project": project,
+        "cost_center": cost_center,
         "party_bank_account": getattr(pdc_entry, "customer_bank_account", None) or "",
         "cheque_status": "Cleared",
     })
@@ -456,6 +468,9 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
     si_name = alloc.sales_invoice
     booking_name = alloc.property_booking
 
+    from misk_real_estate.real_estate.doctype.property_booking.property_booking import get_booking_dimensions
+    project, cost_center = get_booking_dimensions(booking_name, alloc.unit) if booking_name else (None, None)
+
     company = entry.company or frappe.defaults.get_user_default("company")
     receivable_account = frappe.db.get_value("Company", company, "default_receivable_account")
 
@@ -495,6 +510,8 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
         "reference_date": payment_date,
         "remarks": notes or _("Manual payment — PDC cheque {0} cancelled by customer").format(entry.cheque_no),
         "property_booking": booking_name or "",
+        "project": project,
+        "cost_center": cost_center,
         "party_bank_account": getattr(entry, "customer_bank_account", None) or "",
         "references": [{
             "reference_doctype": "Sales Invoice",

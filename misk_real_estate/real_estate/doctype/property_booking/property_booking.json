@@ -11,22 +11,26 @@
   "customer",
   "customer_name",
   "mobile_no",
-  "column_break_1",
   "customer_bank_account",
+  "payment_plan",
+  "column_break_1",
   "company",
   "sales_person",
   "invoice_generation",
+  "booking_date",
+  "down_payment_date",
   "column_break_jlmv",
   "reservation",
   "quotation",
   "installment_progress",
   "workflow_state",
   "status",
-  "booking_date",
+  "section_break_dimensions",
+  "project",
+  "column_break_dim",
+  "cost_center",
   "section_break_ideo",
   "property_unit",
-  "down_payment_date",
-  "payment_plan",
   "section_tax_total",
   "taxes_and_charges",
   "total_unit_price",
@@ -91,6 +95,27 @@
    "in_list_view": 1,
    "label": "Booking Date",
    "reqd": 1
+  },
+  {
+   "fieldname": "section_break_dimensions",
+   "fieldtype": "Section Break",
+   "label": "Accounting Dimensions"
+  },
+  {
+   "fieldname": "project",
+   "fieldtype": "Link",
+   "label": "Project",
+   "options": "Project"
+  },
+  {
+   "fieldname": "column_break_dim",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "cost_center",
+   "fieldtype": "Link",
+   "label": "Cost Center",
+   "options": "Cost Center"
   },
   {
    "fieldname": "company",

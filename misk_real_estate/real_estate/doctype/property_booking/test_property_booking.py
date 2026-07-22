@@ -39,6 +39,28 @@ class TestPropertyBooking(FrappeTestCase):
 			"property_unit": property_unit,
 		})
 
+	def _make_project(self, project_name):
+		existing = frappe.db.get_value(
+			"Project", {"project_name": project_name, "company": self.company}, "name"
+		)
+		if existing:
+			return existing
+		return frappe.get_doc({
+			"doctype": "Project", "project_name": project_name, "company": self.company,
+		}).insert(ignore_permissions=True).name
+
+	def _make_cost_center(self, cost_center_name):
+		existing = frappe.db.get_value(
+			"Cost Center", {"cost_center_name": cost_center_name, "company": self.company}, "name"
+		)
+		if existing:
+			return existing
+		parent = frappe.db.get_value("Cost Center", {"company": self.company, "is_group": 1}, "name")
+		return frappe.get_doc({
+			"doctype": "Cost Center", "cost_center_name": cost_center_name,
+			"company": self.company, "parent_cost_center": parent, "is_group": 0,
+		}).insert(ignore_permissions=True).name
+
 	def test_totals_aggregate_across_units(self):
 		booking = self._new_booking([
 			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000,
@@ -152,7 +174,9 @@ class TestPropertyBooking(FrappeTestCase):
 			installment_type="Installment", unit=self.unit_a,
 			net_amount=500, tax_amount=0, amount=500, unit_breakdown=None,
 		)
-		items, _tax_rows, custom_unit = build_pdc_row_invoice_items(single_row, "", None, self.company, "desc")
+		items, _tax_rows, custom_unit = build_pdc_row_invoice_items(
+			single_row, "", None, self.company, "desc", "NONEXISTENT-BOOKING"
+		)
 		self.assertEqual(len(items), 1)
 		self.assertEqual(items[0]["item_code"], self.unit_a)
 		self.assertEqual(items[0]["rate"], 500)
@@ -165,7 +189,67 @@ class TestPropertyBooking(FrappeTestCase):
 				{"unit": self.unit_b, "net_amount": 1000, "tax_amount": 0, "amount": 1000},
 			],
 		)
-		items, _tax_rows, custom_unit = build_pdc_row_invoice_items(combined_row, "", None, self.company, "desc")
+		items, _tax_rows, custom_unit = build_pdc_row_invoice_items(
+			combined_row, "", None, self.company, "desc", "NONEXISTENT-BOOKING"
+		)
 		self.assertEqual({i["item_code"] for i in items}, {self.unit_a, self.unit_b})
 		self.assertEqual(sum(flt(i["rate"]) for i in items), 1500)
 		self.assertEqual(custom_unit, "")
+
+	def test_dimensions_propagate_to_advance_invoice(self):
+		"""Booking-level Project/Cost Center default onto each Sales Invoice
+		Item line; a unit-level override wins over the booking default."""
+		project = self._make_project("TEST-PROJECT-ADV")
+		cost_center_default = self._make_cost_center("TEST-CC-ADV-DEFAULT")
+		cost_center_override = self._make_cost_center("TEST-CC-ADV-OVERRIDE")
+
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000,
+			 "booking_amount": 10000, "payment_plan": "Full Payment",
+			 "cost_center": cost_center_override},
+			{"building": "Consumable", "unit": self.unit_b, "unit_price": 20000,
+			 "booking_amount": 20000, "payment_plan": "Full Payment"},
+		])
+		booking.project = project
+		booking.cost_center = cost_center_default
+		booking.insert(ignore_permissions=True)
+		booking._create_advance_invoices()
+
+		si_name = frappe.db.get_value(
+			"Sales Invoice",
+			{"custom_property_booking": booking.name, "custom_payment_purpose": "Booking Amount"},
+			"name",
+		)
+		si = frappe.get_doc("Sales Invoice", si_name)
+		self.assertEqual(si.project, project)
+		self.assertEqual(si.cost_center, cost_center_default)
+		dims = {i.item_code: (i.project, i.cost_center) for i in si.items}
+		self.assertEqual(dims[self.unit_a], (project, cost_center_override))  # unit override wins
+		self.assertEqual(dims[self.unit_b], (project, cost_center_default))  # inherits booking default
+
+	def test_dimensions_resolve_for_combined_pdc_row(self):
+		"""Each unit's line in a combined Installment invoice resolves its own
+		Project/Cost Center — override where set, else the booking default."""
+		project = self._make_project("TEST-PROJECT-PDC")
+		cost_center_default = self._make_cost_center("TEST-CC-PDC-DEFAULT")
+		cost_center_override = self._make_cost_center("TEST-CC-PDC-OVERRIDE")
+
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 12000,
+			 "down_payment_percentage": 50, "payment_plan": "Installment 12M",
+			 "cost_center": cost_center_override},
+			{"building": "Consumable", "unit": self.unit_b, "unit_price": 24000,
+			 "down_payment_percentage": 50, "payment_plan": "Installment 12M"},
+		])
+		booking.project = project
+		booking.cost_center = cost_center_default
+		booking.insert(ignore_permissions=True)
+
+		from misk_real_estate.pdc_management.cron.auto_invoice import build_pdc_row_invoice_items
+		combined_row = next(r for r in booking.pdc_schedule if r.installment_type == "Installment")
+		items, _tax_rows, _custom_unit = build_pdc_row_invoice_items(
+			combined_row, "", None, self.company, "desc", booking.name
+		)
+		dims = {i["item_code"]: (i["project"], i["cost_center"]) for i in items}
+		self.assertEqual(dims[self.unit_a], (project, cost_center_override))
+		self.assertEqual(dims[self.unit_b], (project, cost_center_default))

@@ -776,6 +776,26 @@ def _units_for_bookings(booking_names):
     return out
 
 
+def get_booking_dimensions(booking_name, unit=None):
+    """(project, cost_center) for a booking, optionally scoped to one unit —
+    the unit's own Property Booking Unit row wins when set, else the booking
+    header's value. unit=None (or blank, e.g. a combined PDC row's blank unit)
+    resolves to the booking-level value only."""
+    header = frappe.db.get_value(
+        "Property Booking", booking_name, ["project", "cost_center"], as_dict=True
+    ) or {}
+    project, cost_center = header.get("project"), header.get("cost_center")
+    if unit:
+        row = frappe.db.get_value(
+            "Property Booking Unit", {"parent": booking_name, "unit": unit},
+            ["project", "cost_center"], as_dict=True,
+        )
+        if row:
+            project = row.get("project") or project
+            cost_center = row.get("cost_center") or cost_center
+    return project, cost_center
+
+
 # ── Advance Payments (Booking Amount & Down Payment) ───────────────────────────
 
 def update_booking_payment_status(booking_name):
@@ -891,12 +911,16 @@ def _ensure_advance_invoice(booking, purpose, throw_if_zero=True):
             "qty": 1,
             "rate": rate,
             "description": f"{purpose} — {row.unit}",
+            "project": row.project or booking.project,
+            "cost_center": row.cost_center or booking.cost_center,
         })
 
     si = frappe.get_doc({
         "doctype": "Sales Invoice",
         "customer": booking.customer,
         "company": company,
+        "project": booking.project,
+        "cost_center": booking.cost_center,
         "posting_date": invoice_date,
         "set_posting_time": 1,
         "due_date": invoice_date,
@@ -1170,7 +1194,7 @@ def generate_invoices_for_booking(booking_name):
         description = f"{type_label} — Cheque {row.cheque_no or 'TBC'} — Due {formatdate(row.cheque_date)}"
         taxes_and_charges = booking.taxes_and_charges or ""
         items, tax_rows, custom_property_unit = build_pdc_row_invoice_items(
-            row, taxes_and_charges, oa_item, company, description
+            row, taxes_and_charges, oa_item, company, description, booking_name
         )
 
         posting_date = getdate(booking.booking_date)
@@ -1180,6 +1204,8 @@ def generate_invoices_for_booking(booking_name):
             "doctype": "Sales Invoice",
             "customer": booking.customer,
             "company": company,
+            "project": booking.project,
+            "cost_center": booking.cost_center,
             "posting_date": posting_date,
             "set_posting_time": 1,
             "due_date": due_date,
@@ -1235,13 +1261,15 @@ def create_missing_invoices(booking_name):
         description = (f"{row.installment_type or 'Installment'} — "
                        f"Cheque {row.cheque_no or 'TBC'} — Due {formatdate(row.cheque_date)}")
         items, tax_rows, custom_property_unit = build_pdc_row_invoice_items(
-            row, taxes_and_charges, oa_item, company, description
+            row, taxes_and_charges, oa_item, company, description, booking_name
         )
 
         si = frappe.get_doc({
             "doctype": "Sales Invoice",
             "customer": booking.customer,
             "company": company,
+            "project": booking.project,
+            "cost_center": booking.cost_center,
             "posting_date": posting_date,
             "set_posting_time": 1,
             "due_date": due_date,
