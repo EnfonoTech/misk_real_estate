@@ -62,12 +62,15 @@ def _generate_due_invoices():
         frappe.logger().info("PDC Auto-Invoice: no due PDC rows found.")
         return
 
+    settings = frappe.get_cached_doc("Misk Real Estate Settings")
+    auto_submit = bool(getattr(settings, "auto_submit_invoices", 0))
+
     created = []
     errors = []
 
     for row in due_rows:
         try:
-            si_name = _create_invoice(row)
+            si_name = _create_invoice(row, submit=auto_submit)
             # Link invoice back to PDC Schedule row
             frappe.db.set_value("PDC Schedule", row.schedule_row, "sales_invoice", si_name)
             # Link invoice to the PDC Entry's allocation row so mark_cleared() reconciles AR

@@ -8,7 +8,9 @@
   "down_payment_days",
   "pdc_payment_mode",
   "section_items",
-  "oa_fee_item"
+  "oa_fee_item",
+  "section_invoicing",
+  "auto_submit_invoices"
  ],
  "fields": [
   {
@@ -41,6 +43,17 @@
    "label": "Owners Association Fee Item",
    "options": "Item",
    "description": "Item used for the OA Fee line auto-added to Quotations. Must be a non-stock service item."
+  },
+  {
+   "fieldname": "section_invoicing",
+   "fieldtype": "Section Break",
+   "label": "Invoicing"
+  },
+  {
+   "fieldname": "auto_submit_invoices",
+   "fieldtype": "Check",
+   "label": "Auto-submit Automatically Generated Invoices",
+   "default": "0"
   }
  ],
  "issingle": 1,

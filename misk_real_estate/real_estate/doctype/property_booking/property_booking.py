@@ -202,22 +202,26 @@ class PropertyBooking(Document):
         booking whose schedule already starts in the past, that would leave
         already-due rows uninvoiced until the next cron run — so invoice them
         immediately on submit instead. Rows due in the future are untouched."""
-        created = _create_invoices_for_due_rows(self)
+        settings = frappe.get_cached_doc("Misk Real Estate Settings")
+        auto_submit = bool(getattr(settings, "auto_submit_invoices", 0))
+        created = _create_invoices_for_due_rows(self, submit=auto_submit)
         if created:
             frappe.msgprint(
-                _("{0} draft installment invoice(s) created for already-due cheques.").format(len(created)),
+                _("{0} installment invoice(s) created for already-due cheques.").format(len(created)),
                 alert=True,
             )
 
     def _create_advance_invoices(self):
-        """Auto-create (as Draft) ONE combined Booking Amount invoice and ONE
-        combined Down Payment invoice — each with one line per unit that owes
-        that purpose — as soon as the booking is Confirmed. Finance reviews
-        and submits the invoices manually — same as the existing advance-payment
-        buttons, just triggered automatically instead of by hand."""
+        """Auto-create ONE combined Booking Amount invoice and ONE combined
+        Down Payment invoice — each with one line per unit that owes that
+        purpose — as soon as the booking is Confirmed. Left as Draft for
+        Finance to review and submit, unless "Auto-submit Automatically
+        Generated Invoices" is on in Misk Real Estate Settings."""
+        settings = frappe.get_cached_doc("Misk Real Estate Settings")
+        auto_submit = bool(getattr(settings, "auto_submit_invoices", 0))
         created = []
         for purpose in ("Booking Amount", "Down Payment"):
-            si_name = _ensure_advance_invoice(self, purpose, throw_if_zero=False)
+            si_name = _ensure_advance_invoice(self, purpose, throw_if_zero=False, submit=auto_submit)
             if si_name:
                 created.append((purpose, si_name))
         if created:
@@ -971,11 +975,15 @@ def on_payment_entry_change(doc, method=None):
         update_booking_payment_status(b)
 
 
-def _ensure_advance_invoice(booking, purpose, throw_if_zero=True):
-    """Create (as Draft) and return ONE combined Sales Invoice — one line per
-    unit — covering every unit's Booking Amount or Down Payment on this
-    booking. If a combined invoice already exists (draft or submitted) for
-    this purpose, return it instead. Returns None (instead of throwing) when
+def _ensure_advance_invoice(booking, purpose, throw_if_zero=True, submit=False):
+    """Create and return ONE combined Sales Invoice — one line per unit —
+    covering every unit's Booking Amount or Down Payment on this booking.
+    Left as Draft unless submit=True (only passed by the on-submit
+    auto-creation, and only when "Auto-submit Automatically Generated
+    Invoices" is on in Misk Real Estate Settings — the manual "Booking
+    Amount/Down Payment Invoice" buttons always leave it Draft for review).
+    If a combined invoice already exists (draft or submitted) for this
+    purpose, return it instead. Returns None (instead of throwing) when
     nothing is owed and throw_if_zero is False — used by the on-submit
     auto-creation."""
     existing = frappe.db.get_value(
@@ -1045,6 +1053,8 @@ def _ensure_advance_invoice(booking, purpose, throw_if_zero=True):
     })
     si.flags.ignore_permissions = True
     si.insert()
+    if submit:
+        si.submit()
     return si.name
 
 
@@ -1267,6 +1277,7 @@ def generate_invoices_for_booking(booking_name):
     company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
     settings = frappe.get_cached_doc("Misk Real Estate Settings")
     oa_item = getattr(settings, "oa_fee_item", None)
+    auto_submit = bool(getattr(settings, "auto_submit_invoices", 0))
 
     from misk_real_estate.pdc_management.cron.auto_invoice import build_pdc_row_invoice_items
 
@@ -1304,7 +1315,9 @@ def generate_invoices_for_booking(booking_name):
             "custom_payment_purpose": row.installment_type or "Installment",
         })
         si.flags.ignore_permissions = True
-        si.insert()  # Draft — finance reviews and submits manually
+        si.insert()  # Draft by default — finance reviews and submits manually
+        if auto_submit:
+            si.submit()
 
         # Link SI to PDC Schedule row and the PDC Entry's allocation row
         frappe.db.set_value("PDC Schedule", row.name, "sales_invoice", si.name)
@@ -1316,14 +1329,17 @@ def generate_invoices_for_booking(booking_name):
     frappe.logger().info(f"generate_invoices_for_booking: completed for {booking_name}")
 
 
-def _create_invoices_for_due_rows(booking, upto_date=None):
-    """Create a Sales Invoice (Draft) for every PDC Schedule row that doesn't
-    have one yet (skipping Cancelled) and is already due — cheque_date on or
-    before `upto_date` (default: today). Each invoice is posted on that row's
-    own cheque_date (from the table), not today, so backdated schedules land
-    on the correct historical period — matches the auto-invoice cron's
-    convention (auto_invoice.py::_create_invoice). Returns the list of
-    created Sales Invoice names."""
+def _create_invoices_for_due_rows(booking, upto_date=None, submit=False):
+    """Create a Sales Invoice for every PDC Schedule row that doesn't have one
+    yet (skipping Cancelled) and is already due — cheque_date on or before
+    `upto_date` (default: today). Each invoice is posted on that row's own
+    cheque_date (from the table), not today, so backdated schedules land on
+    the correct historical period — matches the auto-invoice cron's
+    convention (auto_invoice.py::_create_invoice). Left as Draft unless
+    submit=True (only passed by the on-submit auto-creation, and only when
+    "Auto-submit Automatically Generated Invoices" is on in Misk Real Estate
+    Settings — the manual "Create Missing Invoices" button always leaves it
+    Draft for review). Returns the list of created Sales Invoice names."""
     from misk_real_estate.pdc_management.cron.auto_invoice import build_pdc_row_invoice_items
     from frappe.utils import formatdate
 
@@ -1366,7 +1382,9 @@ def _create_invoices_for_due_rows(booking, upto_date=None):
             "custom_payment_purpose": row.installment_type or "Installment",
         })
         si.flags.ignore_permissions = True
-        si.insert()  # Draft — user reviews and submits manually
+        si.insert()  # Draft by default — user reviews and submits manually
+        if submit:
+            si.submit()
         frappe.db.set_value("PDC Schedule", row.name, "sales_invoice", si.name)
         if row.pdc_entry:
             from misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry import link_invoice_to_allocation

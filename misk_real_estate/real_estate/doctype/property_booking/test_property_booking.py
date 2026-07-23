@@ -38,9 +38,23 @@ class TestPropertyBooking(FrappeTestCase):
 		for row in frappe.get_all("Property Booking Unit", filters={"unit": unit}, fields=["parent"]):
 			doc = frappe.get_doc("Property Booking", row.parent)
 			if doc.docstatus == 1:
+				# A submitted invoice linked to this booking (e.g. from a prior
+				# run with auto-submit on) blocks cancel — cancel those first.
+				for si in frappe.get_all(
+					"Sales Invoice", filters={"custom_property_booking": doc.name, "docstatus": 1}, fields=["name"]
+				):
+					frappe.get_doc("Sales Invoice", si.name).cancel()
 				doc.cancel()
 			elif doc.docstatus == 0:
 				frappe.delete_doc("Property Booking", doc.name, force=True, ignore_permissions=True)
+			elif doc.docstatus == 2:
+				# A previous cancel() attempt can partially apply (docstatus flips
+				# to 2 before a later link check throws) — clear any remaining
+				# submitted invoices, then this cancelled booking is harmless as-is.
+				for si in frappe.get_all(
+					"Sales Invoice", filters={"custom_property_booking": doc.name, "docstatus": 1}, fields=["name"]
+				):
+					frappe.get_doc("Sales Invoice", si.name).cancel()
 
 	def _new_booking(self, property_unit):
 		return frappe.get_doc({
@@ -336,6 +350,47 @@ class TestPropertyBooking(FrappeTestCase):
 		updated_future_row = next(r for r in booking.pdc_schedule if r.name == future_row.name)
 		self.assertTrue(updated_due_row.sales_invoice)
 		self.assertFalse(updated_future_row.sales_invoice)
+
+	def _set_auto_submit_invoices(self, value):
+		# .save() (not db_set) so get_cached_doc's cache is invalidated the same
+		# way a real settings-form save would — otherwise the "off" reset below
+		# doesn't actually take effect for later tests in this same run.
+		settings = frappe.get_single("Misk Real Estate Settings")
+		settings.auto_submit_invoices = value
+		settings.save(ignore_permissions=True)
+		if value:
+			self.addCleanup(self._set_auto_submit_invoices, 0)
+
+	def test_auto_submit_invoices_setting_controls_advance_invoice_submission(self):
+		"""Booking Amount / Down Payment auto-invoices stay Draft by default,
+		and submit automatically once "Auto-submit Automatically Generated
+		Invoices" is on."""
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000,
+			 "booking_amount": 10000, "payment_plan": "Full Payment"},
+		])
+		booking.insert(ignore_permissions=True)
+		booking._create_advance_invoices()
+		si_name = frappe.db.get_value(
+			"Sales Invoice",
+			{"custom_property_booking": booking.name, "custom_payment_purpose": "Booking Amount"},
+			"name",
+		)
+		self.assertEqual(frappe.db.get_value("Sales Invoice", si_name, "docstatus"), 0)
+
+		self._set_auto_submit_invoices(1)
+		booking_2 = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_b, "unit_price": 10000,
+			 "booking_amount": 10000, "payment_plan": "Full Payment"},
+		])
+		booking_2.insert(ignore_permissions=True)
+		booking_2._create_advance_invoices()
+		si_name_2 = frappe.db.get_value(
+			"Sales Invoice",
+			{"custom_property_booking": booking_2.name, "custom_payment_purpose": "Booking Amount"},
+			"name",
+		)
+		self.assertEqual(frappe.db.get_value("Sales Invoice", si_name_2, "docstatus"), 1)
 
 	def test_bulk_create_pdc_entries_creates_for_submitted_and_reports_draft_as_failed(self):
 		"""List-view bulk action: PDC Entries get created for a submitted
