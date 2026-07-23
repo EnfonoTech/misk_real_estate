@@ -5,7 +5,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import add_days, cint, flt, getdate, today
 
-VALIDITY_DAYS = {"7 Days": 7, "15 Days": 15}
+DEFAULT_VALIDITY_DAYS = 15
 TERMINAL_STATUSES = ("Rejected", "Expired", "Cancelled", "Converted to Booking")
 
 
@@ -46,8 +46,8 @@ class Reservation(Document):
     def _set_reservation_validity_date(self):
         """Default validity date from reservation_date + validity_days. Only fills
         it in when blank so a manager can override it after the fact."""
-        if self.reservation_date and self.validity_days and not self.reservation_validity_date:
-            days = VALIDITY_DAYS.get(self.validity_days, 7)
+        if self.reservation_date and not self.reservation_validity_date:
+            days = cint(self.validity_days) or DEFAULT_VALIDITY_DAYS
             self.reservation_validity_date = add_days(getdate(self.reservation_date), days)
 
     def _validate_duplicate_rows(self):
@@ -92,7 +92,9 @@ class Reservation(Document):
         earlier row for "On Previous Row" charge types). Rates are always exclusive
         here — Selling Price is the pre-tax base, so included_in_print_rate is not
         supported."""
-        self.total = flt(sum(flt(row.selling_price) for row in self.items), 3)
+        self.total = flt(
+            sum(flt(row.selling_price) + flt(row.owners_association_fee) for row in self.items), 3
+        )
 
         running_total = flt(self.total)
         for i, row in enumerate(self.taxes):

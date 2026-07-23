@@ -1535,6 +1535,8 @@ def get_sales_agreement(booking_name):
 def resolve_customer_for_quotation(quotation_name):
     """Return (and auto-create if needed) the Customer for a Quotation.
     Converts Lead → Customer automatically when party_type is Lead."""
+    if not quotation_name:
+        return ""
     quotation = frappe.get_doc("Quotation", quotation_name)
     if quotation.quotation_to == "Lead":
         return _get_or_create_customer_from_lead(quotation.party_name)

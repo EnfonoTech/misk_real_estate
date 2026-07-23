@@ -169,15 +169,20 @@ function _open_new_reservation(frm, item) {
 				const doc = frappe.model.get_new_doc("Reservation");
 				doc.quotation = frm.doc.name;
 				doc.customer_name = customer;
+				doc.company = frm.doc.company || "";
 
 				const row = frappe.model.add_child(doc, "items");
 				row.unit = item.item_code || "";
 				row.building = item.building || "";
+				row.price_list = item.price_list || frm.doc.selling_price_list || "";
 				row.selling_price = item.rate || 0;
 				row.booking_amount = item.booking_amount || 0;
+				row.down_payment_percentage = item.down_payment_percentage || 0;
 				row.down_payment_amount = item.down_payment_amount || 0;
 				row.proposed_payment_plan = item.payment_plan || frm.doc.payment_plan || "";
 				row.owners_association_fee = item.owners_association_fee || 0;
+				row.number_of_installments = item.number_of_installments || 0;
+				row.monthly_installment = item.monthly_installment || 0;
 
 				frappe.set_route("Form", "Reservation", doc.name);
 			});

@@ -8,21 +8,18 @@
  "document_type": "Document",
  "engine": "InnoDB",
  "field_order": [
-  "quotation",
-  "column_break_enq",
-  "workflow_state",
-  "status",
-  "section_break_customer",
   "customer_name",
-  "column_break_cust",
   "contact_mobile",
-  "section_break_commercial",
+  "sales_person",
+  "column_break_enq",
   "reservation_date",
   "validity_days",
-  "column_break_comm1",
   "reservation_validity_date",
-  "sales_person",
-  "remarks",
+  "column_break_cust",
+  "quotation",
+  "company",
+  "status",
+  "workflow_state",
   "section_break_items",
   "items",
   "section_break_taxes",
@@ -35,6 +32,8 @@
   "total_taxes_and_charges",
   "column_break_tax2",
   "grand_total",
+  "section_break_remarks",
+  "remarks",
   "amended_from"
  ],
  "fields": [
@@ -49,19 +48,54 @@
    "search_index": 1
   },
   {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "customer_name",
+   "fieldtype": "Link",
+   "in_global_search": 1,
+   "label": "Customer Name",
+   "options": "Customer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "contact_mobile",
+   "fieldtype": "Data",
+   "label": "Mobile No"
+  },
+  {
    "fieldname": "column_break_enq",
    "fieldtype": "Column Break"
   },
   {
-   "allow_on_submit": 1,
-   "fieldname": "workflow_state",
-   "fieldtype": "Link",
+   "default": "Today",
+   "fieldname": "reservation_date",
+   "fieldtype": "Date",
    "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Approval State",
-   "no_copy": 1,
-   "options": "Workflow State",
+   "label": "Reservation Date",
+   "reqd": 1
+  },
+  {
+   "default": "15",
+   "fieldname": "validity_days",
+   "fieldtype": "Int",
+   "label": "Validity (Days)",
+   "reqd": 1
+  },
+  {
+   "fieldname": "reservation_validity_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Reservation Validity Date",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_cust",
+   "fieldtype": "Column Break"
   },
   {
    "allow_on_submit": 1,
@@ -78,60 +112,14 @@
    "search_index": 1
   },
   {
-   "fieldname": "section_break_customer",
-   "fieldtype": "Section Break",
-   "label": "Customer Information"
-  },
-  {
-   "fetch_from": "quotation.customer_name",
-   "fieldname": "customer_name",
+   "allow_on_submit": 1,
+   "fieldname": "workflow_state",
    "fieldtype": "Link",
-   "in_global_search": 1,
-   "label": "Customer Name",
-   "options": "Customer",
-   "read_only": 1
-  },
-  {
-   "fieldname": "column_break_cust",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fetch_from": "quotation.contact_mobile",
-   "fieldname": "contact_mobile",
-   "fieldtype": "Data",
-   "label": "Mobile No",
-   "read_only": 1
-  },
-  {
-   "fieldname": "section_break_commercial",
-   "fieldtype": "Section Break",
-   "label": "Commercial Details"
-  },
-  {
-   "default": "Today",
-   "fieldname": "reservation_date",
-   "fieldtype": "Date",
    "in_list_view": 1,
-   "label": "Reservation Date",
-   "reqd": 1
-  },
-  {
-   "default": "7 Days",
-   "fieldname": "validity_days",
-   "fieldtype": "Select",
-   "label": "Validity Period",
-   "options": "7 Days\n15 Days",
-   "reqd": 1
-  },
-  {
-   "fieldname": "column_break_comm1",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "reservation_validity_date",
-   "fieldtype": "Date",
-   "in_list_view": 1,
-   "label": "Reservation Validity Date",
+   "in_standard_filter": 1,
+   "label": "Approval State",
+   "no_copy": 1,
+   "options": "Workflow State",
    "read_only": 1
   },
   {
@@ -139,11 +127,6 @@
    "fieldtype": "Link",
    "label": "Sales Person",
    "options": "Sales Person"
-  },
-  {
-   "fieldname": "remarks",
-   "fieldtype": "Small Text",
-   "label": "Remarks"
   },
   {
    "fieldname": "section_break_items",
@@ -210,6 +193,15 @@
    "read_only": 1
   },
   {
+   "fieldname": "section_break_remarks",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
    "fieldname": "amended_from",
    "fieldtype": "Link",
    "label": "Amended From",
@@ -220,7 +212,7 @@
  ],
  "is_submittable": 1,
  "links": [],
- "modified": "2026-07-07 14:54:44.106123",
+ "modified": "2026-07-23 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Reservation",
