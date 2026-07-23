@@ -33,28 +33,48 @@ class TestPropertyBooking(FrappeTestCase):
 		# run left holding these units, so re-runs don't hit "already Reserved".
 		self._release_stale_bookings(self.unit_a)
 		self._release_stale_bookings(self.unit_b)
+		# Defensive, not just cleanup-after: a commit() anywhere mid-suite (several
+		# functions under test call it) can make an in-test setting change stick
+		# around past its own test's addCleanup, poisoning every later test that
+		# submits a booking. Force the known-good default before every test
+		# instead of trusting that every prior test's cleanup actually ran.
+		frappe.db.set_single_value("Misk Real Estate Settings", "auto_submit_invoices", 0)
 
 	def _release_stale_bookings(self, unit):
 		for row in frappe.get_all("Property Booking Unit", filters={"unit": unit}, fields=["parent"]):
-			doc = frappe.get_doc("Property Booking", row.parent)
+			booking_name = row.parent
+			if not frappe.db.exists("Property Booking", booking_name):
+				continue
+
+			# A leftover booking and its own invoices can reference each other
+			# both ways (Sales Invoice.custom_property_booking, and PDC
+			# Schedule.sales_invoice on the booking's own child rows) — Frappe's
+			# back-link check blocks cancelling EITHER side first because the
+			# other side still points to it. Break both link directions via a
+			# direct write before cancelling anything, so neither cancel trips
+			# over the other.
+			invoices = frappe.get_all(
+				"Sales Invoice", filters={"custom_property_booking": booking_name}, fields=["name", "docstatus"]
+			)
+			for si in invoices:
+				frappe.db.set_value("Sales Invoice", si.name, "custom_property_booking", "")
+			if frappe.db.exists("PDC Schedule", {"parent": booking_name}):
+				frappe.db.set_value("PDC Schedule", {"parent": booking_name}, "sales_invoice", "")
+
+			for si in invoices:
+				if si.docstatus == 1:
+					frappe.get_doc("Sales Invoice", si.name).cancel()
+
+			# A leftover Sales Agreement (not submittable, so safe to force-delete
+			# outright) also back-links to the booking and blocks its cancel.
+			for sa in frappe.get_all("Sales Agreement", filters={"property_booking": booking_name}, fields=["name"]):
+				frappe.delete_doc("Sales Agreement", sa.name, force=True, ignore_permissions=True)
+
+			doc = frappe.get_doc("Property Booking", booking_name)
 			if doc.docstatus == 1:
-				# A submitted invoice linked to this booking (e.g. from a prior
-				# run with auto-submit on) blocks cancel — cancel those first.
-				for si in frappe.get_all(
-					"Sales Invoice", filters={"custom_property_booking": doc.name, "docstatus": 1}, fields=["name"]
-				):
-					frappe.get_doc("Sales Invoice", si.name).cancel()
 				doc.cancel()
-			elif doc.docstatus == 0:
-				frappe.delete_doc("Property Booking", doc.name, force=True, ignore_permissions=True)
-			elif doc.docstatus == 2:
-				# A previous cancel() attempt can partially apply (docstatus flips
-				# to 2 before a later link check throws) — clear any remaining
-				# submitted invoices, then this cancelled booking is harmless as-is.
-				for si in frappe.get_all(
-					"Sales Invoice", filters={"custom_property_booking": doc.name, "docstatus": 1}, fields=["name"]
-				):
-					frappe.get_doc("Sales Invoice", si.name).cancel()
+			if frappe.db.exists("Property Booking", booking_name):
+				frappe.delete_doc("Property Booking", booking_name, force=True, ignore_permissions=True)
 
 	def _new_booking(self, property_unit):
 		return frappe.get_doc({

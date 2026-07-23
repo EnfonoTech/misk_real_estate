@@ -373,15 +373,11 @@ def _create_allocated_payment_entry(pdc_entry, payment_date):
         if bank_account else None
     ) or getattr(pdc_entry, "currency", None) or "OMR"
 
-    # Header property_booking / property_unit only when the whole cheque is for ONE
-    # booking and ONE unit; otherwise leave blank (the per-invoice booking/unit is
-    # on each SI reference) — with several units there's no single row to default to.
+    # Header property_booking only when the whole cheque is for ONE booking;
+    # otherwise leave blank (the per-invoice booking is on each SI reference)
+    # — with several bookings there's no single value to default to.
     bookings = {a.property_booking for a in pdc_entry.allocations if a.property_booking}
     single_booking = next(iter(bookings)) if len(bookings) == 1 else ""
-    single_unit = ""
-    if single_booking:
-        units = {a.unit for a in pdc_entry.allocations if a.unit}
-        single_unit = next(iter(units)) if len(units) == 1 else ""
 
     # Project/Cost Center: same "single value if every allocation agrees, else
     # blank" rule — Payment Entry has no per-line dimension (unlike Sales
@@ -412,7 +408,6 @@ def _create_allocated_payment_entry(pdc_entry, payment_date):
         "reference_date": pdc_entry.cheque_date,
         "remarks": f"PDC Clearance — {pdc_entry.cheque_no} / {len(pdc_entry.allocations)} allocation(s)",
         "property_booking": single_booking,
-        "property_unit": single_unit,
         "project": project,
         "cost_center": cost_center,
         "party_bank_account": getattr(pdc_entry, "customer_bank_account", None) or "",
