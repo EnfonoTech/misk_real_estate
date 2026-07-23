@@ -3,7 +3,7 @@
 
 import frappe
 from frappe.tests.utils import FrappeTestCase
-from frappe.utils import today, flt
+from frappe.utils import today, flt, add_months, getdate
 
 
 def _make_unit(code):
@@ -28,6 +28,19 @@ class TestPropertyBooking(FrappeTestCase):
 		self.unit_b = _make_unit("TEST-UNIT-B")
 		self.customer = frappe.get_all("Customer", limit=1)[0].name
 		self.company = frappe.get_all("Company", limit=1)[0].name
+		# Tests that submit() commit real rows (submit isn't rolled back the
+		# way plain insert() is) — release any leftover booking a prior test
+		# run left holding these units, so re-runs don't hit "already Reserved".
+		self._release_stale_bookings(self.unit_a)
+		self._release_stale_bookings(self.unit_b)
+
+	def _release_stale_bookings(self, unit):
+		for row in frappe.get_all("Property Booking Unit", filters={"unit": unit}, fields=["parent"]):
+			doc = frappe.get_doc("Property Booking", row.parent)
+			if doc.docstatus == 1:
+				doc.cancel()
+			elif doc.docstatus == 0:
+				frappe.delete_doc("Property Booking", doc.name, force=True, ignore_permissions=True)
 
 	def _new_booking(self, property_unit):
 		return frappe.get_doc({
@@ -59,6 +72,13 @@ class TestPropertyBooking(FrappeTestCase):
 		return frappe.get_doc({
 			"doctype": "Cost Center", "cost_center_name": cost_center_name,
 			"company": self.company, "parent_cost_center": parent, "is_group": 0,
+		}).insert(ignore_permissions=True).name
+
+	def _make_single_installment_plan(self):
+		if frappe.db.exists("Payment Plan", "TEST-1-INSTALLMENT"):
+			return "TEST-1-INSTALLMENT"
+		return frappe.get_doc({
+			"doctype": "Payment Plan", "plan_name": "TEST-1-INSTALLMENT", "number_of_installments": 1,
 		}).insert(ignore_permissions=True).name
 
 	def test_totals_aggregate_across_units(self):
@@ -253,3 +273,249 @@ class TestPropertyBooking(FrappeTestCase):
 		dims = {i["item_code"]: (i["project"], i["cost_center"]) for i in items}
 		self.assertEqual(dims[self.unit_a], (project, cost_center_override))
 		self.assertEqual(dims[self.unit_b], (project, cost_center_default))
+
+	def _submit_with_cheque_numbers(self, booking):
+		for row in booking.pdc_schedule:
+			row.cheque_no = f"CHQ-{row.idx}"
+		booking.save(ignore_permissions=True)
+		booking.submit()
+
+	def test_on_submit_creates_due_installment_invoices_backdated(self):
+		"""A backdated booking (booking_date 6 months in the past, 12-month
+		plan) should get Sales Invoices for its already-due installments right
+		on submit — posted on each row's own cheque_date, not today — while
+		future installments are left for the cron."""
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 12000,
+			 "down_payment_percentage": 50, "payment_plan": "Installment 12M"},
+		])
+		booking.booking_date = add_months(today(), -6)
+		booking.insert(ignore_permissions=True)
+		self._submit_with_cheque_numbers(booking)
+
+		booking.reload()
+		installment_rows = [r for r in booking.pdc_schedule if r.installment_type == "Installment"]
+		due_rows = [r for r in installment_rows if getdate(r.cheque_date) <= getdate(today())]
+		future_rows = [r for r in installment_rows if getdate(r.cheque_date) > getdate(today())]
+		self.assertTrue(due_rows)
+		self.assertTrue(future_rows)
+
+		for row in due_rows:
+			self.assertTrue(row.sales_invoice)
+			posting_date = frappe.db.get_value("Sales Invoice", row.sales_invoice, "posting_date")
+			self.assertEqual(getdate(posting_date), getdate(row.cheque_date))
+
+		for row in future_rows:
+			self.assertFalse(row.sales_invoice)
+
+	def test_create_missing_invoices_skips_future_rows(self):
+		"""create_missing_invoices only fills in due-but-missing rows — it
+		must not front-load invoices for installments that aren't due yet."""
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 12000,
+			 "down_payment_percentage": 50, "payment_plan": "Installment 12M"},
+		])
+		booking.booking_date = add_months(today(), -6)
+		booking.insert(ignore_permissions=True)
+		self._submit_with_cheque_numbers(booking)
+
+		booking.reload()
+		installment_rows = [r for r in booking.pdc_schedule if r.installment_type == "Installment"]
+		due_row = next(r for r in installment_rows if getdate(r.cheque_date) <= getdate(today()))
+		future_row = next(r for r in installment_rows if getdate(r.cheque_date) > getdate(today()))
+
+		# Simulate the due row's invoice having been missed (e.g. on-submit failed).
+		frappe.db.set_value("PDC Schedule", due_row.name, "sales_invoice", "")
+
+		from misk_real_estate.real_estate.doctype.property_booking.property_booking import create_missing_invoices
+		created = create_missing_invoices(booking.name)
+		self.assertEqual(len(created), 1)
+
+		booking.reload()
+		updated_due_row = next(r for r in booking.pdc_schedule if r.name == due_row.name)
+		updated_future_row = next(r for r in booking.pdc_schedule if r.name == future_row.name)
+		self.assertTrue(updated_due_row.sales_invoice)
+		self.assertFalse(updated_future_row.sales_invoice)
+
+	def test_bulk_create_pdc_entries_creates_for_submitted_and_reports_draft_as_failed(self):
+		"""List-view bulk action: PDC Entries get created for a submitted
+		booking; a Draft one in the same batch is reported as failed instead
+		of aborting the whole run."""
+		plan = self._make_single_installment_plan()
+		submitted = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000, "payment_plan": plan},
+		])
+		submitted.insert(ignore_permissions=True)
+		self._submit_with_cheque_numbers(submitted)
+
+		draft = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_b, "unit_price": 20000, "payment_plan": "Full Payment"},
+		])
+		draft.insert(ignore_permissions=True)
+
+		from misk_real_estate.real_estate.doctype.property_booking.property_booking import bulk_create_pdc_entries
+		result = bulk_create_pdc_entries([submitted.name, draft.name])
+
+		ok_by_name = {o["name"]: o["created"] for o in result["ok"]}
+		self.assertEqual(ok_by_name.get(submitted.name), 1)
+		self.assertEqual({f["name"] for f in result["failed"]}, {draft.name})
+
+	def test_submitted_pdc_schedule_directly_editable_before_pdc_entries(self):
+		"""No PDC Entry and no Sales Agreement yet — cheque_no/cheque_date/amount
+		stay directly editable via a normal doc.save() after submit."""
+		plan = self._make_single_installment_plan()
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000, "payment_plan": plan},
+		])
+		booking.insert(ignore_permissions=True)
+		self._submit_with_cheque_numbers(booking)
+
+		row = booking.pdc_schedule[0]
+		row.cheque_no = "CHQ-EDITED"
+		row.cheque_date = add_months(today(), 2)
+		booking.save(ignore_permissions=True)
+
+		booking.reload()
+		self.assertEqual(booking.pdc_schedule[0].cheque_no, "CHQ-EDITED")
+		self.assertEqual(getdate(booking.pdc_schedule[0].cheque_date), getdate(add_months(today(), 2)))
+
+	def test_pdc_schedule_locked_once_pdc_entry_created(self):
+		"""Once any row has a PDC Entry, editing ANY row is blocked."""
+		plan = self._make_single_installment_plan()
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000, "payment_plan": plan},
+		])
+		booking.insert(ignore_permissions=True)
+		self._submit_with_cheque_numbers(booking)
+
+		from misk_real_estate.real_estate.doctype.property_booking.property_booking import create_pdc_entries
+		create_pdc_entries(booking.name)
+
+		booking.reload()
+		booking.pdc_schedule[0].cheque_no = "SHOULD-NOT-SAVE"
+		self.assertRaises(frappe.ValidationError, booking.save, ignore_permissions=True)
+
+	def test_pdc_schedule_locked_once_sales_agreement_exists(self):
+		"""A generated Sales Agreement locks the schedule even without a PDC Entry."""
+		plan = self._make_single_installment_plan()
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000, "payment_plan": plan},
+		])
+		booking.insert(ignore_permissions=True)
+		self._submit_with_cheque_numbers(booking)
+
+		# Bypass Sales Agreement's own eligibility re-check (requires Booking
+		# Amount/Down Payment settled and every row already PDC-entered) — this
+		# test isolates the booking-side lock, not full contract eligibility.
+		agreement = frappe.get_doc({"doctype": "Sales Agreement", "property_booking": booking.name})
+		agreement.flags.ignore_validate = True
+		agreement.insert(ignore_permissions=True)
+
+		booking.reload()
+		booking.pdc_schedule[0].cheque_no = "SHOULD-NOT-SAVE"
+		self.assertRaises(frappe.ValidationError, booking.save, ignore_permissions=True)
+
+	def test_pdc_schedule_locked_once_row_invoiced(self):
+		"""A row that already has a Sales Invoice locks the whole table, even
+		with no PDC Entry and no Sales Agreement yet."""
+		plan = self._make_single_installment_plan()
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000, "payment_plan": plan},
+		])
+		booking.insert(ignore_permissions=True)
+		self._submit_with_cheque_numbers(booking)
+
+		si = frappe.get_doc({
+			"doctype": "Sales Invoice", "customer": self.customer, "company": self.company,
+			"items": [{"item_code": self.unit_a, "qty": 1, "rate": 5000}],
+		}).insert(ignore_permissions=True)
+		frappe.db.set_value("PDC Schedule", booking.pdc_schedule[0].name, "sales_invoice", si.name)
+
+		booking.reload()
+		booking.pdc_schedule[0].cheque_no = "SHOULD-NOT-SAVE"
+		self.assertRaises(frappe.ValidationError, booking.save, ignore_permissions=True)
+
+	def test_balance_check_enforced_on_post_submit_edit(self):
+		"""Editing a row's Amount so the table no longer matches the expected
+		total is rejected on save, post-submit."""
+		plan = self._make_single_installment_plan()
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000, "payment_plan": plan},
+		])
+		booking.insert(ignore_permissions=True)
+		self._submit_with_cheque_numbers(booking)
+
+		booking.pdc_schedule[0].amount = flt(booking.pdc_schedule[0].amount) + 500
+		self.assertRaises(frappe.ValidationError, booking.save, ignore_permissions=True)
+
+	def test_editing_combined_row_amount_rescales_unit_breakdown(self):
+		"""Editing a combined row's Amount keeps unit_breakdown proportional to
+		the new total instead of going stale."""
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 12000,
+			 "down_payment_percentage": 50, "payment_plan": "Installment 12M"},
+			{"building": "Consumable", "unit": self.unit_b, "unit_price": 24000,
+			 "down_payment_percentage": 50, "payment_plan": "Installment 12M"},
+		])
+		booking.insert(ignore_permissions=True)
+
+		combined_row = next(r for r in booking.pdc_schedule if r.installment_type == "Installment")
+		self.assertEqual(flt(combined_row.amount), 1500)  # 500 (unit A) + 1000 (unit B)
+		combined_row.amount = 3000  # double it
+		booking.save(ignore_permissions=True)
+
+		booking.reload()
+		updated_row = next(r for r in booking.pdc_schedule if r.name == combined_row.name)
+		breakdown = {c["unit"]: flt(c["amount"]) for c in frappe.parse_json(updated_row.unit_breakdown)}
+		self.assertEqual(breakdown, {self.unit_a: 1000, self.unit_b: 2000})
+		self.assertEqual(flt(updated_row.amount), 3000)
+
+	def test_editing_unit_on_single_row_recomputes_net_tax_keeps_amount(self):
+		"""Reassigning a single-unit row's Unit to another unit on the same
+		booking keeps Amount (the cheque's face value) unchanged and
+		recomputes Net/Tax from the new unit's own rate."""
+		plan = self._make_single_installment_plan()
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000, "payment_plan": plan},
+			{"building": "Consumable", "unit": self.unit_b, "unit_price": 20000, "payment_plan": "Full Payment"},
+		])
+		booking.insert(ignore_permissions=True)
+
+		row = booking.pdc_schedule[0]
+		self.assertEqual(row.unit, self.unit_a)
+		original_amount = flt(row.amount)
+		row.unit = self.unit_b
+		booking.save(ignore_permissions=True)
+
+		booking.reload()
+		updated_row = next(r for r in booking.pdc_schedule if r.name == row.name)
+		self.assertEqual(updated_row.unit, self.unit_b)
+		self.assertEqual(flt(updated_row.amount), original_amount)
+		self.assertEqual(flt(updated_row.net_amount) + flt(updated_row.tax_amount), flt(updated_row.amount))
+
+	def test_editing_unit_rejected_for_combined_row(self):
+		"""A combined row has no single unit to reassign — setting Unit
+		directly on it is rejected."""
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 12000,
+			 "down_payment_percentage": 50, "payment_plan": "Installment 12M"},
+			{"building": "Consumable", "unit": self.unit_b, "unit_price": 24000,
+			 "down_payment_percentage": 50, "payment_plan": "Installment 12M"},
+		])
+		booking.insert(ignore_permissions=True)
+
+		combined_row = next(r for r in booking.pdc_schedule if r.installment_type == "Installment")
+		combined_row.unit = self.unit_a
+		self.assertRaises(frappe.ValidationError, booking.save, ignore_permissions=True)
+
+	def test_editing_unit_rejected_for_unit_outside_booking(self):
+		"""Reassigning a row to a unit that isn't part of this booking is rejected."""
+		outside_unit = _make_unit("TEST-UNIT-OUTSIDE")
+		plan = self._make_single_installment_plan()
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000, "payment_plan": plan},
+		])
+		booking.insert(ignore_permissions=True)
+
+		booking.pdc_schedule[0].unit = outside_unit
+		self.assertRaises(frappe.ValidationError, booking.save, ignore_permissions=True)

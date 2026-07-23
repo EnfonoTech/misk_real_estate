@@ -31,18 +31,28 @@ frappe.ui.form.on("Property Booking", {
 		frm.set_query("cost_center", () => ({ filters: { company: frm.doc.company || "", is_group: 0 } }));
 		frm.set_query("project", "property_unit", () => ({ filters: { company: frm.doc.company || "" } }));
 		frm.set_query("cost_center", "property_unit", () => ({ filters: { company: frm.doc.company || "", is_group: 0 } }));
+
+		// PDC Schedule row's Unit (post-submit reassignment) — only this booking's own units
+		frm.set_query("unit", "pdc_schedule", () => ({
+			filters: { name: ["in", (frm.doc.property_unit || []).map((r) => r.unit).filter(Boolean)] },
+		}));
 	},
 
 	// Cheque No Prefix — auto-number every PDC row starting from this value, e.g.
 	// entering "100" fills 100, 101, 102, ... (a trailing non-numeric prefix like
 	// "CHQ-100" is kept fixed while "100" increments, zero-padding preserved).
 	// A prefix with no trailing digits is just repeated on every row as-is.
-	// Non-destructive: rows the user has hand-edited (value differs from what we
-	// last auto-generated for that row) are left untouched.
+	// Non-destructive ONLY within the same page session: once we've auto-filled
+	// once here, a later prefix tweak leaves rows the user hand-edited since
+	// then untouched. `_last_generated_cheque_nos` doesn't survive a reload, so
+	// on the FIRST use per session (e.g. opening an already-submitted booking,
+	// which always already has real cheque numbers from submit time) there's no
+	// baseline to compare against — apply to every row rather than treating
+	// pre-existing values as "hand-edited" and silently skipping all of them.
 	cheque_prefix(frm) {
 		const raw = (frm.doc.cheque_prefix || "").trim();
 		const match = raw.match(/^(.*?)(\d+)$/);
-		const last = frm._last_generated_cheque_nos || {};
+		const last = frm._last_generated_cheque_nos;
 		const generated = {};
 
 		(frm.doc.pdc_schedule || []).filter(r => r.is_pdc).forEach((r, i) => {
@@ -55,7 +65,7 @@ frappe.ui.form.on("Property Booking", {
 			generated[r.name] = value;
 
 			const cur = (r.cheque_no || "").trim();
-			if (!cur || cur === last[r.name]) {
+			if (!last || !cur || cur === last[r.name]) {
 				frappe.model.set_value(r.doctype, r.name, "cheque_no", value);
 			}
 		});
@@ -90,17 +100,6 @@ frappe.ui.form.on("Property Booking", {
 		}
 
 		if (frm.doc.docstatus !== 1) return;
-
-		const has_pdc = (frm.doc.pdc_schedule || []).some(r => r.pdc_entry);
-
-		// PDC Schedule is locked (read-only) on the submitted form itself — Frappe
-		// doesn't support unlocking a submitted child table for inline editing.
-		// "Allow Edit" opens a dialog with an editable copy of the rows instead;
-		// changes are applied server-side, blocked once any row has a PDC Entry
-		// (server-enforced — see _validate_pdc_schedule_not_locked in property_booking.py).
-		if (!has_pdc) {
-			frm.add_custom_button(__("Allow Edit"), () => _edit_pdc_schedule(frm), __("PDC"));
-		}
 
 		// View PDC Entries — creates them on the fly if none exist yet, then opens the list.
 		frm.add_custom_button(__("PDC Entries"), () => {
@@ -296,7 +295,14 @@ frappe.ui.form.on("Property Booking", {
 		});
 	},
 
-	pdc_schedule_add(frm)    { _check_pdc_total(frm); },
+	// A manually added row has no declared default for Seq (unlike is_pdc,
+	// which defaults to 1) — number it after the highest existing row so it
+	// doesn't show 0.
+	pdc_schedule_add(frm, cdt, cdn) {
+		const max_seq = (frm.doc.pdc_schedule || []).reduce((m, r) => Math.max(m, cint(r.sequence_no)), 0);
+		frappe.model.set_value(cdt, cdn, "sequence_no", max_seq + 1);
+		_check_pdc_total(frm);
+	},
 	pdc_schedule_remove(frm) { _check_pdc_total(frm); },
 
 	// New unit rows default to the booking's own Project/Cost Center/Payment
@@ -630,63 +636,6 @@ function _cache_tax_rate(frm, callback) {
 	});
 }
 
-// ── PDC Schedule edit (post-submit) ──────────────────────────────────────────
-// The submitted form's own PDC Schedule grid can't be unlocked for inline
-// editing (Frappe always renders a submitted child table read-only). Instead,
-// open a dialog with an independent editable copy of the rows and push
-// changes back through a dedicated server call — blocked once any row has a
-// PDC Entry (see _validate_pdc_schedule_not_locked / update_pdc_schedule in
-// property_booking.py).
-function _edit_pdc_schedule(frm) {
-	const dialog = new frappe.ui.Dialog({
-		title: __("Edit PDC Schedule"),
-		size: "extra-large",
-		fields: [{
-			fieldname: "pdc_rows",
-			fieldtype: "Table",
-			label: __("PDC Schedule"),
-			cannot_add_rows: true,
-			cannot_delete_rows: true,
-			in_place_edit: false,
-			fields: [
-				{ fieldname: "row_name", fieldtype: "Data", hidden: 1 },
-				{ fieldname: "unit", label: __("Unit"), fieldtype: "Data", read_only: 1, in_list_view: 1 },
-				{ fieldname: "installment_type", label: __("Type"), fieldtype: "Select",
-					options: "Booking Amount\nDown Payment\nInstallment\nOwners Association Fee",
-					in_list_view: 1, columns: 2 },
-				{ fieldname: "cheque_date", label: __("Cheque Date"), fieldtype: "Date", in_list_view: 1 },
-				{ fieldname: "cheque_no", label: __("Cheque No"), fieldtype: "Data", in_list_view: 1 },
-				{ fieldname: "amount", label: __("Total Amount"), fieldtype: "Currency", in_list_view: 1 },
-			],
-			data: (frm.doc.pdc_schedule || []).map((r) => ({
-				row_name: r.name,
-				unit: r.unit || _units_for_pdc_row(r),
-				installment_type: r.installment_type,
-				cheque_date: r.cheque_date,
-				cheque_no: r.cheque_no,
-				amount: r.amount,
-			})),
-		}],
-		primary_action_label: __("Save"),
-		primary_action(values) {
-			frappe.call({
-				method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.update_pdc_schedule",
-				args: { booking_name: frm.doc.name, rows: values.pdc_rows },
-				freeze: true,
-				freeze_message: __("Updating PDC Schedule..."),
-				callback(r) {
-					if (!r.exc) {
-						dialog.hide();
-						frappe.show_alert({ message: __("PDC Schedule updated."), indicator: "green" });
-						frm.reload_doc();
-					}
-				},
-			});
-		},
-	});
-	dialog.show();
-}
-
 // unit_breakdown is stored as a JSON string (see _combined_pdc_row in
 // property_booking.py) — parse it into "UNIT-A, UNIT-B" for display on a
 // combined row (unit field blank). Returns "" for single-unit rows.
@@ -725,14 +674,6 @@ function _style_pdc_schedule(frm) {
 			const units = _units_for_pdc_row(row);
 			if (!row.unit && units) {
 				$(this).find('.grid-static-col[data-fieldname="unit"] .static-area').text(units);
-			}
-			// Down Payment / OA Fee rows are still generated, still invoiced (cron /
-			// All-at-Once) and still get PDC Entries — only hidden here so this table
-			// reads as pure cheque-Installment schedule. Edit via "Allow Edit" dialog
-			// or the Cheque Prefix auto-fill still reach every row regardless.
-			if (row.installment_type !== "Installment") {
-				$(this).hide();
-				return;
 			}
 			$(this).find(".data-row").css("background-color", colors[row.installment_type] || "#fff");
 		});

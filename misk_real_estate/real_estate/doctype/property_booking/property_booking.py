@@ -29,16 +29,34 @@ class PropertyBooking(Document):
         if self.docstatus == 0 and not self.pdc_schedule \
                 and any(row.payment_plan for row in self.property_unit):
             self.generate_pdc_schedule()
+        self._resync_amounts_for_unit_change()
+        self._resync_unit_breakdown_amounts()
         self._compute_totals()
         self._compute_installment_progress()
         self._set_status()
-        # Enforce the PDC table is complete + balanced from "Submit for Approval" onward
-        # (the doc stays docstatus 0 through the approval pipeline, so before_submit
-        # alone would only catch it at final Confirmation).
-        if self.workflow_state in (
+        # Enforce the PDC table is complete + balanced from "Submit for Approval"
+        # onward (the doc stays docstatus 0 through the approval pipeline, so
+        # before_submit alone would only catch it at final Confirmation). Once
+        # actually submitted, Frappe routes a plain edit through
+        # before_update_after_submit instead — validate() doesn't run at all
+        # for that case, so the equivalent post-submit checks live there.
+        if self.docstatus == 1 or self.workflow_state in (
             "Pending Sales Approval", "Pending Finance Approval", "Pending Management Approval"
         ):
             self._validate_pdc_balanced()
+
+    def before_update_after_submit(self):
+        """Frappe treats editing an allow_on_submit field on an already-submitted
+        document as a distinct 'update_after_submit' action that bypasses
+        validate() entirely — so the PDC Schedule lock/balance checks that
+        matter for a post-submit edit (cheque_no, cheque_date, amount, ...)
+        need their own hook here to actually run."""
+        self._validate_pdc_schedule_not_locked()
+        self._resync_amounts_for_unit_change()
+        self._resync_unit_breakdown_amounts()
+        self._compute_totals()
+        self._compute_installment_progress()
+        self._validate_pdc_balanced()
 
     def _get_unit_row(self):
         """First (primary) unit row — used only where a single representative
@@ -75,24 +93,39 @@ class PropertyBooking(Document):
             )
 
     def _validate_pdc_schedule_not_locked(self):
-        """Once a PDC Entry has been created against this booking's schedule, its
-        rows are already reflected on a physical cheque record — block any further
-        add/remove/edit of the PDC Schedule table from a user save. Backend
-        automation (create_pdc_entries, cheque clearing, etc.) writes via
-        frappe.db.set_value directly, bypassing doc.save(), so it is unaffected
-        by this check."""
+        """The PDC Schedule (cheque_no, cheque_date, type, amount — rows can
+        also be added/removed) stays directly editable on a submitted booking
+        until any of the following applies: (a) a Sales Agreement has been
+        generated from this booking's terms, (b) any row already has a PDC
+        Entry — a physical cheque record already reflects it, or (c) any row
+        has already been invoiced (Sales Invoice) — editing it afterward would
+        drift the schedule out from under an already-posted invoice. Once any
+        applies, block further edits from a user save. Backend automation
+        (create_pdc_entries, auto-invoicing, cheque clearing, etc.) writes via
+        frappe.db.set_value directly, bypassing doc.save(), so it is
+        unaffected by this check."""
         before = self.get_doc_before_save()
-        if not before or not any(r.pdc_entry for r in before.pdc_schedule):
-            return  # no PDC Entries yet — table stays editable post-submit
+        if not before:
+            return
+        has_contract = frappe.db.exists("Sales Agreement", {"property_booking": self.name})
+        has_pdc_entry = any(r.pdc_entry for r in before.pdc_schedule)
+        has_invoice = any(r.sales_invoice for r in before.pdc_schedule)
+        if not (has_contract or has_pdc_entry or has_invoice):
+            return  # nothing has locked it yet — table stays editable post-submit
 
         fields = ("unit", "installment_type", "cheque_date", "net_amount",
                   "tax_amount", "amount", "cheque_no", "status")
         before_snapshot = [{f: r.get(f) for f in fields} for r in before.pdc_schedule]
         current_snapshot = [{f: r.get(f) for f in fields} for r in self.pdc_schedule]
         if before_snapshot != current_snapshot:
+            if has_contract:
+                reason = _("a Sales Agreement has already been generated for it")
+            elif has_pdc_entry:
+                reason = _("PDC Entries have already been created against it")
+            else:
+                reason = _("one or more rows have already been invoiced")
             frappe.throw(
-                _("PDC Schedule cannot be edited — PDC Entries have already been "
-                  "created against it."),
+                _("PDC Schedule cannot be edited — {0}.").format(reason),
                 title=_("PDC Schedule Locked"),
             )
 
@@ -157,9 +190,24 @@ class PropertyBooking(Document):
         self._create_advance_invoices()
         if self.invoice_generation == "All at Once":
             self._generate_all_invoices_now()
+        else:
+            self._create_due_installment_invoices()
         if self.quotation:
             self._update_quotation_status()
         update_booking_payment_status(self.name)
+
+    def _create_due_installment_invoices(self):
+        """Monthly mode normally waits for the daily cron (auto_invoice.py) to
+        invoice each Installment/OA row on its own due date. For a backdated
+        booking whose schedule already starts in the past, that would leave
+        already-due rows uninvoiced until the next cron run — so invoice them
+        immediately on submit instead. Rows due in the future are untouched."""
+        created = _create_invoices_for_due_rows(self)
+        if created:
+            frappe.msgprint(
+                _("{0} draft installment invoice(s) created for already-due cheques.").format(len(created)),
+                alert=True,
+            )
 
     def _create_advance_invoices(self):
         """Auto-create (as Draft) ONE combined Booking Amount invoice and ONE
@@ -470,6 +518,70 @@ class PropertyBooking(Document):
                 for c in contributions
             ]),
         }
+
+    def _resync_amounts_for_unit_change(self):
+        """A single-unit row's Unit can be edited directly in the grid — keep
+        the row's Amount (the physical cheque's face value) unchanged but
+        re-derive Net/Tax from the NEW unit's own tax rate, the same
+        total-to-net convention the client already uses when Amount itself is
+        edited (property_booking.js's `amount` handler). A combined row (its
+        unit_breakdown already covers several units) has no single unit to
+        reassign — block that edit outright rather than silently drop the
+        per-unit split."""
+        before = self.get_doc_before_save()
+        if not before:
+            return
+        before_by_name = {r.name: r for r in before.pdc_schedule}
+        valid_units = {r.unit for r in self.property_unit if r.unit}
+        for row in self.pdc_schedule:
+            prev = before_by_name.get(row.name)
+            if not prev or prev.unit == row.unit:
+                continue
+            if row.get("unit_breakdown"):
+                frappe.throw(
+                    _("Row {0}: Unit can't be set directly — this row already "
+                      "covers multiple units.").format(row.idx)
+                )
+            if row.unit and row.unit not in valid_units:
+                frappe.throw(
+                    _("Row {0}: {1} is not one of this booking's units.").format(row.idx, row.unit)
+                )
+            rate = get_tax_rate_from_template(self.taxes_and_charges or "", row.unit)
+            amount = flt(row.amount)
+            if rate:
+                net = round(amount / (1 + rate / 100), 3)
+                tax = round(amount - net, 3)
+            else:
+                net, tax = amount, 0.0
+            row.net_amount = net
+            row.tax_amount = tax
+
+    def _resync_unit_breakdown_amounts(self):
+        """A combined row's Amount can be edited directly in the grid, but its
+        unit_breakdown (the per-unit split used to build one invoice line per
+        unit) doesn't move with it on its own — rescale each unit's share
+        proportionally so the split still sums to the new total. A no-op when
+        the amount hasn't changed (ratio 1) or the row isn't combined."""
+        for row in self.pdc_schedule:
+            raw = row.get("unit_breakdown")
+            contributions = frappe.parse_json(raw) if isinstance(raw, str) and raw else (raw or [])
+            if len(contributions) < 2:
+                continue
+            old_total = round(sum(flt(c.get("amount")) for c in contributions), 3)
+            new_total = flt(row.amount)
+            if not old_total or abs(new_total - old_total) < 0.001:
+                continue
+            ratio = new_total / old_total
+            running = 0.0
+            for i, c in enumerate(contributions):
+                if i == len(contributions) - 1:
+                    c["amount"] = round(new_total - running, 3)
+                else:
+                    c["amount"] = round(flt(c.get("amount")) * ratio, 3)
+                    running = round(running + c["amount"], 3)
+                c["net_amount"] = round(flt(c.get("net_amount")) * ratio, 3)
+                c["tax_amount"] = round(flt(c.get("tax_amount")) * ratio, 3)
+            row.unit_breakdown = json.dumps(contributions)
 
     def _compute_totals(self):
         """Compute booking-wide totals (summed across every unit row) and the
@@ -1056,66 +1168,42 @@ def trigger_invoice_generation(booking_name):
     return True
 
 
-@frappe.whitelist()
-def update_pdc_schedule(booking_name, rows):
-    """Apply edits from the "Allow Edit" dialog to existing PDC Schedule rows
-    on a submitted booking. Writes each row via frappe.db.set_value — same
-    pattern as create_pdc_entries / cheque clearing — since editing a
-    submitted child table's values through doc.save() would require every
-    touched child field to carry allow_on_submit individually. Blocked
-    entirely once any row already has a PDC Entry (rows are then locked for
-    good; see _validate_pdc_schedule_not_locked, the doc.save() backstop)."""
-    frappe.has_permission("Property Booking", "write", throw=True)
-    if isinstance(rows, str):
-        rows = frappe.parse_json(rows)
+def _create_pdc_entries_for_booking(booking):
+    """Create a PDC Entry for every Pending schedule row on this (already-loaded,
+    submitted) booking that doesn't have one yet. Pure — no commit/msgprint, so
+    both the single-booking and bulk entry points can share it."""
+    building_by_unit = {row.unit: row.building for row in booking.property_unit}
+    company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
+    settings = frappe.get_cached_doc("Misk Real Estate Settings")
 
-    booking = frappe.get_doc("Property Booking", booking_name)
-    if booking.docstatus != 1:
-        frappe.throw(_("Booking must be submitted."))
-    if any(r.pdc_entry for r in booking.pdc_schedule):
-        frappe.throw(
-            _("PDC Schedule cannot be edited — PDC Entries have already been "
-              "created against it."),
-            title=_("PDC Schedule Locked"),
-        )
-
-    rows_by_name = {r.name: r for r in booking.pdc_schedule}
-    for row in rows:
-        pdc_row = rows_by_name.get(row.get("row_name"))
-        if not pdc_row:
-            continue
-
-        cheque_no = (row.get("cheque_no") or "").strip()
-        if pdc_row.get("is_pdc") and not cheque_no:
-            frappe.throw(_("Row for unit {0}: Cheque No is required.").format(pdc_row.unit))
-
-        amount = flt(row.get("amount"))
-        rate = get_tax_rate_from_template(booking.taxes_and_charges or "", pdc_row.unit)
-        if rate:
-            net = round(amount / (1 + rate / 100), 3)
-            tax = round(amount - net, 3)
-        else:
-            net, tax = amount, 0.0
-
-        frappe.db.set_value("PDC Schedule", pdc_row.name, {
-            "installment_type": row.get("installment_type"),
-            "cheque_date": row.get("cheque_date"),
-            "cheque_no": cheque_no,
-            "amount": amount,
-            "net_amount": net,
-            "tax_amount": tax,
-        }, update_modified=False)
-
-    booking = frappe.get_doc("Property Booking", booking_name)
-    booking._compute_totals()
-    booking._compute_installment_progress()
-    frappe.db.set_value("Property Booking", booking_name, {
-        "table_total": booking.table_total,
-        "table_difference": booking.table_difference,
-        "expected_table_total": booking.expected_table_total,
-        "installment_progress": booking.installment_progress,
-    }, update_modified=False)
-    frappe.db.commit()
+    created = []
+    for pdc_row in booking.pdc_schedule:
+        if pdc_row.pdc_entry:
+            continue  # already has an entry
+        if not pdc_row.get("is_pdc"):
+            continue  # non-PDC row — no cheque entry needed
+        entry = frappe.get_doc({
+            "doctype": "PDC Entry",
+            "cheque_no": pdc_row.cheque_no or f"TBC-{pdc_row.sequence_no}",
+            "cheque_date": pdc_row.cheque_date,
+            "mode_of_payment": getattr(settings, "pdc_payment_mode", None) or "",
+            "customer": booking.customer,
+            "customer_bank_account": booking.customer_bank_account or "",
+            "company": company,
+            "status": "Pending",
+            "allocations": [{
+                "property_booking": booking.name,
+                "purpose": pdc_row.installment_type or "Installment",
+                "building": building_by_unit.get(pdc_row.unit, ""),
+                "unit": pdc_row.unit,
+                "sales_invoice": pdc_row.sales_invoice or "",
+                "allocated_amount": pdc_row.amount,
+            }],
+        })
+        entry.insert(ignore_permissions=True)
+        frappe.db.set_value("PDC Schedule", pdc_row.name, "pdc_entry", entry.name)
+        created.append(entry.name)
+    return created
 
 
 @frappe.whitelist()
@@ -1130,37 +1218,8 @@ def create_pdc_entries(booking_name):
     booking = frappe.get_doc("Property Booking", booking_name)
     if booking.docstatus != 1:
         frappe.throw(_("Booking must be submitted before creating PDC Entries."))
-    building_by_unit = {row.unit: row.building for row in booking.property_unit}
 
-    company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
-    created = []
-    for pdc_row in booking.pdc_schedule:
-        if pdc_row.pdc_entry:
-            continue  # already has an entry
-        if not pdc_row.get("is_pdc"):
-            continue  # non-PDC row — no cheque entry needed
-        settings = frappe.get_cached_doc("Misk Real Estate Settings")
-        entry = frappe.get_doc({
-            "doctype": "PDC Entry",
-            "cheque_no": pdc_row.cheque_no or f"TBC-{pdc_row.sequence_no}",
-            "cheque_date": pdc_row.cheque_date,
-            "mode_of_payment": getattr(settings, "pdc_payment_mode", None) or "",
-            "customer": booking.customer,
-            "customer_bank_account": booking.customer_bank_account or "",
-            "company": company,
-            "status": "Pending",
-            "allocations": [{
-                "property_booking": booking_name,
-                "purpose": pdc_row.installment_type or "Installment",
-                "building": building_by_unit.get(pdc_row.unit, ""),
-                "unit": pdc_row.unit,
-                "sales_invoice": pdc_row.sales_invoice or "",
-                "allocated_amount": pdc_row.amount,
-            }],
-        })
-        entry.insert(ignore_permissions=True)
-        frappe.db.set_value("PDC Schedule", pdc_row.name, "pdc_entry", entry.name)
-        created.append(entry.name)
+    created = _create_pdc_entries_for_booking(booking)
 
     frappe.db.commit()
     frappe.msgprint(
@@ -1168,6 +1227,33 @@ def create_pdc_entries(booking_name):
         alert=True,
     )
     return created
+
+
+@frappe.whitelist()
+def bulk_create_pdc_entries(names):
+    """List-view bulk action: create PDC Entries for every selected, submitted
+    Property Booking. Each booking is isolated behind a savepoint so one bad
+    booking (e.g. still Draft) doesn't abort the whole batch.
+    Returns {"ok": [{"name", "created"}], "failed": [{"name", "error"}]}."""
+    frappe.has_permission("Property Booking", "write", throw=True)
+    names = frappe.parse_json(names) if isinstance(names, str) else names
+
+    ok, failed = [], []
+    for name in names or []:
+        savepoint = f"bulk_pdc_{len(ok) + len(failed)}"
+        frappe.db.savepoint(savepoint)
+        try:
+            booking = frappe.get_doc("Property Booking", name)
+            if booking.docstatus != 1:
+                frappe.throw(_("Booking must be submitted before creating PDC Entries."))
+            created = _create_pdc_entries_for_booking(booking)
+            ok.append({"name": name, "created": len(created)})
+        except Exception as e:
+            frappe.db.rollback(save_point=savepoint)
+            failed.append({"name": name, "error": str(e)})
+
+    frappe.db.commit()
+    return {"ok": ok, "failed": failed}
 
 
 def generate_invoices_for_booking(booking_name):
@@ -1230,19 +1316,14 @@ def generate_invoices_for_booking(booking_name):
     frappe.logger().info(f"generate_invoices_for_booking: completed for {booking_name}")
 
 
-@frappe.whitelist()
-def create_missing_invoices(booking_name):
-    """
-    Manually create Sales Invoices (as Draft) for all PDC Schedule rows
-    that don't yet have one. Allows recovery when auto-creation failed,
-    or lets user create invoices manually before the cron runs.
-    Invoices are saved as Draft — user must submit them after review.
-    """
-    frappe.has_permission("Property Booking", "write", throw=True)
-    booking = frappe.get_doc("Property Booking", booking_name)
-    if booking.docstatus != 1:
-        frappe.throw(_("Booking must be submitted."))
-
+def _create_invoices_for_due_rows(booking, upto_date=None):
+    """Create a Sales Invoice (Draft) for every PDC Schedule row that doesn't
+    have one yet (skipping Cancelled) and is already due — cheque_date on or
+    before `upto_date` (default: today). Each invoice is posted on that row's
+    own cheque_date (from the table), not today, so backdated schedules land
+    on the correct historical period — matches the auto-invoice cron's
+    convention (auto_invoice.py::_create_invoice). Returns the list of
+    created Sales Invoice names."""
     from misk_real_estate.pdc_management.cron.auto_invoice import build_pdc_row_invoice_items
     from frappe.utils import formatdate
 
@@ -1250,18 +1331,21 @@ def create_missing_invoices(booking_name):
     settings = frappe.get_cached_doc("Misk Real Estate Settings")
     oa_item = getattr(settings, "oa_fee_item", None)
     taxes_and_charges = booking.taxes_and_charges or ""
+    upto = getdate(upto_date or today())
 
     created = []
     for row in booking.pdc_schedule:
         if row.sales_invoice or row.status == "Cancelled":
             continue
+        if not row.cheque_date or getdate(row.cheque_date) > upto:
+            continue  # not due yet — leave for the cron once it is
 
-        posting_date = getdate(today())
-        due_date = max(posting_date, getdate(row.cheque_date)) if row.cheque_date else posting_date
+        posting_date = getdate(row.cheque_date)
+        due_date = posting_date
         description = (f"{row.installment_type or 'Installment'} — "
                        f"Cheque {row.cheque_no or 'TBC'} — Due {formatdate(row.cheque_date)}")
         items, tax_rows, custom_property_unit = build_pdc_row_invoice_items(
-            row, taxes_and_charges, oa_item, company, description, booking_name
+            row, taxes_and_charges, oa_item, company, description, booking.name
         )
 
         si = frappe.get_doc({
@@ -1277,7 +1361,7 @@ def create_missing_invoices(booking_name):
             "taxes": tax_rows,
             "items": items,
             "custom_pdc_schedule_row": row.name,
-            "custom_property_booking": booking_name,
+            "custom_property_booking": booking.name,
             "custom_property_unit": custom_property_unit,
             "custom_payment_purpose": row.installment_type or "Installment",
         })
@@ -1289,9 +1373,29 @@ def create_missing_invoices(booking_name):
             link_invoice_to_allocation(row.pdc_entry, booking.name, row.installment_type, si.name)
         created.append(si.name)
 
+    return created
+
+
+@frappe.whitelist()
+def create_missing_invoices(booking_name):
+    """
+    Manually create Sales Invoices (as Draft) for PDC Schedule rows that
+    don't yet have one AND are already due as of today. Allows recovery when
+    auto-creation failed, or lets user create invoices manually before the
+    cron runs. Rows due in the future are left for the cron to pick up on
+    their own due date. Invoices are saved as Draft — user must submit them
+    after review.
+    """
+    frappe.has_permission("Property Booking", "write", throw=True)
+    booking = frappe.get_doc("Property Booking", booking_name)
+    if booking.docstatus != 1:
+        frappe.throw(_("Booking must be submitted."))
+
+    created = _create_invoices_for_due_rows(booking)
+
     frappe.db.commit()
     if not created:
-        frappe.msgprint(_("All rows already have a Sales Invoice."), alert=True)
+        frappe.msgprint(_("No due rows are missing a Sales Invoice."), alert=True)
     else:
         frappe.msgprint(
             _("{0} draft Sales Invoice(s) created: {1}. Review and submit them from the Sales Invoices list.").format(

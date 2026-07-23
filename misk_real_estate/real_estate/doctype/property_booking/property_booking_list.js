@@ -3,6 +3,52 @@ frappe.listview_settings["Property Booking"] = {
 	// docstatus-0 document before reaching get_indicator (so Lost never showed).
 	has_indicator_for_draft: 1,
 
+	onload(listview) {
+		const M = "misk_real_estate.real_estate.doctype.property_booking.property_booking";
+
+		listview.page.add_actions_menu_item(__("Create PDC Entries"), () => {
+			const items = listview.get_checked_items();
+			if (!items.length) {
+				frappe.msgprint(__("Select at least one Property Booking first."));
+				return;
+			}
+			const names = items.map((i) => i.name);
+			frappe.confirm(
+				__("Create PDC Entries for {0} selected Property Booking(s)?", [names.length]),
+				() => {
+					frappe.call({
+						method: M + ".bulk_create_pdc_entries",
+						args: { names },
+						freeze: true,
+						freeze_message: __("Creating PDC Entries…"),
+						callback(r) {
+							if (r.exc || !r.message) return;
+							const ok = r.message.ok || [];
+							const failed = r.message.failed || [];
+							const total_created = ok.reduce((sum, o) => sum + o.created, 0);
+							if (ok.length) {
+								frappe.show_alert({
+									message: __("{0} PDC Entries created across {1} booking(s).", [total_created, ok.length]),
+									indicator: "green",
+								});
+							}
+							if (failed.length) {
+								frappe.msgprint({
+									title: __("{0} booking(s) could not be processed", [failed.length]),
+									indicator: "orange",
+									message: failed.map(
+										(f) => `<b>${frappe.utils.escape_html(f.name)}</b>: ${frappe.utils.escape_html(f.error)}`
+									).join("<br>"),
+								});
+							}
+							listview.refresh();
+						},
+					});
+				}
+			);
+		});
+	},
+
 	get_indicator(doc) {
 		const status_map = {
 			"Booking Amount Received":["Booking Amount Received", "orange"],

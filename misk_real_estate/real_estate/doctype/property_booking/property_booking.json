@@ -284,11 +284,13 @@
    "label": "PDC Schedule"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "cheque_prefix",
    "fieldtype": "Data",
    "label": "Cheque No Prefix"
   },
   {
+   "allow_on_submit": 1,
    "fieldname": "pdc_schedule",
    "fieldtype": "Table",
    "label": "PDC Schedule",
