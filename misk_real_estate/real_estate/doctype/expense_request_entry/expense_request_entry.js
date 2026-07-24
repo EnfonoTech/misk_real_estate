@@ -26,6 +26,11 @@ frappe.ui.form.on("Expense Request Entry", {
                 frappe.new_doc("Journal Entry");
             }, __("Create"));
 
+            // Expense Entry — plain shortcut, no field to fetch/prefill
+            frm.add_custom_button(__("Expense Entry"), function () {
+                frappe.new_doc("Expense Entry");
+            }, __("Create"));
+
         }
     },
 
