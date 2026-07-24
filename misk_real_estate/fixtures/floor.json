@@ -16,20 +16,6 @@
  {
   "docstatus": 0,
   "doctype": "Floor",
-  "floor_name": "DASD",
-  "modified": "2026-06-11 11:14:47.760365",
-  "name": "DASD"
- },
- {
-  "docstatus": 0,
-  "doctype": "Floor",
-  "floor_name": "3123",
-  "modified": "2026-06-11 11:14:48.001882",
-  "name": "3123"
- },
- {
-  "docstatus": 0,
-  "doctype": "Floor",
   "floor_name": "GROUND",
   "modified": "2026-06-17 16:18:33.221378",
   "name": "GROUND"
