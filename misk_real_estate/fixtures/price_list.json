@@ -1,0 +1,44 @@
+[
+ {
+  "buying": 0,
+  "countries": [],
+  "currency": "OMR",
+  "docstatus": 0,
+  "doctype": "Price List",
+  "down_payment_percentage": 100.0,
+  "enabled": 1,
+  "modified": "2026-07-24 10:03:42.256695",
+  "name": "Full Payment",
+  "price_list_name": "Full Payment",
+  "price_not_uom_dependent": 0,
+  "selling": 1
+ },
+ {
+  "buying": 0,
+  "countries": [],
+  "currency": "OMR",
+  "docstatus": 0,
+  "doctype": "Price List",
+  "down_payment_percentage": 20.0,
+  "enabled": 1,
+  "modified": "2026-06-08 16:39:33.508986",
+  "name": "20% DP Plan",
+  "price_list_name": "20% DP Plan",
+  "price_not_uom_dependent": 0,
+  "selling": 1
+ },
+ {
+  "buying": 0,
+  "countries": [],
+  "currency": "OMR",
+  "docstatus": 0,
+  "doctype": "Price List",
+  "down_payment_percentage": 50.0,
+  "enabled": 1,
+  "modified": "2026-06-05 15:28:45.867237",
+  "name": "50% DP Plan",
+  "price_list_name": "50% DP Plan",
+  "price_not_uom_dependent": 0,
+  "selling": 1
+ }
+]

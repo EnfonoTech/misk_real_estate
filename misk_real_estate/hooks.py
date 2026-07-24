@@ -86,6 +86,10 @@ fixtures = [
         "filters": [["item_code", "=", "OA-FEE"]]
     },
     {
+        "dt": "Price List",
+        "filters": [["name", "in", ["Full Payment", "50% DP Plan", "20% DP Plan"]]]
+    },
+    {
         "dt": "Payment Plan"
     },
     {

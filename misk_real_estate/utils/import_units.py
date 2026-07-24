@@ -282,13 +282,13 @@ def get_import_template():
     ws.row_dimensions[1].height = 24
 
     # Row 2: tip about price list columns
-    ws["B2"] = "Price list columns: header must exactly match a Price List name in the system (e.g. Full Payment, 50% DP Plan)."
+    ws["B2"] = "Price list columns: header must exactly match a Price List name in the system (e.g. Standard Selling, Full Payment, 50% DP Plan)."
     ws["B2"].font = Font(color="7F6000", italic=True)
     ws["B2"].fill = note_fill
-    ws.merge_cells("B2:H2")
+    ws.merge_cells("B2:I2")
 
     # Row 3: data column headers
-    headers = [None, "Floor No.", "Unit No.", "Type", "Area (sqm)", "Full Payment", "50% DP Plan", "20% DP Plan"]
+    headers = [None, "Floor No.", "Unit No.", "Type", "Area (sqm)", "Standard Selling", "Full Payment", "50% DP Plan", "20% DP Plan"]
     for col, val in enumerate(headers, 1):
         cell = ws.cell(row=3, column=col, value=val)
         if val:
@@ -296,7 +296,7 @@ def get_import_template():
             cell.fill = header_fill if col <= 5 else price_fill
             cell.alignment = Alignment(horizontal="center")
 
-    for col, width in [(2,12),(4,12),(5,12),(6,16),(7,14),(8,14)]:
+    for col, width in [(2,12),(4,12),(5,12),(6,16),(7,14),(8,14),(9,14)]:
         ws.column_dimensions[get_column_letter(col)].width = width
 
     output = BytesIO()
