@@ -59,6 +59,7 @@
    "fieldtype": "Link",
    "in_global_search": 1,
    "label": "Customer Name",
+   "link_filters": "[[\"Customer\", \"company\", \"=\", \"eval:doc.company\"]]",
    "options": "Customer",
    "reqd": 1
   },

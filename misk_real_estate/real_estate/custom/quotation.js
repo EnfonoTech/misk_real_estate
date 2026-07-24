@@ -16,9 +16,20 @@ frappe.ui.form.on("Quotation", {
 
 	refresh(frm) {
 		_set_item_query(frm);
+		_set_party_query(frm);
 		_add_action_buttons(frm);
 	},
 });
+
+// ── Restrict the Party picker to the Quotation's own Company ─────────────────
+// party_name is a Dynamic Link (Customer or Lead depending on quotation_to) —
+// Lead has no company concept, so only filter when the target is Customer.
+function _set_party_query(frm) {
+	frm.set_query("party_name", () => {
+		if (frm.doc.quotation_to !== "Customer") return {};
+		return { filters: { company: frm.doc.company || "" } };
+	});
+}
 
 frappe.ui.form.on("Quotation Item", {
 	// Building changed — clear unit and re-apply item filter
@@ -190,13 +201,18 @@ function _open_new_reservation(frm, item) {
 	});
 }
 
-// ── Item query: filter by building + Available units only ─────────────────────
+// ── Item query: filter by building + Available units only + this Quotation's
+// own Company (item's own company override, else its Building's) ────────────
 function _set_item_query(frm) {
 	frm.fields_dict["items"].grid.get_field("item_code").get_query = function(doc, cdt, cdn) {
 		const row = frappe.get_doc(cdt, cdn);
 		const filters = { unit_status: "Available" };
-		if (row && row.building) filters["item_group"] = row.building;
-		return { filters };
+		if (row && row.building) filters["building"] = row.building;
+		if (frm.doc.company) filters["company"] = frm.doc.company;
+		return {
+			query: "misk_real_estate.utils.company.get_units_for_company",
+			filters,
+		};
 	};
 
 	// Price list query: filtered to prices available for this unit

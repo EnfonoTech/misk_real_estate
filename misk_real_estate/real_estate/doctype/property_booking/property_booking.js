@@ -285,13 +285,18 @@ frappe.ui.form.on("Property Booking", {
 	cost_center(frm)   { _fill_blank_unit_field(frm, "cost_center"); },
 	payment_plan(frm)  { _fill_blank_unit_field(frm, "payment_plan"); },
 
-	// ── Unit filter — only show units in selected building ───────────────────
+	// ── Unit filter — only show units in selected building + this booking's
+	// own Company (unit's own company override, else its Building's) ─────────
 	set_unit_filter(frm) {
 		frm.set_query("unit", "property_unit", (doc, cdt, cdn) => {
 			const row = locals[cdt][cdn];
 			const filters = { unit_status: "Available" };
-			if (row.building) filters["item_group"] = row.building;
-			return { filters };
+			if (row.building) filters["building"] = row.building;
+			if (frm.doc.company) filters["company"] = frm.doc.company;
+			return {
+				query: "misk_real_estate.utils.company.get_units_for_company",
+				filters,
+			};
 		});
 	},
 

@@ -195,8 +195,12 @@ function _set_unit_query(frm) {
 		frm.fields_dict["items"].grid.get_field("unit").get_query = (doc, cdt, cdn) => {
 			const row = locals[cdt][cdn];
 			const filters = { unit_status: "Available" };
-			if (row && row.building) filters["item_group"] = row.building;
-			return { filters };
+			if (row && row.building) filters["building"] = row.building;
+			if (frm.doc.company) filters["company"] = frm.doc.company;
+			return {
+				query: "misk_real_estate.utils.company.get_units_for_company",
+				filters,
+			};
 		};
 	}
 

@@ -10,7 +10,9 @@
   "section_items",
   "oa_fee_item",
   "section_invoicing",
-  "auto_submit_invoices"
+  "auto_submit_invoices",
+  "section_company",
+  "default_company"
  ],
  "fields": [
   {
@@ -54,6 +56,18 @@
    "fieldtype": "Check",
    "label": "Auto-submit Automatically Generated Invoices",
    "default": "0"
+  },
+  {
+   "fieldname": "section_company",
+   "fieldtype": "Section Break",
+   "label": "Multi-Company"
+  },
+  {
+   "fieldname": "default_company",
+   "fieldtype": "Link",
+   "label": "Default Company",
+   "options": "Company",
+   "description": "Used to set Company on Buildings/Units created via the Excel bulk-import (Import Buildings & Units), which runs outside any user session."
   }
  ],
  "issingle": 1,

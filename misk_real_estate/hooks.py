@@ -39,6 +39,11 @@ doc_events = {
         "on_submit": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_payment_entry_change",
         "on_cancel": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_payment_entry_change",
     },
+    # Multi-company: a child Building/Item Group inherits its company from its
+    # parent when blank (one-time copy-down, not a live recompute).
+    "Item Group": {
+        "validate": "misk_real_estate.real_estate.custom.item_group_hooks.validate",
+    },
 }
 
 # ── Fixtures — run `bench export-fixtures` before every commit ────────────────
@@ -46,12 +51,12 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Employee", "Item", "Quotation", "Quotation Item", "Price List", "Lead"]]
+            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead"]]
         ]
     },
     {
         "dt": "Property Setter",
-        "filters": [["doc_type", "in", ["Sales Order", "Property Booking", "Item", "Quotation Item"]]]
+        "filters": [["doc_type", "in", ["Sales Order", "Property Booking", "Item", "Quotation Item", "Sales Invoice"]]]
     },
     {
         "dt": "Workflow State",
@@ -109,8 +114,9 @@ fixtures = [
 ]
 
 doctype_js = {
-    "Quotation": "real_estate/custom/quotation.js",
-    "Item":      "real_estate/custom/item.js",
+    "Quotation":      "real_estate/custom/quotation.js",
+    "Item":           "real_estate/custom/item.js",
+    "Payment Entry":  "real_estate/custom/payment_entry.js",
 }
 
 doctype_list_js = {

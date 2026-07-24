@@ -91,6 +91,10 @@ def _ensure_item_group(building_name):
         "item_group_name": building_name,
         "parent_item_group": "All Item Groups",
         "is_group": 0,
+        # Units under this Building inherit company from here (get_item_company) —
+        # no per-unit company needed. Set from Misk Real Estate Settings since this
+        # import runs outside any user session and has no other company context.
+        "company": frappe.db.get_single_value("Misk Real Estate Settings", "default_company"),
     }).insert(ignore_permissions=True)
 
 
