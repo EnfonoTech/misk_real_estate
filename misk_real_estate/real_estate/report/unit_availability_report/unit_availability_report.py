@@ -209,6 +209,7 @@ def get_summary(data):
     booked = sum(1 for r in data if r.unit_status == "Booked")
     sold = sum(1 for r in data if r.unit_status == "Sold")
     reserved = sum(1 for r in data if r.unit_status == "Reserved")
+    under_maintenance = sum(1 for r in data if r.unit_status == "Under Maintenance")
 
     return [
         {"label": _("Total Units"), "value": total, "datatype": "Int", "indicator": "blue"},
@@ -216,6 +217,7 @@ def get_summary(data):
         {"label": _("Booked"), "value": booked, "datatype": "Int", "indicator": "orange"},
         {"label": _("Sold"), "value": sold, "datatype": "Int", "indicator": "red"},
         {"label": _("Reserved"), "value": reserved, "datatype": "Int", "indicator": "gray"},
+        {"label": _("Under Maintenance"), "value": under_maintenance, "datatype": "Int", "indicator": "purple"},
     ]
 
 
@@ -224,7 +226,7 @@ def get_chart(data):
     for row in data:
         b = row.building or "Unknown"
         if b not in buildings:
-            buildings[b] = {"Available": 0, "Booked": 0, "Sold": 0, "Reserved": 0}
+            buildings[b] = {"Available": 0, "Booked": 0, "Sold": 0, "Reserved": 0, "Under Maintenance": 0}
         status = row.unit_status or "Available"
         if status in buildings[b]:
             buildings[b][status] += 1
@@ -238,9 +240,10 @@ def get_chart(data):
                 {"name": _("Booked"), "values": [buildings[b]["Booked"] for b in labels]},
                 {"name": _("Sold"), "values": [buildings[b]["Sold"] for b in labels]},
                 {"name": _("Reserved"), "values": [buildings[b]["Reserved"] for b in labels]},
+                {"name": _("Under Maintenance"), "values": [buildings[b]["Under Maintenance"] for b in labels]},
             ],
         },
         "type": "bar",
         "barOptions": {"stacked": True},
-        "colors": ["#28a745", "#fd7e14", "#dc3545", "#6c757d"],
+        "colors": ["#28a745", "#fd7e14", "#dc3545", "#6c757d", "#8e44ad"],
     }

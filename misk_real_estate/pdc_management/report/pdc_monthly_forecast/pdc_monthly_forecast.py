@@ -30,6 +30,7 @@ def get_columns():
         {"label": _("Total PDCs"),         "fieldname": "total_count",     "fieldtype": "Int",      "width": 100},
         {"label": _("Total Amount (OMR)"), "fieldname": "total_amount",    "fieldtype": "Currency", "width": 150},
         {"label": _("Pending"),            "fieldname": "pending_amount",  "fieldtype": "Currency", "width": 130},
+        {"label": _("Sent to Bank"),       "fieldname": "sent_to_bank_amount", "fieldtype": "Currency", "width": 120},
         {"label": _("In Batch"),           "fieldname": "inbatch_amount",  "fieldtype": "Currency", "width": 120},
         {"label": _("Deposited"),          "fieldname": "deposited_amount","fieldtype": "Currency", "width": 120},
         {"label": _("Cleared"),            "fieldname": "cleared_amount",  "fieldtype": "Currency", "width": 120},
@@ -38,7 +39,14 @@ def get_columns():
 
 
 def get_data(filters):
-    conditions = ["pe.cheque_date BETWEEN %(from_date)s AND %(to_date)s"]
+    # Cancelled/Returned = no cash coming via this cheque; Substituted = superseded
+    # by its replacement PDC Entry, which is itself Pending and already counted —
+    # excluding them here keeps "Total Expected" reconciling with the visible
+    # per-status columns below.
+    conditions = [
+        "pe.cheque_date BETWEEN %(from_date)s AND %(to_date)s",
+        "pe.status NOT IN ('Cancelled', 'Substituted', 'Returned')",
+    ]
     values = {
         "from_date": filters["from_date"],
         "to_date": filters["to_date"],
@@ -82,6 +90,7 @@ def get_data(filters):
                 "total_count":     0,
                 "total_amount":    0.0,
                 "pending_amount":  0.0,
+                "sent_to_bank_amount": 0.0,
                 "inbatch_amount":  0.0,
                 "deposited_amount":0.0,
                 "cleared_amount":  0.0,
@@ -92,6 +101,8 @@ def get_data(filters):
         status = row.status or ""
         if status == "Pending":
             months[mk]["pending_amount"]   += flt(row.amount)
+        elif status == "Sent to Bank":
+            months[mk]["sent_to_bank_amount"] += flt(row.amount)
         elif status == "In Batch":
             months[mk]["inbatch_amount"]   += flt(row.amount)
         elif status == "Deposited":
@@ -122,30 +133,33 @@ def get_chart(data):
         "data": {
             "labels": [r["month_label"] for r in data],
             "datasets": [
-                {"name": _("Pending"),   "values": [r["pending_amount"]   for r in data]},
-                {"name": _("Deposited"), "values": [r["deposited_amount"] for r in data]},
-                {"name": _("Cleared"),   "values": [r["cleared_amount"]   for r in data]},
-                {"name": _("Bounced"),   "values": [r["bounced_amount"]   for r in data]},
+                {"name": _("Pending"),      "values": [r["pending_amount"]      for r in data]},
+                {"name": _("Sent to Bank"), "values": [r["sent_to_bank_amount"] for r in data]},
+                {"name": _("Deposited"),    "values": [r["deposited_amount"]    for r in data]},
+                {"name": _("Cleared"),      "values": [r["cleared_amount"]      for r in data]},
+                {"name": _("Bounced"),      "values": [r["bounced_amount"]      for r in data]},
             ],
         },
         "type": "bar",
         "barOptions": {"stacked": True},
-        "colors": ["#F39C12", "#2490EF", "#2ECC71", "#E74C3C"],
+        "colors": ["#F39C12", "#9B59B6", "#2490EF", "#2ECC71", "#E74C3C"],
     }
 
 
 def get_summary(data):
     if not data:
         return []
-    total      = sum(r["total_amount"]    for r in data)
-    cleared    = sum(r["cleared_amount"]  for r in data)
-    pending    = sum(r["pending_amount"]  for r in data)
-    deposited  = sum(r["deposited_amount"]for r in data)
-    bounced    = sum(r["bounced_amount"]  for r in data)
+    total       = sum(r["total_amount"]        for r in data)
+    cleared     = sum(r["cleared_amount"]      for r in data)
+    pending     = sum(r["pending_amount"]      for r in data)
+    sent_to_bank= sum(r["sent_to_bank_amount"] for r in data)
+    deposited   = sum(r["deposited_amount"]    for r in data)
+    bounced     = sum(r["bounced_amount"]      for r in data)
     return [
-        {"label": _("Total Expected"),  "value": total,     "datatype": "Currency"},
-        {"label": _("Cleared"),         "value": cleared,   "datatype": "Currency", "color": "green"},
-        {"label": _("Deposited"),       "value": deposited, "datatype": "Currency", "color": "blue"},
-        {"label": _("Pending"),         "value": pending,   "datatype": "Currency", "color": "orange"},
-        {"label": _("Bounced"),         "value": bounced,   "datatype": "Currency", "color": "red"},
+        {"label": _("Total Expected"),  "value": total,       "datatype": "Currency"},
+        {"label": _("Cleared"),         "value": cleared,     "datatype": "Currency", "color": "green"},
+        {"label": _("Deposited"),       "value": deposited,   "datatype": "Currency", "color": "blue"},
+        {"label": _("Sent to Bank"),    "value": sent_to_bank,"datatype": "Currency", "color": "purple"},
+        {"label": _("Pending"),         "value": pending,     "datatype": "Currency", "color": "orange"},
+        {"label": _("Bounced"),         "value": bounced,     "datatype": "Currency", "color": "red"},
     ]

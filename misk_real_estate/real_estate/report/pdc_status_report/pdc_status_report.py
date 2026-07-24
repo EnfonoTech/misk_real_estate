@@ -120,4 +120,7 @@ def get_summary(data):
         {"label": _("In Batch"),     "value": by_status.get("In Batch", 0),      "datatype": "Currency", "color": "purple"},
         {"label": _("Cleared"),      "value": by_status.get("Cleared", 0),       "datatype": "Currency", "color": "green"},
         {"label": _("Bounced"),      "value": by_status.get("Bounced", 0),       "datatype": "Currency", "color": "red"},
+        {"label": _("Substituted"),  "value": by_status.get("Substituted", 0),   "datatype": "Currency", "color": "gray"},
+        {"label": _("Cancelled"),    "value": by_status.get("Cancelled", 0),     "datatype": "Currency", "color": "gray"},
+        {"label": _("Returned"),     "value": by_status.get("Returned", 0),      "datatype": "Currency", "color": "gray"},
     ]

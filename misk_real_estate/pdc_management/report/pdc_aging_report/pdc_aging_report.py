@@ -32,7 +32,10 @@ def get_columns():
 
 
 def get_data(filters, as_of):
-    conditions = ["pe.status NOT IN ('Cleared')"]
+    # Cleared = already collected; Cancelled/Returned = no cash coming via this
+    # cheque; Substituted = superseded by its replacement PDC Entry, which is
+    # itself Pending and already counted — none of these are still outstanding.
+    conditions = ["pe.status NOT IN ('Cleared', 'Cancelled', 'Substituted', 'Returned')"]
     values = {"as_of": str(as_of)}
 
     if filters.get("customer"):
