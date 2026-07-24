@@ -59,6 +59,10 @@ fixtures = [
         "filters": [["doc_type", "in", ["Sales Order", "Property Booking", "Item", "Quotation Item", "Sales Invoice"]]]
     },
     {
+        "dt": "Translation",
+        "filters": [["source_text", "=", "Quotation"]]
+    },
+    {
         "dt": "Workflow State",
         "filters": [["workflow_state_name", "in", [
             "Draft", "Pending Sales Approval", "Pending Finance Approval",
