@@ -46,25 +46,7 @@
   "is_sub_contracted_item": 0,
   "is_unit": 0,
   "item_code": "OA-FEE",
-  "item_defaults": [
-   {
-    "buying_cost_center": null,
-    "company": "misk",
-    "default_discount_account": null,
-    "default_price_list": null,
-    "default_provisional_account": null,
-    "default_supplier": null,
-    "default_warehouse": "Stores - M",
-    "deferred_expense_account": null,
-    "deferred_revenue_account": null,
-    "expense_account": null,
-    "income_account": null,
-    "parent": "OA-FEE",
-    "parentfield": "item_defaults",
-    "parenttype": "Item",
-    "selling_cost_center": null
-   }
-  ],
+  "item_defaults": [],
   "item_group": "Services",
   "item_name": "Owners Association Fee",
   "last_purchase_rate": 0.0,
