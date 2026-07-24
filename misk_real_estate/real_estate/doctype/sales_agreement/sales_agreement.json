@@ -9,14 +9,17 @@
  "field_order": [
   "property_booking",
   "contract_date",
+  "column_break_top1",
+  "company",
+  "column_break_top2",
   "status",
-  "contract_pdf",
   "section_break_customer",
   "customer",
   "customer_name",
+  "column_break_cust1",
   "customer_id_number",
-  "column_break_cust",
   "customer_mobile",
+  "column_break_cust2",
   "customer_email",
   "customer_address",
   "section_break_property",
@@ -25,19 +28,21 @@
   "selling_price",
   "booking_amount",
   "booking_date",
-  "column_break_comm",
+  "column_break_comm1",
   "down_payment_amount",
   "down_payment_date",
   "balance_amount",
-  "section_break_installment",
+  "column_break_comm2",
   "first_installment_due_date",
   "section_break_mgmt",
   "management_fee_amount",
-  "column_break_mgmt",
+  "column_break_mgmt1",
   "management_fee_due_date",
+  "column_break_mgmt2",
   "sales_person",
   "section_break_pdc_schedule",
-  "pdc_schedule"
+  "pdc_schedule",
+  "amended_from"
  ],
  "fields": [
   {
@@ -48,6 +53,13 @@
    "label": "Property Booking",
    "options": "Property Booking",
    "reqd": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "read_only": 1
   },
   {
    "default": "Today",
@@ -64,16 +76,18 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Contract Status",
-   "options": "Draft\nGenerated\nSigned\nRegistered",
+   "no_copy": 1,
+   "options": "Draft\nGenerated\nSigned\nRegistered\nCancelled",
    "read_only": 1,
    "reqd": 1
   },
   {
-   "fieldname": "contract_pdf",
-   "fieldtype": "Attach",
-   "label": "Contract PDF",
-   "no_copy": 1,
-   "read_only": 1
+   "fieldname": "column_break_top1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_top2",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "section_break_customer",
@@ -84,6 +98,7 @@
    "fieldname": "customer",
    "fieldtype": "Link",
    "label": "Customer",
+   "link_filters": "[[\"Customer\", \"company\", \"=\", \"eval:doc.company\"]]",
    "options": "Customer",
    "read_only": 1
   },
@@ -94,20 +109,24 @@
    "read_only": 1
   },
   {
+   "fieldname": "column_break_cust1",
+   "fieldtype": "Column Break"
+  },
+  {
    "fieldname": "customer_id_number",
    "fieldtype": "Data",
    "label": "ID Number",
    "read_only": 1
   },
   {
-   "fieldname": "column_break_cust",
-   "fieldtype": "Column Break"
-  },
-  {
    "fieldname": "customer_mobile",
    "fieldtype": "Data",
    "label": "Mobile No",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_cust2",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "customer_email",
@@ -156,7 +175,7 @@
    "read_only": 1
   },
   {
-   "fieldname": "column_break_comm",
+   "fieldname": "column_break_comm1",
    "fieldtype": "Column Break"
   },
   {
@@ -179,14 +198,13 @@
    "read_only": 1
   },
   {
-   "fieldname": "section_break_installment",
-   "fieldtype": "Section Break",
-   "label": "Installment Plan"
+   "fieldname": "column_break_comm2",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "first_installment_due_date",
    "fieldtype": "Date",
-   "label": "First Due Date",
+   "label": "First Installment Due Date",
    "read_only": 1
   },
   {
@@ -201,7 +219,7 @@
    "read_only": 1
   },
   {
-   "fieldname": "column_break_mgmt",
+   "fieldname": "column_break_mgmt1",
    "fieldtype": "Column Break"
   },
   {
@@ -209,6 +227,10 @@
    "fieldtype": "Date",
    "label": "Management Fee Due Date (PDC)",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_mgmt2",
+   "fieldtype": "Column Break"
   },
   {
    "fieldname": "sales_person",
@@ -228,11 +250,19 @@
    "label": "PDC Schedule",
    "options": "PDC Schedule",
    "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Sales Agreement",
+   "read_only": 1
   }
  ],
- "is_submittable": 0,
+ "is_submittable": 1,
  "links": [],
- "modified": "2026-07-07 00:00:00.000000",
+ "modified": "2026-07-24 00:00:00.000000",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Sales Agreement",
@@ -240,6 +270,8 @@
  "owner": "Administrator",
  "permissions": [
   {
+   "amend": 1,
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -249,6 +281,7 @@
    "report": 1,
    "role": "System Manager",
    "share": 1,
+   "submit": 1,
    "write": 1
   },
   {
@@ -259,6 +292,7 @@
    "read": 1,
    "report": 1,
    "role": "Misk Sales",
+   "submit": 1,
    "write": 1
   },
   {
@@ -280,6 +314,8 @@
    "write": 1
   },
   {
+   "amend": 1,
+   "cancel": 1,
    "create": 1,
    "delete": 1,
    "email": 1,
@@ -289,6 +325,7 @@
    "report": 1,
    "role": "Misk Admin",
    "share": 1,
+   "submit": 1,
    "write": 1
   },
   {
@@ -298,6 +335,7 @@
    "read": 1,
    "report": 1,
    "role": "Misk Management",
+   "submit": 1,
    "write": 1
   }
  ],

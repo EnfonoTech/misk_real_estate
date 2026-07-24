@@ -33,8 +33,13 @@ class Reservation(Document):
         for row in self.items:
             self._set_unit_status(row.unit, "Reserved")
 
-    def on_cancel(self):
+    def before_cancel(self):
+        # Set here, not on_cancel — on_cancel fires after the docstatus=2 row
+        # is already written to the DB, so a plain self.status assignment
+        # there is silently lost.
         self.status = "Cancelled"
+
+    def on_cancel(self):
         self._release_units_if_unclaimed()
 
     def on_trash(self):
@@ -149,7 +154,14 @@ class Reservation(Document):
         """Business status mirrors the approval workflow_state (Draft / Pending GM
         Approval / Approved / Rejected). Expired, Cancelled and Converted to
         Booking are applied outside the workflow (auto-release job, on_cancel,
-        Property Booking creation) — never overwrite those here."""
+        Property Booking creation) — never overwrite those here.
+
+        Exception: "Cancelled" only means that while docstatus is actually 2 —
+        amending a cancelled reservation copies that value onto the fresh
+        (docstatus=0) draft, so treat it as stale there and reset it instead
+        of leaving it stuck forever."""
+        if self.status == "Cancelled" and self.docstatus != 2:
+            self.status = "Draft"
         if self.status in ("Expired", "Cancelled", "Converted to Booking"):
             return
         if self.workflow_state:

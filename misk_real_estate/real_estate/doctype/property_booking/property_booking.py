@@ -235,8 +235,30 @@ class PropertyBooking(Document):
                 indicator="green",
             )
 
-    def on_cancel(self):
+    def before_cancel(self):
+        self._validate_not_contracted()
+        # Set here, not on_cancel — on_cancel fires after the docstatus=2 row
+        # is already written to the DB, so a plain self.status assignment
+        # there is silently lost (confirmed live: cancelled bookings were
+        # stuck showing their pre-cancel status forever).
         self.status = "Cancelled"
+
+    def _validate_not_contracted(self):
+        """A submitted Sales Agreement is an issued (Generated/Signed/Registered)
+        contract — cancelling the booking would release its unit(s) and PDC
+        entries out from under it. A Draft or already-cancelled agreement
+        doesn't block this."""
+        contracted = frappe.db.exists(
+            "Sales Agreement", {"property_booking": self.name, "docstatus": 1}
+        )
+        if contracted:
+            frappe.throw(
+                _("Cannot cancel {0} — a Sales Agreement ({1}) has already been generated for it.").format(
+                    self.name, contracted
+                )
+            )
+
+    def on_cancel(self):
         self._cancel_pdc_entries()
         for row in self.property_unit:
             self._set_unit_status("Available", unit=row.unit)
@@ -1516,7 +1538,7 @@ def create_sales_agreement(booking_name):
     if failures:
         frappe.throw("<br>".join(failures), title=_("Not Eligible for Contract Generation"))
 
-    existing = frappe.db.exists("Sales Agreement", {"property_booking": booking_name})
+    existing = frappe.db.exists("Sales Agreement", {"property_booking": booking_name, "docstatus": ("!=", 2)})
     if existing:
         return existing
 
@@ -1527,8 +1549,8 @@ def create_sales_agreement(booking_name):
 
 @frappe.whitelist()
 def get_sales_agreement(booking_name):
-    """Existing Sales Agreement name for this booking, or None."""
-    return frappe.db.exists("Sales Agreement", {"property_booking": booking_name}) or None
+    """Existing (non-cancelled) Sales Agreement name for this booking, or None."""
+    return frappe.db.exists("Sales Agreement", {"property_booking": booking_name, "docstatus": ("!=", 2)}) or None
 
 
 @frappe.whitelist()

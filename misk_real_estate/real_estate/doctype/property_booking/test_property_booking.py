@@ -65,9 +65,14 @@ class TestPropertyBooking(FrappeTestCase):
 				if si.docstatus == 1:
 					frappe.get_doc("Sales Invoice", si.name).cancel()
 
-			# A leftover Sales Agreement (not submittable, so safe to force-delete
-			# outright) also back-links to the booking and blocks its cancel.
-			for sa in frappe.get_all("Sales Agreement", filters={"property_booking": booking_name}, fields=["name"]):
+			# A leftover Sales Agreement also back-links to the booking and blocks
+			# its cancel — cancel it first if submitted (force on delete_doc
+			# doesn't bypass the submitted-doc delete restriction).
+			for sa in frappe.get_all(
+				"Sales Agreement", filters={"property_booking": booking_name}, fields=["name", "docstatus"]
+			):
+				if sa.docstatus == 1:
+					frappe.get_doc("Sales Agreement", sa.name).cancel()
 				frappe.delete_doc("Sales Agreement", sa.name, force=True, ignore_permissions=True)
 
 			doc = frappe.get_doc("Property Booking", booking_name)
@@ -489,6 +494,55 @@ class TestPropertyBooking(FrappeTestCase):
 		booking.reload()
 		booking.pdc_schedule[0].cheque_no = "SHOULD-NOT-SAVE"
 		self.assertRaises(frappe.ValidationError, booking.save, ignore_permissions=True)
+
+	def test_cancel_blocked_once_sales_agreement_submitted(self):
+		"""Submitting a Sales Agreement is what 'generates' the contract — once
+		that's happened, cancelling the booking must be blocked (it would
+		release the unit and PDC entries out from under an issued contract).
+
+		Bypasses the eligibility re-check itself (via a mock, not
+		ignore_validate — that flag also skips before_submit/before_cancel,
+		which is exactly what sets `status` here; using it would make this
+		test pass even if that logic were broken)."""
+		plan = self._make_single_installment_plan()
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000, "payment_plan": plan},
+		])
+		booking.insert(ignore_permissions=True)
+		self._submit_with_cheque_numbers(booking)
+
+		from unittest.mock import patch
+		with patch(
+			"misk_real_estate.real_estate.doctype.property_booking.property_booking.check_contract_eligibility",
+			return_value=[],
+		):
+			agreement = frappe.get_doc({"doctype": "Sales Agreement", "property_booking": booking.name})
+			agreement.insert(ignore_permissions=True)
+			agreement.submit()
+
+		self.assertEqual(agreement.status, "Generated")
+		self.assertRaises(frappe.ValidationError, booking.cancel)
+
+		agreement.cancel()
+		self.assertEqual(frappe.db.get_value("Sales Agreement", agreement.name, "status"), "Cancelled")
+
+	def test_cancel_allowed_when_sales_agreement_still_draft(self):
+		"""A Draft (not yet submitted/generated) Sales Agreement doesn't block
+		cancelling the booking — only an actually-generated contract does."""
+		plan = self._make_single_installment_plan()
+		booking = self._new_booking([
+			{"building": "Consumable", "unit": self.unit_a, "unit_price": 10000, "payment_plan": plan},
+		])
+		booking.insert(ignore_permissions=True)
+		self._submit_with_cheque_numbers(booking)
+
+		agreement = frappe.get_doc({"doctype": "Sales Agreement", "property_booking": booking.name})
+		agreement.flags.ignore_validate = True
+		agreement.insert(ignore_permissions=True)
+		self.assertEqual(agreement.docstatus, 0)
+
+		booking.cancel()
+		self.assertEqual(booking.docstatus, 2)
 
 	def test_pdc_schedule_locked_once_row_invoiced(self):
 		"""A row that already has a Sales Invoice locks the whole table, even
