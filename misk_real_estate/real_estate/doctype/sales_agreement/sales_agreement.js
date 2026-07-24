@@ -2,6 +2,8 @@
 
 frappe.ui.form.on("Sales Agreement", {
 	refresh(frm) {
+		frm.set_query("property_booking", () => ({ filters: { docstatus: 1 } }));
+
 		if (frm.is_new()) return;
 
 		// Submitting the document IS generating the contract — no custom
