@@ -7,6 +7,14 @@
 // 	},
 // });
 frappe.ui.form.on("Expense Request Entry", {
+    onload(frm) {
+        if (frm.is_new() && !frm.doc.company) {
+            const company = frappe.defaults.get_user_default("company")
+                || frappe.defaults.get_global_default("company");
+            if (company) frm.set_value("company", company);
+        }
+    },
+
     refresh(frm) {
         if (frm.doc.docstatus === 1) {
 
