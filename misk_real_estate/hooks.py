@@ -44,6 +44,12 @@ doc_events = {
     "Item Group": {
         "validate": "misk_real_estate.real_estate.custom.item_group_hooks.validate",
     },
+    # Default an Attendance row's project from the employee's active Employee
+    # Project Assignment when left blank (a manually-chosen project is never
+    # overridden).
+    "Attendance": {
+        "validate": "misk_real_estate.wps.attendance_hooks.validate",
+    },
 }
 
 # ── Fixtures — run `bench export-fixtures` before every commit ────────────────
@@ -51,12 +57,12 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead"]]
+            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Attendance", "Shift Assignment", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead"]]
         ]
     },
     {
         "dt": "Property Setter",
-        "filters": [["doc_type", "in", ["Sales Order", "Property Booking", "Item", "Quotation Item", "Sales Invoice"]]]
+        "filters": [["doc_type", "in", ["Sales Order", "Property Booking", "Item", "Quotation Item", "Sales Invoice", "Attendance"]]]
     },
     {
         "dt": "Translation",
@@ -102,6 +108,10 @@ fixtures = [
         "dt": "Payment Plan"
     },
     {
+        "dt": "Salary Component",
+        "filters": [["name", "=", "Social Security"]]
+    },
+    {
         "dt": "Unit Type"
     },
     {
@@ -121,6 +131,7 @@ doctype_js = {
     "Quotation":      "real_estate/custom/quotation.js",
     "Item":           "real_estate/custom/item.js",
     "Payment Entry":  "real_estate/custom/payment_entry.js",
+    "Attendance":     "wps/custom/attendance.js",
 }
 
 doctype_list_js = {

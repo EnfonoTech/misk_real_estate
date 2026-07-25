@@ -1,0 +1,60 @@
+{
+ "add_total_row": 0,
+ "columns": [],
+ "creation": "2026-07-25 00:00:00",
+ "doctype": "Report",
+ "filters": [
+  {
+   "fieldname": "wps_company",
+   "fieldtype": "Link",
+   "label": "WPS Company",
+   "options": "Company",
+   "reqd": 1,
+   "ignore_user_permissions": 1
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "From Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "To Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "basic_salary_component",
+   "fieldtype": "Link",
+   "label": "Basic Salary Component",
+   "options": "Salary Component",
+   "default": "Basic"
+  },
+  {
+   "fieldname": "social_security_component",
+   "fieldtype": "Link",
+   "label": "Social Security Component",
+   "options": "Salary Component"
+  }
+ ],
+ "is_standard": "Yes",
+ "json": "",
+ "modified": "2026-07-25 00:00:00",
+ "module": "WPS",
+ "name": "WPS Report",
+ "owner": "Administrator",
+ "prepared_report": 0,
+ "query": "",
+ "ref_doctype": "Salary Slip",
+ "report_name": "WPS Report",
+ "report_type": "Script Report",
+ "roles": [
+  {"role": "System Manager"},
+  {"role": "Misk Admin"},
+  {"role": "Misk Finance"},
+  {"role": "Misk Management"},
+  {"role": "Accounts Manager"},
+  {"role": "Accounts User"}
+ ]
+}

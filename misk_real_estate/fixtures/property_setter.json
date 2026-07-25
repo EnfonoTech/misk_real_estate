@@ -382,5 +382,29 @@
   "property_type": "JSON",
   "row_name": null,
   "value": "[[\"Customer\", \"company\", \"=\", \"eval:doc.company\"]]"
+ },
+ {
+  "_assign": null,
+  "_comments": null,
+  "_liked_by": null,
+  "_user_tags": null,
+  "creation": "2026-07-25 16:30:46.262105",
+  "default_value": null,
+  "doc_type": "Attendance",
+  "docstatus": 0,
+  "doctype": "Property Setter",
+  "doctype_or_field": "DocField",
+  "field_name": "shift",
+  "idx": 0,
+  "is_system_generated": 1,
+  "modified": "2026-07-25 16:30:46.262105",
+  "modified_by": "Administrator",
+  "module": null,
+  "name": "Attendance-shift-in_standard_filter",
+  "owner": "Administrator",
+  "property": "in_standard_filter",
+  "property_type": "Check",
+  "row_name": null,
+  "value": "1"
  }
 ]
