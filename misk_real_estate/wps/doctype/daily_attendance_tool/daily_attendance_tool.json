@@ -11,6 +11,7 @@
   "column_break_filters",
   "employee_category",
   "project",
+  "shift",
   "section_break_employees",
   "employees",
   "amended_from"
@@ -62,6 +63,13 @@
    "options": "Project"
   },
   {
+   "fieldname": "shift",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Shift",
+   "options": "Shift Type"
+  },
+  {
    "fieldname": "section_break_employees",
    "fieldtype": "Section Break",
    "label": "Employees"
@@ -91,7 +99,7 @@
    "link_fieldname": "daily_attendance_tool"
   }
  ],
- "modified": "2026-07-25 00:00:00",
+ "modified": "2026-07-27 12:00:00",
  "modified_by": "Administrator",
  "module": "WPS",
  "name": "Daily Attendance Tool",

@@ -50,6 +50,11 @@ doc_events = {
     "Attendance": {
         "validate": "misk_real_estate.wps.attendance_hooks.validate",
     },
+    # Keep Salary Slip's overtime_hours in sync with submitted Attendance over
+    # its own pay period.
+    "Salary Slip": {
+        "validate": "misk_real_estate.wps.attendance_hooks.set_salary_slip_overtime_hours",
+    },
 }
 
 # ── Fixtures — run `bench export-fixtures` before every commit ────────────────
@@ -57,7 +62,7 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Attendance", "Shift Assignment", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead"]]
+            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Attendance", "Shift Assignment", "Salary Slip", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead"]]
         ]
     },
     {

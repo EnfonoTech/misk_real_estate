@@ -9,6 +9,8 @@ import frappe
 from frappe import _
 from frappe.utils import flt
 
+from misk_real_estate.wps.doctype.wps_settings.wps_settings import get_settings
+
 FREQUENCY_CODE = {
     "Monthly": "M",
     "Fortnightly": "F",
@@ -53,10 +55,10 @@ def get_data(filters):
 
     earnings_map = get_component_map(salary_slips, "earnings")
     deductions_map = get_component_map(salary_slips, "deductions")
-    overtime_rows = get_overtime_rows(salary_slips, filters)
 
-    basic_component = filters.get("basic_salary_component") or "Basic"
-    ss_component = filters.get("social_security_component")
+    settings = get_settings()
+    basic_component = settings.basic_salary_component or "Basic"
+    ss_component = settings.social_security_component
 
     rows = []
     for idx, slip in enumerate(salary_slips, start=1):
@@ -69,12 +71,6 @@ def get_data(filters):
         social_security = flt(deductions.get(ss_component)) if ss_component else 0.0
         other_deductions = flt(slip.total_deduction) - social_security
 
-        extra_hours = sum(
-            flt(a.overtime_hours)
-            for a in overtime_rows
-            if a.employee == slip.employee and slip.start_date <= a.attendance_date <= slip.end_date
-        )
-
         rows.append({
             "employee_id_type": slip.employee_id_type or "",
             "employee_id": slip.civil_id or "",
@@ -86,7 +82,7 @@ def get_data(filters):
             "number_of_working_days": flt(slip.payment_days),
             "net_salary": flt(slip.net_pay),
             "basic_salary": basic_salary,
-            "extra_hours": extra_hours,
+            "extra_hours": flt(slip.overtime_hours),
             "extra_income": extra_income,
             "deductions": other_deductions,
             "social_security_deductions": social_security,
@@ -116,6 +112,7 @@ def get_salary_slips(filters):
             salary_slip.payment_days,
             salary_slip.payroll_frequency,
             salary_slip.bank_account_no,
+            salary_slip.overtime_hours,
             employee.iban,
             employee.employee_id_type,
             employee.civil_id,
@@ -128,26 +125,6 @@ def get_salary_slips(filters):
         .orderby(employee.employee_name)
     )
     return query.run(as_dict=True)
-
-
-def get_overtime_rows(salary_slips, filters):
-    """Submitted Attendance rows (with overtime_hours) for every employee in
-    this run, within the report's own date range — matched to each slip's own
-    start_date/end_date in get_data() above, since one employee can have
-    multiple slips with different periods."""
-    employees = list({s.employee for s in salary_slips})
-    if not employees:
-        return []
-
-    attendance = frappe.qb.DocType("Attendance")
-    return (
-        frappe.qb.from_(attendance)
-        .select(attendance.employee, attendance.attendance_date, attendance.overtime_hours)
-        .where(attendance.employee.isin(employees))
-        .where(attendance.docstatus == 1)
-        .where(attendance.attendance_date >= filters.get("from_date"))
-        .where(attendance.attendance_date <= filters.get("to_date"))
-    ).run(as_dict=True)
 
 
 def get_component_map(salary_slips, parentfield):

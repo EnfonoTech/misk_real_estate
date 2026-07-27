@@ -47,6 +47,7 @@ function _get_employees(frm) {
 				attendance_date: frm.doc.attendance_date,
 				employee_category: frm.doc.employee_category,
 				project: frm.doc.project,
+				shift: frm.doc.shift,
 			},
 			freeze: true,
 			callback(r) {

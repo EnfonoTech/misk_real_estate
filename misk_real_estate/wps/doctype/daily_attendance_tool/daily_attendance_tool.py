@@ -7,6 +7,7 @@ from frappe.utils import flt
 
 from misk_real_estate.wps.attendance_hooks import (
     get_employees_assigned_to_project,
+    get_employees_assigned_to_shift,
     get_shift_assignment,
     get_shift_hours,
 )
@@ -92,7 +93,7 @@ class DailyAttendanceTool(Document):
 
 
 @frappe.whitelist()
-def get_employees(company, attendance_date, employee_category=None, project=None):
+def get_employees(company, attendance_date, employee_category=None, project=None, shift=None):
     filters = {"status": "Active", "company": company}
     if employee_category:
         filters["employee_category"] = employee_category
@@ -103,6 +104,10 @@ def get_employees(company, attendance_date, employee_category=None, project=None
 
     if project:
         assigned = set(get_employees_assigned_to_project(project, attendance_date))
+        employees = [e for e in employees if e.name in assigned]
+
+    if shift:
+        assigned = set(get_employees_assigned_to_shift(shift, attendance_date))
         employees = [e for e in employees if e.name in assigned]
 
     rows = []

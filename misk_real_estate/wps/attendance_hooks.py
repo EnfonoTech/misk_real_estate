@@ -1,6 +1,7 @@
 # apps/misk_real_estate/misk_real_estate/wps/attendance_hooks.py
 
 import frappe
+from frappe.query_builder.functions import Sum
 
 
 def validate(doc, method=None):
@@ -57,6 +58,46 @@ def get_employees_assigned_to_project(project, date):
         .where((assignment.end_date.isnull()) | (assignment.end_date >= date))
     ).run(as_dict=True)
     return [row.employee for row in rows]
+
+
+def set_salary_slip_overtime_hours(doc, method=None):
+    """Salary Slip validate hook — keeps overtime_hours in sync with submitted
+    Attendance over the slip's own pay period, so it always reflects the
+    period actually being paid rather than a value entered once and left
+    stale."""
+    doc.overtime_hours = get_total_overtime_hours(doc.employee, doc.start_date, doc.end_date)
+
+
+def get_employees_assigned_to_shift(shift, date):
+    """All employees whose active Shift Assignment on `date` is to `shift`."""
+    assignment = frappe.qb.DocType("Shift Assignment")
+    rows = (
+        frappe.qb.from_(assignment)
+        .select(assignment.employee)
+        .where(assignment.shift_type == shift)
+        .where(assignment.docstatus == 1)
+        .where(assignment.status == "Active")
+        .where(assignment.start_date <= date)
+        .where((assignment.end_date.isnull()) | (assignment.end_date >= date))
+    ).run(as_dict=True)
+    return [row.employee for row in rows]
+
+
+def get_total_overtime_hours(employee, start_date, end_date):
+    """Sum of submitted Attendance.overtime_hours for `employee` between
+    `start_date` and `end_date` (inclusive) — shared by Salary Slip's own
+    overtime_hours field and the WPS Report's Extra hours column, so both
+    always agree."""
+    attendance = frappe.qb.DocType("Attendance")
+    result = (
+        frappe.qb.from_(attendance)
+        .select(Sum(attendance.overtime_hours).as_("total"))
+        .where(attendance.employee == employee)
+        .where(attendance.docstatus == 1)
+        .where(attendance.attendance_date >= start_date)
+        .where(attendance.attendance_date <= end_date)
+    ).run(as_dict=True)
+    return result[0].total or 0 if result else 0
 
 
 @frappe.whitelist()

@@ -23,24 +23,11 @@
    "fieldtype": "Date",
    "label": "To Date",
    "reqd": 1
-  },
-  {
-   "fieldname": "basic_salary_component",
-   "fieldtype": "Link",
-   "label": "Basic Salary Component",
-   "options": "Salary Component",
-   "default": "Basic"
-  },
-  {
-   "fieldname": "social_security_component",
-   "fieldtype": "Link",
-   "label": "Social Security Component",
-   "options": "Salary Component"
   }
  ],
  "is_standard": "Yes",
  "json": "",
- "modified": "2026-07-25 00:00:00",
+ "modified": "2026-07-25 18:00:00",
  "module": "WPS",
  "name": "WPS Report",
  "owner": "Administrator",
