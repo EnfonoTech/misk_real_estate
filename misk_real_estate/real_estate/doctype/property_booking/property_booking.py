@@ -104,11 +104,6 @@ class PropertyBooking(Document):
         (create_pdc_entries, auto-invoicing, cheque clearing, etc.) writes via
         frappe.db.set_value directly, bypassing doc.save(), so it is
         unaffected by this check."""
-        # TEMPORARILY DISABLED 2026-07-28 for a one-time PDC Entry back-link
-        # import via Excel on production. RE-ENABLE by deleting this early
-        # return once that import is done — do not leave this in place.
-        return
-
         before = self.get_doc_before_save()
         if not before:
             return
