@@ -67,6 +67,27 @@ class PDCEntry(Document):
     def on_update(self):
         self._sync_booking_schedule_status()
 
+    def on_trash(self):
+        """Runs before Frappe's own link-integrity check (delete_doc.py calls
+        on_trash, then check_if_doc_is_linked) — clearing every other
+        document's reference to this cheque here means the standard Desk
+        delete (trash icon, list view multi-select, frappe.delete_doc(),
+        all of it) just works, with nothing left over to block it."""
+        if self.gl_posted:
+            frappe.throw(
+                _("{0} has already posted GL (Cleared, with a Payment Entry) — deleting it "
+                  "would leave that accounting entry with nothing behind it. Reverse/cancel "
+                  "the Payment Entry first if you really need to remove this cheque.").format(self.name)
+            )
+
+        for row_name in frappe.get_all("PDC Schedule", filters={"pdc_entry": self.name}, pluck="name"):
+            frappe.db.set_value("PDC Schedule", row_name, "pdc_entry", "")
+
+        frappe.db.delete("PDC Batch Item", {"pdc_entry": self.name})
+
+        for name in frappe.get_all("PDC Entry", filters={"substituted_by": self.name}, pluck="name"):
+            frappe.db.set_value("PDC Entry", name, "substituted_by", "")
+
     def _sync_booking_schedule_status(self):
         """Mirror this cheque's status onto every PDC Schedule row that points to it.
         One cheque may back several installment rows (across bookings), so sync them
