@@ -47,6 +47,48 @@ frappe.listview_settings["Property Booking"] = {
 				}
 			);
 		});
+
+		listview.page.add_actions_menu_item(__("Create Missing Invoices"), () => {
+			const items = listview.get_checked_items();
+			if (!items.length) {
+				frappe.msgprint(__("Select at least one Property Booking first."));
+				return;
+			}
+			const names = items.map((i) => i.name);
+			frappe.confirm(
+				__("Create missing (due) Sales Invoices for {0} selected Property Booking(s)?", [names.length]),
+				() => {
+					frappe.call({
+						method: M + ".bulk_create_missing_invoices",
+						args: { names },
+						freeze: true,
+						freeze_message: __("Creating invoices…"),
+						callback(r) {
+							if (r.exc || !r.message) return;
+							const ok = r.message.ok || [];
+							const failed = r.message.failed || [];
+							const total_created = ok.reduce((sum, o) => sum + o.created, 0);
+							if (ok.length) {
+								frappe.show_alert({
+									message: __("{0} Sales Invoice(s) created (Draft) across {1} booking(s).", [total_created, ok.length]),
+									indicator: "green",
+								});
+							}
+							if (failed.length) {
+								frappe.msgprint({
+									title: __("{0} booking(s) could not be processed", [failed.length]),
+									indicator: "orange",
+									message: failed.map(
+										(f) => `<b>${frappe.utils.escape_html(f.name)}</b>: ${frappe.utils.escape_html(f.error)}`
+									).join("<br>"),
+								});
+							}
+							listview.refresh();
+						},
+					});
+				}
+			);
+		});
 	},
 
 	get_indicator(doc) {

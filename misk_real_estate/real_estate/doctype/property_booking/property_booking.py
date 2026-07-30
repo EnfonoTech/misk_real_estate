@@ -1447,6 +1447,33 @@ def create_missing_invoices(booking_name):
 
 
 @frappe.whitelist()
+def bulk_create_missing_invoices(names):
+    """List-view bulk action: create missing (due, not-yet-invoiced) Sales
+    Invoices for every selected, submitted Property Booking. Each booking is
+    isolated behind a savepoint so one bad booking doesn't abort the whole
+    batch. Returns {"ok": [{"name", "created"}], "failed": [{"name", "error"}]}."""
+    frappe.has_permission("Property Booking", "write", throw=True)
+    names = frappe.parse_json(names) if isinstance(names, str) else names
+
+    ok, failed = [], []
+    for name in names or []:
+        savepoint = f"bulk_inv_{len(ok) + len(failed)}"
+        frappe.db.savepoint(savepoint)
+        try:
+            booking = frappe.get_doc("Property Booking", name)
+            if booking.docstatus != 1:
+                frappe.throw(_("Booking must be submitted before creating invoices."))
+            created = _create_invoices_for_due_rows(booking)
+            ok.append({"name": name, "created": len(created)})
+        except Exception as e:
+            frappe.db.rollback(save_point=savepoint)
+            failed.append({"name": name, "error": str(e)})
+
+    frappe.db.commit()
+    return {"ok": ok, "failed": failed}
+
+
+@frappe.whitelist()
 def mark_unit_sold(booking_name):
     """
     Mark unit as Sold once full payment is received.

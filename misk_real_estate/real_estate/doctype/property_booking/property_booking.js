@@ -185,6 +185,29 @@ frappe.ui.form.on("Property Booking", {
 			}, __("Actions"));
 		}
 
+		// Create PDC Entries — manual trigger, mirrors the list-view bulk action
+		// ("PDC Entries" under View does this too, on demand, then navigates —
+		// this one is explicit/discoverable under Actions, matching the list view).
+		const missing_pdc = (frm.doc.pdc_schedule || []).some(r => r.is_pdc && !r.pdc_entry && r.status !== "Cancelled");
+		if (missing_pdc) {
+			frm.add_custom_button(__("Create PDC Entries"), () => {
+				frappe.confirm(
+					__("Create PDC Entries for all PDC schedule rows that don't have one yet?"),
+					() => {
+						frappe.call({
+							method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.create_pdc_entries",
+							args: { booking_name: frm.doc.name },
+							freeze: true,
+							freeze_message: __("Creating PDC Entries..."),
+							callback(r) {
+								if (!r.exc) frm.reload_doc();
+							},
+						});
+					}
+				);
+			}, __("Actions"));
+		}
+
 		// Create Missing Invoices — manual fallback when auto-creation failed or user wants draft review
 		const missing_si = (frm.doc.pdc_schedule || []).some(r => !r.sales_invoice && r.status !== "Cancelled");
 		if (missing_si) {
