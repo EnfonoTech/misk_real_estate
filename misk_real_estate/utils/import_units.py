@@ -11,6 +11,8 @@ Usage:
 import frappe
 from frappe.utils import flt
 
+from misk_real_estate.utils.company import resolve_unit_company
+
 
 # ── Column mappings per sheet ─────────────────────────────────────────────────
 
@@ -116,13 +118,18 @@ def _upsert_item(item_code, item_name, building, unit_type, floor, area, min_dp)
 
     if frappe.db.exists("Item", item_code):
         # Update custom fields only
-        frappe.db.set_value("Item", item_code, {
+        updates = {
             "is_unit": 1,
             "unit_type": unit_type or "",
             "floor_number": floor or "",
             "unit_area_sqft": flt(area),
             "min_down_payment_pct": flt(min_dp) * 100 if flt(min_dp) <= 1 else flt(min_dp),
-        })
+        }
+        # db.set_value bypasses Item.validate() (the item_hooks default), so
+        # resolve it here too — never overrides a company already set.
+        if not frappe.db.get_value("Item", item_code, "company"):
+            updates["company"] = resolve_unit_company(building)
+        frappe.db.set_value("Item", item_code, updates)
         return item_code
 
     item = frappe.get_doc({
@@ -140,7 +147,7 @@ def _upsert_item(item_code, item_name, building, unit_type, floor, area, min_dp)
         "unit_area_sqft": flt(area),
         "min_down_payment_pct": flt(min_dp) * 100 if flt(min_dp) <= 1 else flt(min_dp),
     })
-    item.insert(ignore_permissions=True)
+    item.insert(ignore_permissions=True)  # Item.validate (item_hooks) fills `company`
     return item_code
 
 

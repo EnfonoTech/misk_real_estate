@@ -44,6 +44,11 @@ doc_events = {
     "Item Group": {
         "validate": "misk_real_estate.real_estate.custom.item_group_hooks.validate",
     },
+    # A unit's own company defaults from its Building (Item Group), else
+    # Misk Real Estate Settings' default company, when left blank.
+    "Item": {
+        "validate": "misk_real_estate.real_estate.custom.item_hooks.validate",
+    },
     # Default an Attendance row's project from the employee's active Employee
     # Project Assignment when left blank (a manually-chosen project is never
     # overridden).

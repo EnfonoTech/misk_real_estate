@@ -19,6 +19,18 @@ def get_item_company(item_code):
     return frappe.db.get_value("Item Group", item.item_group, "company")
 
 
+def resolve_unit_company(item_group):
+    """Default company to store on a new/updated unit under `item_group`:
+    the Building's own company if set, else Misk Real Estate Settings'
+    default. Used to actually populate Item.company (not just resolve it
+    live) — see item_hooks.validate and utils/import_units.py."""
+    if item_group:
+        ig_company = frappe.db.get_value("Item Group", item_group, "company")
+        if ig_company:
+            return ig_company
+    return frappe.db.get_single_value("Misk Real Estate Settings", "default_company")
+
+
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
 def get_units_for_company(doctype, txt, searchfield, start, page_len, filters):
