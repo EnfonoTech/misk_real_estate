@@ -14,7 +14,11 @@ def run():
     Creates Sales Invoices for all PDC Schedule rows whose cheque_date <= today.
     Each invoice is raised on its own cheque date — no fixed day-of-month needed.
     Callable manually: bench --site <site> execute misk_real_estate.pdc_management.cron.auto_invoice.run
+    Skips entirely if Misk Real Estate Settings.auto_create_invoices is off —
+    the manual "Create Missing Invoices" action still works either way.
     """
+    if not frappe.db.get_single_value("Misk Real Estate Settings", "auto_create_invoices"):
+        return
     _generate_due_invoices()
 
 

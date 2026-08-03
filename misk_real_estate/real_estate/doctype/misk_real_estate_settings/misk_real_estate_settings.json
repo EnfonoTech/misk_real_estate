@@ -10,6 +10,7 @@
   "section_items",
   "oa_fee_item",
   "section_invoicing",
+  "auto_create_invoices",
   "auto_submit_invoices",
   "section_company",
   "default_company"
@@ -50,6 +51,12 @@
    "fieldname": "section_invoicing",
    "fieldtype": "Section Break",
    "label": "Invoicing"
+  },
+  {
+   "fieldname": "auto_create_invoices",
+   "fieldtype": "Check",
+   "label": "Automatically Create Invoices for Due PDCs",
+   "default": "1"
   },
   {
    "fieldname": "auto_submit_invoices",

@@ -187,11 +187,13 @@ class PropertyBooking(Document):
     def on_submit(self):
         for row in self.property_unit:
             self._set_unit_status("Booked", unit=row.unit)
-        self._create_advance_invoices()
-        if self.invoice_generation == "All at Once":
-            self._generate_all_invoices_now()
-        else:
-            self._create_due_installment_invoices()
+        settings = frappe.get_cached_doc("Misk Real Estate Settings")
+        if bool(getattr(settings, "auto_create_invoices", 1)):
+            self._create_advance_invoices()
+            if self.invoice_generation == "All at Once":
+                self._generate_all_invoices_now()
+            else:
+                self._create_due_installment_invoices()
         if self.quotation:
             self._update_quotation_status()
         update_booking_payment_status(self.name)

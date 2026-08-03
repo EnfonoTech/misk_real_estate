@@ -2,3 +2,4 @@
 misk_real_estate.patches.convert_reservation_validity_days
 
 [post_model_sync]
+misk_real_estate.patches.backfill_auto_create_invoices_default
