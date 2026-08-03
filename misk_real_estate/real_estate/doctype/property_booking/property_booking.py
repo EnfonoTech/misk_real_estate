@@ -982,6 +982,37 @@ def on_sales_invoice_change(doc, method=None):
         update_booking_payment_status(booking)
 
 
+def on_sales_invoice_trash(doc, method=None):
+    """doc_event hook (on_trash — runs before Frappe's own link-integrity
+    check, same as PDC Entry's on_trash) — clear every reference to this
+    invoice first: PDC Schedule.sales_invoice (Property Booking, and Sales
+    Agreement, which shares the same child doctype) and PDC Allocation.
+    sales_invoice (PDC Entry). Lets the standard Desk delete work without a
+    separate action, mirroring PDC Entry's fix.
+
+    Note: this alone isn't enough to delete a *submitted* invoice — Frappe
+    also runs the same link check during cancel (see on_sales_invoice_cancel
+    below), and once cancelled, ERPNext's own Payment Ledger Entry can still
+    block a plain delete via a dynamic link. That one is core accounting
+    history, not something we own — the real fix is enabling Accounts
+    Settings' "Delete Linked Ledger Entries" (AccountsController.on_trash
+    then removes it itself before the check runs); frappe.delete_doc(...,
+    force=True) is only a fallback if that setting is off."""
+    frappe.db.set_value("PDC Schedule", {"sales_invoice": doc.name}, "sales_invoice", "")
+    frappe.db.set_value("PDC Allocation", {"sales_invoice": doc.name}, "sales_invoice", "")
+
+
+def on_sales_invoice_cancel(doc, method=None):
+    """doc_event hook (on_cancel) — cancelling a submitted Sales Invoice runs
+    its own copy of the same link-integrity check (separate from, and
+    before, delete's own check on_trash protects against). Our
+    PDC Schedule.sales_invoice reference shouldn't block a routine cancel —
+    that's a normal, common ERPNext operation — so skip that check for this
+    cancel the same way backend automation already bypasses doc.save()
+    elsewhere in this app."""
+    doc.flags.ignore_links = True
+
+
 def on_payment_entry_change(doc, method=None):
     """doc_event hook — recompute status for every booking touched by this PE,
     whether linked directly (property_booking) or via the invoices it pays."""

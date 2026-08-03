@@ -32,8 +32,12 @@ doc_events = {
     # Keep Property Booking advance-payment status in sync with its invoices/payments
     "Sales Invoice": {
         "on_submit": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_sales_invoice_change",
-        "on_cancel": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_sales_invoice_change",
+        "on_cancel": [
+            "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_sales_invoice_change",
+            "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_sales_invoice_cancel",
+        ],
         "on_update_after_submit": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_sales_invoice_change",
+        "on_trash": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_sales_invoice_trash",
     },
     "Payment Entry": {
         "on_submit": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_payment_entry_change",
