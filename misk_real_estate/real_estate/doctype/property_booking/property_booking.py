@@ -1101,7 +1101,6 @@ def _ensure_advance_invoice(booking, purpose, throw_if_zero=True, submit=False):
         "taxes": tax_rows,
         "items": items,
         "custom_property_booking": booking.name,
-        "custom_property_unit": rows_owing[0].unit if len(rows_owing) == 1 else "",
         "custom_payment_purpose": purpose,
     })
     si.flags.ignore_permissions = True
@@ -1343,7 +1342,7 @@ def generate_invoices_for_booking(booking_name):
         type_label = row.installment_type or "Installment"
         description = f"{type_label} — Cheque {row.cheque_no or 'TBC'} — Due {formatdate(row.cheque_date)}"
         taxes_and_charges = booking.taxes_and_charges or ""
-        items, tax_rows, custom_property_unit = build_pdc_row_invoice_items(
+        items, tax_rows = build_pdc_row_invoice_items(
             row, taxes_and_charges, oa_item, company, description, booking_name
         )
 
@@ -1364,7 +1363,6 @@ def generate_invoices_for_booking(booking_name):
             "items": items,
             "custom_pdc_schedule_row": row.name,
             "custom_property_booking": booking_name,
-            "custom_property_unit": custom_property_unit,
             "custom_payment_purpose": row.installment_type or "Installment",
         })
         si.flags.ignore_permissions = True
@@ -1413,7 +1411,7 @@ def _create_invoices_for_due_rows(booking, upto_date=None, submit=False):
         due_date = posting_date
         description = (f"{row.installment_type or 'Installment'} — "
                        f"Cheque {row.cheque_no or 'TBC'} — Due {formatdate(row.cheque_date)}")
-        items, tax_rows, custom_property_unit = build_pdc_row_invoice_items(
+        items, tax_rows = build_pdc_row_invoice_items(
             row, taxes_and_charges, oa_item, company, description, booking.name
         )
 
@@ -1431,7 +1429,6 @@ def _create_invoices_for_due_rows(booking, upto_date=None, submit=False):
             "items": items,
             "custom_pdc_schedule_row": row.name,
             "custom_property_booking": booking.name,
-            "custom_property_unit": custom_property_unit,
             "custom_payment_purpose": row.installment_type or "Installment",
         })
         si.flags.ignore_permissions = True

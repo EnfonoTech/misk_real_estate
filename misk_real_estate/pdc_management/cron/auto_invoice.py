@@ -105,7 +105,7 @@ def _create_invoice(row, submit=False, payment_purpose=None):
     oa_item = getattr(settings, "oa_fee_item", None)
     taxes_and_charges = row.get("taxes_and_charges") or ""
 
-    items, tax_rows, custom_property_unit = build_pdc_row_invoice_items(
+    items, tax_rows = build_pdc_row_invoice_items(
         row, taxes_and_charges, oa_item, company, _get_description(row), row.booking
     )
 
@@ -129,7 +129,6 @@ def _create_invoice(row, submit=False, payment_purpose=None):
         "items": items,
         "custom_pdc_schedule_row": row.schedule_row,
         "custom_property_booking": row.booking,
-        "custom_property_unit": custom_property_unit,
         "custom_payment_purpose": payment_purpose or row.get("installment_type") or "Installment",
     })
     si.flags.ignore_permissions = True
@@ -140,17 +139,18 @@ def _create_invoice(row, submit=False, payment_purpose=None):
 
 
 def build_pdc_row_invoice_items(row, taxes_and_charges, oa_item, company, base_description, booking_name):
-    """Build Sales Invoice items (+ tax rows, + custom_property_unit) for one
-    PDC Schedule row. A single-unit row (row.unit set, no unit_breakdown)
-    produces today's exact single line item, using base_description as-is. A
-    combined multi-unit row (row.unit blank, unit_breakdown populated — see
-    Property Booking's _combined_pdc_row) produces one line per contributing
-    unit, each tagged with its unit in the description — mirrors the
-    multi-line invoice _ensure_advance_invoice already builds for Booking
-    Amount / Down Payment in property_booking.py. Each line's project/cost
-    center resolves via get_booking_dimensions (unit-level override, else the
-    booking's own default).
-    Returns (items, tax_rows, custom_property_unit)."""
+    """Build Sales Invoice items (+ tax rows) for one PDC Schedule row. A
+    single-unit row (row.unit set, no unit_breakdown) produces today's exact
+    single line item, using base_description as-is. A combined multi-unit
+    row (row.unit blank, unit_breakdown populated — see Property Booking's
+    _combined_pdc_row) produces one line per contributing unit, each tagged
+    with its unit in the description — mirrors the multi-line invoice
+    _ensure_advance_invoice already builds for Booking Amount / Down Payment
+    in property_booking.py. Each line's project/cost center resolves via
+    get_booking_dimensions (unit-level override, else the booking's own
+    default). Which unit an invoice is for is read off Sales Invoice Item's
+    own item_code — no separate header-level field needed.
+    Returns (items, tax_rows)."""
     from misk_real_estate.real_estate.doctype.property_booking.property_booking import get_booking_dimensions
 
     is_oa = row.get("installment_type") == "Owners Association Fee"
@@ -184,8 +184,7 @@ def build_pdc_row_invoice_items(row, taxes_and_charges, oa_item, company, base_d
             "project": project, "cost_center": cost_center,
         })
 
-    custom_property_unit = contributions[0].get("unit") if not multi else ""
-    return items, tax_rows, custom_property_unit
+    return items, tax_rows
 
 
 def _build_tax_rows_from_item_template(item_code):
