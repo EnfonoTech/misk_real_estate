@@ -31,6 +31,27 @@ def resolve_unit_company(item_group):
     return frappe.db.get_single_value("Misk Real Estate Settings", "default_company")
 
 
+def get_income_account(purpose, company):
+    """Company-specific income account for a Sales Invoice line, from Misk
+    Real Estate Settings' Income Account Mapping table — resolved from the
+    LOCAL purpose the calling code already knows about the specific line
+    it's building (Booking Amount/Down Payment/Installment), never by
+    reading back a saved invoice's own header field, so it stays correct
+    per line even if an invoice ever combines lines of different purposes.
+    Returns None (never "") when unmapped — Owners Association Fee (handled
+    via its own Item Default instead, not this table), blank purpose, or no
+    row configured for this company/purpose — so callers can omit the
+    income_account key entirely and let ERPNext's own item → item_group →
+    Company.default_income_account fallback resolve it."""
+    if not purpose or not company:
+        return None
+    return frappe.db.get_value(
+        "Income Account Mapping",
+        {"parent": "Misk Real Estate Settings", "company": company, "payment_purpose": purpose},
+        "income_account",
+    ) or None
+
+
 @frappe.whitelist()
 @frappe.validate_and_sanitize_search_inputs
 def get_units_for_company(doctype, txt, searchfield, start, page_len, filters):

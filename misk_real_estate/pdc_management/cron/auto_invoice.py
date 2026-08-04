@@ -153,11 +153,22 @@ def build_pdc_row_invoice_items(row, taxes_and_charges, oa_item, company, base_d
     in property_booking.py. Each line's project/cost center resolves via
     get_booking_dimensions (unit-level override, else the booking's own
     default). Which unit an invoice is for is read off Sales Invoice Item's
-    own item_code — no separate header-level field needed.
+    own item_code — no separate header-level field needed. Non-OA lines get
+    an explicit income_account from Misk Real Estate Settings' Income
+    Account Mapping (company + this row's own installment_type) when one is
+    configured; OA lines are left to resolve via the OA-FEE Item's own Item
+    Default instead. Either way, the fallback chain is only skipped when we
+    have a real value — never set the key to a blank/None value.
     Returns (items, tax_rows)."""
     from misk_real_estate.real_estate.doctype.property_booking.property_booking import get_booking_dimensions
+    from misk_real_estate.utils.company import get_income_account
 
     is_oa = row.get("installment_type") == "Owners Association Fee"
+    # OA lines keep income_account unset — that's resolved via the OA-FEE
+    # Item's own Item Default, not this mapping. Everything else (purely
+    # "Installment" at this call site) is looked up once, from the PDC
+    # Schedule row's own type, not any saved invoice header field.
+    income_account = None if is_oa else get_income_account(row.get("installment_type") or "Installment", company)
     raw_breakdown = row.get("unit_breakdown")
     if isinstance(raw_breakdown, str) and raw_breakdown:
         contributions = frappe.parse_json(raw_breakdown)
@@ -183,10 +194,13 @@ def build_pdc_row_invoice_items(row, taxes_and_charges, oa_item, company, base_d
                 tax_rows = _build_tax_rows_from_item_template(item_code)
             rate = flt(c.get("net_amount") or c.get("amount")) if tax_rows else flt(c.get("amount"))
         project, cost_center = get_booking_dimensions(booking_name, c.get("unit"))
-        items.append({
+        item = {
             "item_code": item_code, "qty": 1, "rate": rate, "description": description,
             "project": project, "cost_center": cost_center,
-        })
+        }
+        if income_account:
+            item["income_account"] = income_account
+        items.append(item)
 
     return items, tax_rows
 

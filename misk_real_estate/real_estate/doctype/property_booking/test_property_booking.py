@@ -233,13 +233,12 @@ class TestPropertyBooking(FrappeTestCase):
 			installment_type="Installment", unit=self.unit_a,
 			net_amount=500, tax_amount=0, amount=500, unit_breakdown=None,
 		)
-		items, _tax_rows, custom_unit = build_pdc_row_invoice_items(
+		items, _tax_rows = build_pdc_row_invoice_items(
 			single_row, "", None, self.company, "desc", "NONEXISTENT-BOOKING"
 		)
 		self.assertEqual(len(items), 1)
 		self.assertEqual(items[0]["item_code"], self.unit_a)
 		self.assertEqual(items[0]["rate"], 500)
-		self.assertEqual(custom_unit, self.unit_a)
 
 		combined_row = frappe._dict(
 			installment_type="Installment", unit="", net_amount=1500, tax_amount=0, amount=1500,
@@ -248,12 +247,11 @@ class TestPropertyBooking(FrappeTestCase):
 				{"unit": self.unit_b, "net_amount": 1000, "tax_amount": 0, "amount": 1000},
 			],
 		)
-		items, _tax_rows, custom_unit = build_pdc_row_invoice_items(
+		items, _tax_rows = build_pdc_row_invoice_items(
 			combined_row, "", None, self.company, "desc", "NONEXISTENT-BOOKING"
 		)
 		self.assertEqual({i["item_code"] for i in items}, {self.unit_a, self.unit_b})
 		self.assertEqual(sum(flt(i["rate"]) for i in items), 1500)
-		self.assertEqual(custom_unit, "")
 
 	def test_dimensions_propagate_to_advance_invoice(self):
 		"""Booking-level Project/Cost Center default onto each Sales Invoice
@@ -306,7 +304,7 @@ class TestPropertyBooking(FrappeTestCase):
 
 		from misk_real_estate.pdc_management.cron.auto_invoice import build_pdc_row_invoice_items
 		combined_row = next(r for r in booking.pdc_schedule if r.installment_type == "Installment")
-		items, _tax_rows, _custom_unit = build_pdc_row_invoice_items(
+		items, _tax_rows = build_pdc_row_invoice_items(
 			combined_row, "", None, self.company, "desc", booking.name
 		)
 		dims = {i["item_code"]: (i["project"], i["cost_center"]) for i in items}

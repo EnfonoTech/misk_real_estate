@@ -1062,6 +1062,7 @@ def _ensure_advance_invoice(booking, purpose, throw_if_zero=True, submit=False):
     from misk_real_estate.pdc_management.cron.auto_invoice import (
         _invoice_item_rate, _build_tax_rows_from_item_template,
     )
+    from misk_real_estate.utils.company import get_income_account
 
     company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
     if purpose == "Booking Amount":
@@ -1069,6 +1070,9 @@ def _ensure_advance_invoice(booking, purpose, throw_if_zero=True, submit=False):
     else:
         invoice_date = booking.down_payment_date or booking.booking_date or today()
     taxes_and_charges = booking.taxes_and_charges or ""
+    # purpose here is this function's own parameter — a local value, never a
+    # saved invoice's own custom_payment_purpose read back.
+    income_account = get_income_account(purpose, company)
 
     items = []
     tax_rows = []
@@ -1081,14 +1085,17 @@ def _ensure_advance_invoice(booking, purpose, throw_if_zero=True, submit=False):
             if idx == 0:
                 tax_rows = _build_tax_rows_from_item_template(row.unit)
             rate = net if tax_rows else total
-        items.append({
+        item = {
             "item_code": row.unit,
             "qty": 1,
             "rate": rate,
             "description": f"{purpose} — {row.unit}",
             "project": row.project or booking.project,
             "cost_center": row.cost_center or booking.cost_center,
-        })
+        }
+        if income_account:
+            item["income_account"] = income_account
+        items.append(item)
 
     si = frappe.get_doc({
         "doctype": "Sales Invoice",

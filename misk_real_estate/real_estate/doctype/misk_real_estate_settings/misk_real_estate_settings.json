@@ -12,6 +12,8 @@
   "section_invoicing",
   "auto_create_invoices",
   "auto_submit_invoices",
+  "section_income_accounts",
+  "income_account_mapping",
   "section_company",
   "default_company"
  ],
@@ -63,6 +65,16 @@
    "fieldtype": "Check",
    "label": "Auto-submit Automatically Generated Invoices",
    "default": "0"
+  },
+  {
+   "fieldname": "section_income_accounts",
+   "fieldtype": "Section Break",
+   "label": "Income Account Mapping"
+  },
+  {
+   "fieldname": "income_account_mapping",
+   "fieldtype": "Table",
+   "options": "Income Account Mapping"
   },
   {
    "fieldname": "section_company",
