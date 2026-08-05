@@ -1453,22 +1453,44 @@ def _create_invoices_for_due_rows(booking, upto_date=None, submit=False):
     return created
 
 
+def _create_all_missing_invoices(booking):
+    """Shared by create_missing_invoices and bulk_create_missing_invoices:
+    the combined Booking Amount / Down Payment advance invoices (normally
+    created on submit, but missing if nothing was owed at that time, or the
+    invoice was since cancelled), plus any due PDC Schedule row
+    (Installment/OA Fee) that doesn't have one yet. Rows due in the future
+    are left for the cron to pick up on their own due date."""
+    created = []
+    for purpose in ("Booking Amount", "Down Payment"):
+        # _ensure_advance_invoice returns an already-existing invoice too —
+        # check first so "created" only ever lists genuinely new ones.
+        already = frappe.db.exists("Sales Invoice", {
+            "custom_property_booking": booking.name,
+            "custom_payment_purpose": purpose,
+            "docstatus": ("<", 2),
+        })
+        if already:
+            continue
+        si_name = _ensure_advance_invoice(booking, purpose, throw_if_zero=False)
+        if si_name:
+            created.append(si_name)
+    created += _create_invoices_for_due_rows(booking)
+    return created
+
+
 @frappe.whitelist()
 def create_missing_invoices(booking_name):
     """
-    Manually create Sales Invoices (as Draft) for PDC Schedule rows that
-    don't yet have one AND are already due as of today. Allows recovery when
-    auto-creation failed, or lets user create invoices manually before the
-    cron runs. Rows due in the future are left for the cron to pick up on
-    their own due date. Invoices are saved as Draft — user must submit them
-    after review.
+    Manually create Sales Invoices (as Draft) for anything still owed and
+    not yet invoiced — see _create_all_missing_invoices. Invoices are saved
+    as Draft — user must submit them after review.
     """
     frappe.has_permission("Property Booking", "write", throw=True)
     booking = frappe.get_doc("Property Booking", booking_name)
     if booking.docstatus != 1:
         frappe.throw(_("Booking must be submitted."))
 
-    created = _create_invoices_for_due_rows(booking)
+    created = _create_all_missing_invoices(booking)
 
     frappe.db.commit()
     if not created:
@@ -1500,7 +1522,7 @@ def bulk_create_missing_invoices(names):
             booking = frappe.get_doc("Property Booking", name)
             if booking.docstatus != 1:
                 frappe.throw(_("Booking must be submitted before creating invoices."))
-            created = _create_invoices_for_due_rows(booking)
+            created = _create_all_missing_invoices(booking)
             ok.append({"name": name, "created": len(created)})
         except Exception as e:
             frappe.db.rollback(save_point=savepoint)
