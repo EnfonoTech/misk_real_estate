@@ -46,8 +46,11 @@
   "table_total",
   "expected_table_total",
   "table_difference",
-  "section_break_pdc",
+  "pdc_schedule_section",
   "cheque_prefix",
+  "column_break_abwe",
+  "first_installment_date",
+  "section_break_pdc",
   "pdc_schedule",
   "amended_from"
  ],
@@ -281,8 +284,13 @@
   },
   {
    "fieldname": "section_break_pdc",
-   "fieldtype": "Section Break",
-   "label": "PDC Schedule"
+   "fieldtype": "Section Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "first_installment_date",
+   "fieldtype": "Date",
+   "label": "First Installment Date"
   },
   {
    "allow_on_submit": 1,
@@ -321,6 +329,16 @@
    "fieldtype": "Link",
    "label": "Payment Plan",
    "options": "Payment Plan"
+  },
+  {
+   "fieldname": "pdc_schedule_section",
+   "fieldtype": "Section Break",
+   "hide_border": 1,
+   "label": "PDC Schedule"
+  },
+  {
+   "fieldname": "column_break_abwe",
+   "fieldtype": "Column Break"
   }
  ],
  "is_submittable": 1,
@@ -343,7 +361,7 @@
    "link_fieldname": "property_booking"
   }
  ],
- "modified": "2026-07-07 21:52:37.704586",
+ "modified": "2026-08-05 09:24:09.400086",
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Property Booking",

@@ -38,6 +38,47 @@ frappe.ui.form.on("Property Booking", {
 		}));
 	},
 
+	// First Installment Date — re-date every Installment row one month apart
+	// starting from this date, e.g. setting 2026-03-01 fills 2026-03-01,
+	// 2026-04-01, 2026-05-01, ... in row order. Owners Association Fee rows
+	// move too — same convention as generate_pdc_schedule() itself (OA is
+	// always due alongside the last installment) — so they're re-dated to
+	// match the new last installment date, keeping that invariant intact.
+	// Same non-destructive-within-session convention as cheque_prefix below:
+	// a later date tweak leaves rows the user hand-edited since then alone,
+	// but on the FIRST use per session (no baseline yet) applies to every row.
+	first_installment_date(frm) {
+		const base = frm.doc.first_installment_date;
+		if (!base) return;
+		const last = frm._last_generated_installment_dates;
+		const generated = {};
+		let last_installment_value = null;
+
+		(frm.doc.pdc_schedule || []).filter(r => r.installment_type === "Installment").forEach((r, i) => {
+			const value = frappe.datetime.add_months(base, i);
+			generated[r.name] = value;
+			last_installment_value = value;
+
+			const cur = r.cheque_date;
+			if (!last || !cur || cur === last[r.name]) {
+				frappe.model.set_value(r.doctype, r.name, "cheque_date", value);
+			}
+		});
+
+		if (last_installment_value) {
+			(frm.doc.pdc_schedule || []).filter(r => r.installment_type === "Owners Association Fee").forEach(r => {
+				generated[r.name] = last_installment_value;
+				const cur = r.cheque_date;
+				if (!last || !cur || cur === last[r.name]) {
+					frappe.model.set_value(r.doctype, r.name, "cheque_date", last_installment_value);
+				}
+			});
+		}
+
+		frm._last_generated_installment_dates = generated;
+		frm.refresh_field("pdc_schedule");
+	},
+
 	// Cheque No Prefix — auto-number every PDC row starting from this value, e.g.
 	// entering "100" fills 100, 101, 102, ... (a trailing non-numeric prefix like
 	// "CHQ-100" is kept fixed while "100" increments, zero-padding preserved).
@@ -208,12 +249,16 @@ frappe.ui.form.on("Property Booking", {
 			}, __("Actions"));
 		}
 
-		// Create Missing Invoices — manual fallback when auto-creation failed or user wants draft review
-		const missing_si = (frm.doc.pdc_schedule || []).some(r => !r.sales_invoice && r.status !== "Cancelled");
+		// Create Missing Invoices — manual fallback when auto-creation failed or user wants draft
+		// review. Covers both the combined Booking Amount/Down Payment advance invoices (can't
+		// tell client-side whether one already exists, so this just checks something is owed —
+		// the server-side call is a safe no-op if it's already invoiced) and due PDC rows.
+		const missing_si = (frm.doc.pdc_schedule || []).some(r => !r.sales_invoice && r.status !== "Cancelled")
+			|| (frm.doc.property_unit || []).some(r => flt(r.booking_amount) > 0 || flt(r.down_payment_amount) > 0);
 		if (missing_si) {
 			frm.add_custom_button(__("Create Missing Invoices"), () => {
 				frappe.confirm(
-					__("Create draft Sales Invoices for all PDC rows that don't have one yet? You can review and submit them before they become final."),
+					__("Create draft Sales Invoices for the Booking Amount/Down Payment (if not already invoiced) and any PDC row that doesn't have one yet? You can review and submit them before they become final."),
 					() => {
 						frappe.call({
 							method: "misk_real_estate.real_estate.doctype.property_booking.property_booking.create_missing_invoices",
