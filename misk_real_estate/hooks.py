@@ -26,6 +26,13 @@ scheduler_events = {
 
 # ── Doc Events ────────────────────────────────────────────────────────────────
 doc_events = {
+    # Applies any matching Posting Date Naming Rule (see that doctype + the
+    # real_estate/custom/posting_date_naming.py module) on every doctype's
+    # insert — a no-op wherever no such rule exists, so a new doctype only
+    # needs a Posting Date Naming Rule created from the UI, never a new hook.
+    "*": {
+        "autoname": "misk_real_estate.real_estate.custom.posting_date_naming.set_name_from_rule",
+    },
     "Quotation": {
         "before_validate": "misk_real_estate.real_estate.custom.quotation_hooks.before_validate",
     },
@@ -152,6 +159,17 @@ doctype_list_js = {
     "Item":             "real_estate/custom/item_list.js",
     "Quotation":        "real_estate/custom/quotation_list.js",
     "Property Booking": "real_estate/doctype/property_booking/property_booking_list.js",
+}
+
+# ── Naming ────────────────────────────────────────────────────────────────────
+# .PYYYY./.PYY./.PMM. = year (4- or 2-digit) / month of a Posting Date Naming
+# Rule's Date Field (default posting_date, falling back to transaction_date).
+# Frappe's built-in .YYYY./.YY./.MM. always mean "today" — see
+# real_estate/custom/posting_date_naming.py.
+naming_series_variables = {
+    "PYYYY": "misk_real_estate.real_estate.custom.posting_date_naming.parse_naming_series_variable",
+    "PYY": "misk_real_estate.real_estate.custom.posting_date_naming.parse_naming_series_variable",
+    "PMM": "misk_real_estate.real_estate.custom.posting_date_naming.parse_naming_series_variable",
 }
 
 override_doctype_class = {}

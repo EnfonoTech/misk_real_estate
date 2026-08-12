@@ -1,0 +1,109 @@
+{
+ "actions": [],
+ "creation": "2026-08-12 00:00:00",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "document_type",
+  "priority",
+  "column_break_khbr",
+  "disabled",
+  "date_field",
+  "naming_section",
+  "prefix",
+  "section_break_conditions",
+  "conditions"
+ ],
+ "fields": [
+  {
+   "fieldname": "document_type",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Document Type",
+   "options": "DocType",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "in_list_view": 1,
+   "label": "Disabled"
+  },
+  {
+   "default": "0",
+   "description": "Rules with a higher priority number are tried first.",
+   "fieldname": "priority",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Priority"
+  },
+  {
+   "fieldname": "naming_section",
+   "fieldtype": "Section Break",
+   "label": "Naming"
+  },
+  {
+   "description": "Fieldname on Document Type to read the year/month from (used by the .PYYYY./.PMM. tokens below). Leave blank to use posting_date, falling back to transaction_date.",
+   "fieldname": "date_field",
+   "fieldtype": "Data",
+   "label": "Date Field"
+  },
+  {
+   "description": "Same syntax as a naming series. .PYYYY./.PMM. = year/month of Date Field above e.g. ACC-SINV-.PYYYY.-.PMM.-.#####. ",
+   "fieldname": "prefix",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "in_standard_filter": 1,
+   "label": "Prefix",
+   "reqd": 1
+  },
+  {
+   "collapsible_depends_on": "conditions",
+   "fieldname": "section_break_conditions",
+   "fieldtype": "Section Break",
+   "label": "Rule Conditions"
+  },
+  {
+   "description": "This rule only applies to a document if it matches every condition here. Leave empty to match every document of this Document Type.",
+   "fieldname": "conditions",
+   "fieldtype": "Table",
+   "label": "Conditions",
+   "options": "Posting Date Naming Rule Condition"
+  },
+  {
+   "fieldname": "column_break_khbr",
+   "fieldtype": "Column Break"
+  }
+ ],
+ "links": [],
+ "modified": "2026-08-12 16:00:33.460798",
+ "modified_by": "Administrator",
+ "module": "Real Estate",
+ "name": "Posting Date Naming Rule",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "System Manager",
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "read": 1,
+   "role": "Misk Admin",
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "priority",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "document_type",
+ "track_changes": 1
+}
