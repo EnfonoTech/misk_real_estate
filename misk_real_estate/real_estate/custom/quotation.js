@@ -99,23 +99,37 @@ frappe.ui.form.on("Quotation Item", {
 	// Rate changes → recalculate
 	rate(frm, cdt, cdn) { _recalc_row(cdt, cdn); },
 
-	// Down Payment % → calculate amount + recalc installment
+	// Down Payment % → calculate amount + recalc installment. Guarded by
+	// frm._skip_dp_sync (see down_payment_amount below) — without it, this
+	// and down_payment_amount call each other back-to-back: typing an amount
+	// computes % (rounded to 3dp), which immediately re-computes amount FROM
+	// that rounded %, silently drifting the user's typed value (e.g. Property
+	// Booking hit this exact bug: 16000 -> 15999.984 — same pattern here).
 	down_payment_percentage(frm, cdt, cdn) {
+		if (frm._skip_dp_sync) return;
 		const row = locals[cdt][cdn];
 		const price = flt(row.rate);
 		if (!price || !row.down_payment_percentage) return;
+		frm._skip_dp_sync = true;
 		frappe.model.set_value(cdt, cdn, "down_payment_amount",
-			flt((price * flt(row.down_payment_percentage) / 100).toFixed(3)));
+			flt((price * flt(row.down_payment_percentage) / 100).toFixed(3)))
+			.then(() => { frm._skip_dp_sync = false; });
 		_recalc_row(cdt, cdn);
 	},
 
-	// Down Payment Amount → back-calculate % + recalc installment
+	// Down Payment Amount → back-calculate % + recalc installment. See
+	// down_payment_percentage above for why _skip_dp_sync exists — set_value's
+	// own trigger fires async, so the flag is cleared via .then(), not right
+	// after the call, so it actually holds while the reverse handler would run.
 	down_payment_amount(frm, cdt, cdn) {
+		if (frm._skip_dp_sync) return;
 		const row = locals[cdt][cdn];
 		const price = flt(row.rate);
 		if (!price || !row.down_payment_amount) return;
+		frm._skip_dp_sync = true;
 		frappe.model.set_value(cdt, cdn, "down_payment_percentage",
-			flt((flt(row.down_payment_amount) / price * 100).toFixed(3)));
+			flt((flt(row.down_payment_amount) / price * 100).toFixed(3)))
+			.then(() => { frm._skip_dp_sync = false; });
 		_recalc_row(cdt, cdn);
 	},
 

@@ -1,6 +1,7 @@
 # apps/misk_real_estate/misk_real_estate/real_estate/doctype/property_booking/property_booking.py
 
 import json
+import re
 
 import frappe
 from frappe import _
@@ -458,25 +459,61 @@ class PropertyBooking(Document):
         separately (cash / bank / cheque) via their own Sales Invoices — they
         are NOT part of this table. No GL, no Payment Entry — only the plan
         (B7 requirement).
+
+        Honors First Installment Date / Cheque No Prefix if already set on
+        the doc at generation time (see _collect_unit_pdc_contributions and
+        _apply_cheque_prefix) — needed because their own JS handlers only
+        rewrite rows that already exist in the grid; on a brand-new booking
+        the table is still empty client-side until this function creates it
+        on first save, so a value typed into either field beforehand would
+        otherwise never be applied.
         """
         booking_date = getdate(self.booking_date)
         settings = frappe.get_cached_doc("Misk Real Estate Settings")
         dp_days = cint(settings.down_payment_days) or 2
+        first_installment_date = getdate(self.first_installment_date) if self.first_installment_date else None
 
         buckets = {}  # (installment_type, cheque_date) -> [pdc_row dict, ...]
         for row in self.property_unit:
-            self._collect_unit_pdc_contributions(row, booking_date, dp_days, buckets)
+            self._collect_unit_pdc_contributions(row, booking_date, dp_days, buckets, first_installment_date)
 
         seq = 1
         for key in sorted(buckets, key=lambda k: (k[1], k[0])):
             self.append("pdc_schedule", self._combined_pdc_row(seq, key[0], key[1], buckets[key]))
             seq += 1
 
-    def _collect_unit_pdc_contributions(self, row, booking_date, dp_days, buckets):
+        self._apply_cheque_prefix()
+
+    def _apply_cheque_prefix(self):
+        """Mirrors property_booking.js's own cheque_prefix handler exactly —
+        needed here for the same reason as first_installment_date above.
+        Numbers every is_pdc row in order: a prefix ending in digits
+        increments those digits (zero-padded to the same width); anything
+        else is repeated as-is on every row. A no-op when cheque_prefix is
+        blank, leaving the usual empty cheque_no default untouched."""
+        raw = (self.cheque_prefix or "").strip()
+        if not raw:
+            return
+        match = re.match(r"^(.*?)(\d+)$", raw)
+        i = 0
+        for row in self.pdc_schedule:
+            if not row.get("is_pdc"):
+                continue
+            if match:
+                prefix_part, num_part = match.group(1), match.group(2)
+                row.cheque_no = prefix_part + str(int(num_part) + i).zfill(len(num_part))
+            else:
+                row.cheque_no = raw
+            i += 1
+
+    def _collect_unit_pdc_contributions(self, row, booking_date, dp_days, buckets, first_installment_date=None):
         """Compute one unit's Installment + OA Fee amounts (same math as
         before) and stash each as a pdc_row dict into `buckets`, keyed by
         (installment_type, cheque_date) — generate_pdc_schedule merges same-key
-        entries across units into a single combined row."""
+        entries across units into a single combined row. first_installment_date,
+        when set, anchors installment row 1 on that exact date (matching the
+        first_installment_date JS handler's own add_months(base, i) convention)
+        instead of the default booking_date + 1 month."""
         plan_doc = frappe.db.get_value(
             "Payment Plan", row.payment_plan,
             ["number_of_installments", "is_full_payment"], as_dict=True
@@ -495,7 +532,10 @@ class PropertyBooking(Document):
 
             running = 0.0
             for i in range(1, n + 1):
-                inst_date = add_months(booking_date, i)
+                if first_installment_date:
+                    inst_date = add_months(first_installment_date, i - 1)
+                else:
+                    inst_date = add_months(booking_date, i)
                 pdc_row = self._pdc_row(0, "Installment", inst_date, flt(row.monthly_installment), unit=row.unit)
                 if i == n:
                     total = round(inst_target - running, 3)
@@ -506,7 +546,7 @@ class PropertyBooking(Document):
                     pdc_row["tax_amount"] = round(total - net, 3)
                 running = round(running + flt(pdc_row["amount"]), 3)
                 buckets.setdefault(("Installment", inst_date), []).append(pdc_row)
-            oa_date = add_months(booking_date, n)
+            oa_date = add_months(first_installment_date, n - 1) if first_installment_date else add_months(booking_date, n)
         else:
             oa_date = add_days(booking_date, dp_days)
 

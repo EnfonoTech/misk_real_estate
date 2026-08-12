@@ -75,7 +75,16 @@ frappe.ui.form.on("Property Booking", {
 			});
 		}
 
-		frm._last_generated_installment_dates = generated;
+		// Only remember a baseline when there were actually rows to (re)date —
+		// e.g. this field set BEFORE the very first save, while the PDC
+		// Schedule table is still empty client-side (the server fills it in
+		// on save instead — see generate_pdc_schedule). Recording an empty-
+		// but-truthy {} here would make every future edit's `!last` fallback
+		// never fire again this session, since `last[r.name]` is undefined
+		// for every real row that shows up after that save.
+		if (Object.keys(generated).length) {
+			frm._last_generated_installment_dates = generated;
+		}
 		frm.refresh_field("pdc_schedule");
 	},
 
@@ -111,7 +120,11 @@ frappe.ui.form.on("Property Booking", {
 			}
 		});
 
-		frm._last_generated_cheque_nos = generated;
+		// Same reasoning as first_installment_date above — don't record an
+		// empty-but-truthy {} baseline when there were no rows yet to number.
+		if (Object.keys(generated).length) {
+			frm._last_generated_cheque_nos = generated;
+		}
 		frm.refresh_field("pdc_schedule");
 	},
 
@@ -442,22 +455,37 @@ frappe.ui.form.on("Property Booking Unit", {
 	payment_plan(frm, cdt, cdn)   { _recalculate_row(frm, cdt, cdn); },
 
 	down_payment_percentage(frm, cdt, cdn) {
-		// % of unit_price → calculate amount
+		// % of unit_price → calculate amount. Guarded by _skip_dp_sync (see
+		// down_payment_amount below) — without it, this and down_payment_amount
+		// call each other back-to-back: typing an amount computes % (rounded to
+		// 3dp), which immediately re-computes amount FROM that rounded %,
+		// silently drifting the user's typed value (e.g. 16000 -> 15999.984).
+		if (frm._skip_dp_sync) return;
 		const row = locals[cdt][cdn];
 		const price = flt(row.unit_price);
 		const pct = flt(row.down_payment_percentage);
 		if (!price || !pct) return;
-		frappe.model.set_value(cdt, cdn, "down_payment_amount", flt((price * pct / 100).toFixed(3)));
+		frm._skip_dp_sync = true;
+		frappe.model.set_value(cdt, cdn, "down_payment_amount", flt((price * pct / 100).toFixed(3)))
+			.then(() => { frm._skip_dp_sync = false; });
 		_recalc_installment_row(frm, cdt, cdn);
 	},
 
 	down_payment_amount(frm, cdt, cdn) {
-		// Amount → back-calculate % against unit_price
+		// Amount → back-calculate % against unit_price. See down_payment_percentage
+		// above for why _skip_dp_sync exists — it holds while the triggered
+		// set_value's own change-event chain runs (set_value's trigger fires
+		// async, so the flag must be cleared via .then(), not right after the
+		// call) so the reverse handler doesn't bounce a rounded % back into a
+		// slightly-off amount.
+		if (frm._skip_dp_sync) return;
 		const row = locals[cdt][cdn];
 		const price = flt(row.unit_price);
 		const dp = flt(row.down_payment_amount);
 		if (!price || !dp) return;
-		frappe.model.set_value(cdt, cdn, "down_payment_percentage", flt((dp / price * 100).toFixed(3)));
+		frm._skip_dp_sync = true;
+		frappe.model.set_value(cdt, cdn, "down_payment_percentage", flt((dp / price * 100).toFixed(3)))
+			.then(() => { frm._skip_dp_sync = false; });
 		_recalc_installment_row(frm, cdt, cdn);
 	},
 });
@@ -478,13 +506,20 @@ function _recalculate_row(frm, cdt, cdn) {
 	if (!price) return;
 
 	// Down payment conversion — independent of payment plan, so changing
-	// unit price / booking amount keeps the down payment in sync.
+	// unit price / booking amount keeps the down payment in sync. Same
+	// _skip_dp_sync guard as the down_payment_amount/percentage handlers —
+	// setting one here would otherwise trigger that field's own handler,
+	// which would try to compute the other one right back.
 	const dp_amount = flt(row.down_payment_amount);
 	const dp_pct = flt(row.down_payment_percentage);
 	if (dp_amount > 0) {
-		frappe.model.set_value(cdt, cdn, "down_payment_percentage", flt((dp_amount / price * 100).toFixed(3)));
+		frm._skip_dp_sync = true;
+		frappe.model.set_value(cdt, cdn, "down_payment_percentage", flt((dp_amount / price * 100).toFixed(3)))
+			.then(() => { frm._skip_dp_sync = false; });
 	} else if (dp_pct > 0) {
-		frappe.model.set_value(cdt, cdn, "down_payment_amount", flt((price * dp_pct / 100).toFixed(3)));
+		frm._skip_dp_sync = true;
+		frappe.model.set_value(cdt, cdn, "down_payment_amount", flt((price * dp_pct / 100).toFixed(3)))
+			.then(() => { frm._skip_dp_sync = false; });
 	}
 
 	// Installments need a plan.
