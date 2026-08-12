@@ -18,6 +18,7 @@ class PropertyBooking(Document):
         if self.is_new() and not self.taxes_and_charges and self.company and not self.quotation:
             self.taxes_and_charges = _get_default_taxes(self.company)
         self.calculate_payment_schedule()
+        self._fill_unit_dimensions()
         # Default the down payment date to booking date + configured days
         if self.booking_date and not self.down_payment_date:
             settings = frappe.get_cached_doc("Misk Real Estate Settings")
@@ -400,6 +401,37 @@ class PropertyBooking(Document):
         """
         for row in self.property_unit:
             self._calculate_unit_payment_schedule(row)
+
+    def _fill_unit_dimensions(self):
+        """Default each unit row's Project/Cost Center from its Building
+        (Item Group) — same "lives on the Building" convention as company
+        (see resolve_unit_company). Only fills a row's field when it's
+        currently blank; never overrides an explicit per-unit value. Also
+        defaults the booking header's own project/cost_center from the same
+        source, but only when every unit resolves to the SAME building (a
+        booking spanning several buildings has no single correct header
+        value, so it's left as-is rather than picking one arbitrarily)."""
+        from misk_real_estate.utils.company import get_building_dimensions
+
+        buildings = set()
+        for row in self.property_unit:
+            if not row.building:
+                continue
+            buildings.add(row.building)
+            if row.project and row.cost_center:
+                continue
+            project, cost_center = get_building_dimensions(row.building)
+            if not row.project and project:
+                row.project = project
+            if not row.cost_center and cost_center:
+                row.cost_center = cost_center
+
+        if len(buildings) == 1 and (not self.project or not self.cost_center):
+            project, cost_center = get_building_dimensions(buildings.pop())
+            if not self.project and project:
+                self.project = project
+            if not self.cost_center and cost_center:
+                self.cost_center = cost_center
 
     def _calculate_unit_payment_schedule(self, row):
         unit_price = flt(row.unit_price)

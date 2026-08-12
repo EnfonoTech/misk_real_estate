@@ -31,6 +31,20 @@ def resolve_unit_company(item_group):
     return frappe.db.get_single_value("Misk Real Estate Settings", "default_company")
 
 
+def get_building_dimensions(building):
+    """(project, cost_center) configured on this Building (Item Group) —
+    same "lives on the Item Group" convention as company (see
+    resolve_unit_company). Returns (None, None) when unset or `building` is
+    blank. Callers should only use these to fill a blank field, never to
+    override an explicit per-unit value."""
+    if not building:
+        return None, None
+    row = frappe.db.get_value("Item Group", building, ["project", "cost_center"], as_dict=True)
+    if not row:
+        return None, None
+    return row.project, row.cost_center
+
+
 def get_income_account(purpose, company):
     """Company-specific income account for a Sales Invoice line, from Misk
     Real Estate Settings' Income Account Mapping table — resolved from the
