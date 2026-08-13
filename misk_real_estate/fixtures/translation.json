@@ -1,8 +1,13 @@
 [
  {
   "context": null,
+  "contributed": 0,
+  "contribution_docname": null,
+  "contribution_status": null,
+  "docstatus": 0,
   "doctype": "Translation",
   "language": "en",
+  "modified": "2026-08-12 15:52:07.990999",
   "name": "r6v93frc0j",
   "source_text": "Quotation",
   "translated_text": "Enquiry"

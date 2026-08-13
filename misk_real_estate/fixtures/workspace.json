@@ -472,11 +472,21 @@
     "url": null
    },
    {
+    "color": null,
     "doc_view": "",
+    "format": null,
+    "icon": null,
+    "kanban_board": null,
     "label": "Building Status Report",
     "link_to": "Building Status Report",
+    "parent": "Misk Real Estate",
+    "parentfield": "shortcuts",
+    "parenttype": "Workspace",
     "report_ref_doctype": "Item",
-    "type": "Report"
+    "restrict_to_domain": null,
+    "stats_filter": null,
+    "type": "Report",
+    "url": null
    }
   ],
   "title": "Misk Real Estate"

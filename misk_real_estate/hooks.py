@@ -78,7 +78,7 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Attendance", "Shift Assignment", "Salary Slip", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead"]]
+            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Attendance", "Shift Assignment", "Salary Slip", "Payroll Entry", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead"]]
         ]
     },
     {
@@ -172,4 +172,9 @@ naming_series_variables = {
     "PMM": "misk_real_estate.real_estate.custom.posting_date_naming.parse_naming_series_variable",
 }
 
-override_doctype_class = {}
+# CustomSalarySlip: substitutes the leave/LWP lookup window with the
+# Attendance Cutoff Date scheme (misk_real_estate/wps/custom_salary_slip.py)
+# instead of the slip's own full calendar-month start_date/end_date.
+override_doctype_class = {
+    "Salary Slip": "misk_real_estate.wps.custom_salary_slip.CustomSalarySlip",
+}

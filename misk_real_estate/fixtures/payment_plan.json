@@ -3,6 +3,15 @@
   "docstatus": 0,
   "doctype": "Payment Plan",
   "is_full_payment": 0,
+  "modified": "2026-07-23 13:18:59.529832",
+  "name": "TEST-1-INSTALLMENT",
+  "number_of_installments": 1,
+  "plan_name": "TEST-1-INSTALLMENT"
+ },
+ {
+  "docstatus": 0,
+  "doctype": "Payment Plan",
+  "is_full_payment": 0,
   "modified": "2026-06-17 16:18:29.003940",
   "name": "Installment 12M",
   "number_of_installments": 12,
