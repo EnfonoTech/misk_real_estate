@@ -48,7 +48,8 @@ def _generate_due_invoices():
             ps.unit,
             ps.unit_breakdown,
             pb.company,
-            pb.taxes_and_charges
+            pb.taxes_and_charges,
+            pb.sales_person
         FROM `tabPDC Schedule` ps
         INNER JOIN `tabProperty Booking` pb ON pb.name = ps.parent
         WHERE pb.docstatus = 1
@@ -114,6 +115,7 @@ def _create_invoice(row, submit=False, payment_purpose=None):
     )
 
     from misk_real_estate.real_estate.doctype.property_booking.property_booking import get_booking_dimensions
+    from misk_real_estate.utils.company import get_sales_team
     project, cost_center = get_booking_dimensions(row.booking)
 
     posting_date = getdate(row.cheque_date or today())
@@ -131,6 +133,7 @@ def _create_invoice(row, submit=False, payment_purpose=None):
         "taxes_and_charges": taxes_and_charges,
         "taxes": tax_rows,
         "items": items,
+        "sales_team": get_sales_team(row.get("sales_person")),
         "custom_pdc_schedule_row": row.schedule_row,
         "custom_property_booking": row.booking,
         "custom_payment_purpose": payment_purpose or row.get("installment_type") or "Installment",

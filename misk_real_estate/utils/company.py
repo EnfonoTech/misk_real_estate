@@ -45,6 +45,20 @@ def get_building_dimensions(building):
     return row.project, row.cost_center
 
 
+def get_sales_team(sales_person):
+    """Sales Invoice `sales_team` child rows for a single Sales Person at
+    100% contribution — used by every place this app auto-creates a Sales
+    Invoice from a Property Booking, so the booking's Sales Person carries
+    through instead of leaving the invoice's Sales Team table empty.
+    allocated_amount is left unset — SellingController.calculate_commission
+    computes it from allocated_percentage during the invoice's own
+    validate(), same as it would for a manually-entered row. Returns []
+    when sales_person is blank, so callers can pass it straight through."""
+    if not sales_person:
+        return []
+    return [{"sales_person": sales_person, "allocated_percentage": 100}]
+
+
 def get_income_account(purpose, company):
     """Company-specific income account for a Sales Invoice line, from Misk
     Real Estate Settings' Income Account Mapping table — resolved from the

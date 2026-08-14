@@ -1134,7 +1134,7 @@ def _ensure_advance_invoice(booking, purpose, throw_if_zero=True, submit=False):
     from misk_real_estate.pdc_management.cron.auto_invoice import (
         _invoice_item_rate, _build_tax_rows_from_item_template,
     )
-    from misk_real_estate.utils.company import get_income_account
+    from misk_real_estate.utils.company import get_income_account, get_sales_team
 
     company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
     if purpose == "Booking Amount":
@@ -1181,6 +1181,7 @@ def _ensure_advance_invoice(booking, purpose, throw_if_zero=True, submit=False):
         "taxes_and_charges": taxes_and_charges,
         "taxes": tax_rows,
         "items": items,
+        "sales_team": get_sales_team(booking.sales_person),
         "custom_property_booking": booking.name,
         "custom_payment_purpose": purpose,
     })
@@ -1413,6 +1414,7 @@ def generate_invoices_for_booking(booking_name):
     auto_submit = bool(getattr(settings, "auto_submit_invoices", 0))
 
     from misk_real_estate.pdc_management.cron.auto_invoice import build_pdc_row_invoice_items
+    from misk_real_estate.utils.company import get_sales_team
 
     for row in booking.pdc_schedule:
         if row.sales_invoice:
@@ -1442,6 +1444,7 @@ def generate_invoices_for_booking(booking_name):
             "taxes_and_charges": taxes_and_charges,
             "taxes": tax_rows,
             "items": items,
+            "sales_team": get_sales_team(booking.sales_person),
             "custom_pdc_schedule_row": row.name,
             "custom_property_booking": booking_name,
             "custom_payment_purpose": row.installment_type or "Installment",
@@ -1473,6 +1476,7 @@ def _create_invoices_for_due_rows(booking, upto_date=None, submit=False):
     Settings — the manual "Create Missing Invoices" button always leaves it
     Draft for review). Returns the list of created Sales Invoice names."""
     from misk_real_estate.pdc_management.cron.auto_invoice import build_pdc_row_invoice_items
+    from misk_real_estate.utils.company import get_sales_team
     from frappe.utils import formatdate
 
     company = booking.company or frappe.defaults.get_user_default("company") or "Misk Real Estate"
@@ -1508,6 +1512,7 @@ def _create_invoices_for_due_rows(booking, upto_date=None, submit=False):
             "taxes_and_charges": taxes_and_charges,
             "taxes": tax_rows,
             "items": items,
+            "sales_team": get_sales_team(booking.sales_person),
             "custom_pdc_schedule_row": row.name,
             "custom_property_booking": booking.name,
             "custom_payment_purpose": row.installment_type or "Installment",
