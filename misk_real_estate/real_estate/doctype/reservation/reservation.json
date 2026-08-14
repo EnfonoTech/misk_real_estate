@@ -2,12 +2,13 @@
  "actions": [],
  "allow_import": 1,
  "allow_rename": 1,
- "autoname": "RES-.YYYY.-.####",
+ "autoname": "naming_series:",
  "creation": "2026-07-01 00:00:00",
  "doctype": "DocType",
  "document_type": "Document",
  "engine": "InnoDB",
  "field_order": [
+  "naming_series",
   "customer_name",
   "contact_mobile",
   "sales_person",
@@ -37,6 +38,19 @@
   "amended_from"
  ],
  "fields": [
+  {
+   "default": "RES-.YYYY.-.####",
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "no_copy": 1,
+   "options": "RES-.YYYY.-.####",
+   "print_hide": 1,
+   "reqd": 1,
+   "set_only_once": 1,
+   "hidden": 1,
+   "read_only": 1
+  },
   {
    "fieldname": "quotation",
    "fieldtype": "Link",
@@ -217,7 +231,7 @@
  "modified_by": "Administrator",
  "module": "Real Estate",
  "name": "Reservation",
- "naming_rule": "Expression",
+ "naming_rule": "By \"Naming Series\" field",
  "owner": "Administrator",
  "permissions": [
   {
