@@ -153,6 +153,7 @@ doctype_js = {
     "Item":           "real_estate/custom/item.js",
     "Payment Entry":  "real_estate/custom/payment_entry.js",
     "Attendance":     "wps/custom/attendance.js",
+    "Salary Slip":    "wps/custom/salary_slip.js",
 }
 
 doctype_list_js = {
