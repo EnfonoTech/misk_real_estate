@@ -78,7 +78,23 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Attendance", "Shift Assignment", "Salary Slip", "Payroll Entry", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead"]]
+            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Attendance", "Shift Assignment", "Salary Slip", "Payroll Entry", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead"]],
+            # Excludes fields that belong to OTHER installed apps/core regional
+            # setup on a shared doctype (e.g. Sales Invoice) — the dt filter
+            # above can't tell those apart on its own. cms_ipc_ref
+            # (construction_management_suite) got swept into this export that
+            # way once already: it referenced a doctype ("Interim Payment
+            # Certificate") that doesn't exist on any site without that app
+            # installed, breaking `bench migrate` there. exempt_from_sales_tax
+            # (ERPNext's US regional setup) is the same kind of accident, just
+            # not currently broken since it's a plain Check field. Add future
+            # re-export accidents here as they're found.
+            ["name", "not in", [
+                "Sales Invoice-cms_ipc_ref",
+                "Quotation-exempt_from_sales_tax",
+                "Sales Invoice-exempt_from_sales_tax",
+                "Customer-exempt_from_sales_tax",
+            ]]
         ]
     },
     {
