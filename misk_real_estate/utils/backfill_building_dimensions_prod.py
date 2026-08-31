@@ -1,8 +1,10 @@
 """
 One-off backfill for PRODUCTION: sets Project + Cost Center on Property
-Booking (header + property_unit rows) from each unit's Building, using the
-Project/Cost Center records that ALREADY exist in production (exported by
-the user as Project.csv / "Cost Center (2).xlsx").
+Booking (header + property_unit rows) from each unit's Building — reads
+Item Group.project / Item Group.cost_center directly (same source
+_fill_unit_dimensions() uses for new bookings), so this stays correct
+automatically as long as the Building records are set up, no hardcoded
+mapping to keep in sync.
 
 Scope, deliberately narrow per explicit instruction: Property Booking only
 (header + property_unit child rows) — NOT Sales Invoice Item, NOT GL Entry.
@@ -14,38 +16,14 @@ Usage (from the production bench):
     bench --site <production-site> execute misk_real_estate.utils.backfill_building_dimensions_prod.run
     # review the printed counts, then:
     bench --site <production-site> execute misk_real_estate.utils.backfill_building_dimensions_prod.run --kwargs "{'apply': True}"
-
-IMPORTANT: BUILDING_MAP's keys must match the exact `building` value stored
-on Property Booking Unit rows in production (the Item Group name) — this is
-assumed to match misk.backup's naming (confirmed correct for "Misk Wallk"
-earlier this session). If a building below shows 0 matched rows in the
-preview but you know it should have bookings, the Item Group name in
-production differs from the key here — fix the key and re-run before
-passing apply=True.
 """
 
 import frappe
 
-# building (Item Group name, as stored on Property Booking Unit.building)
-#   -> (Project ID, Cost Center ID)
-# Values are the exact docnames from Project.csv / Cost Center (2).xlsx.
-BUILDING_MAP = {
-    "Souq Misk":       ("PROJ-0012", "MR-Souq Misk - MP"),
-    "Azz":             ("PROJ-0011", "MR-Azz - MP"),
-    "Reef":            ("PROJ-0009", "MR-Reef - MP"),
-    "Misk Al Mawalah": ("PROJ-0010", "MR-Misk Mawalah - MP"),
-    "Misk Wallk":      ("PROJ-0013", "MR-Misk Walk - MP"),
-}
+from misk_real_estate.utils.company import get_building_dimensions
 
 
 def run(apply=False):
-    # Sanity-check the mapping targets actually exist before touching anything.
-    for building, (project, cost_center) in BUILDING_MAP.items():
-        if not frappe.db.exists("Project", project):
-            print(f"WARNING: Project {project} (for {building}) does not exist — check BUILDING_MAP")
-        if not frappe.db.exists("Cost Center", cost_center):
-            print(f"WARNING: Cost Center {cost_center} (for {building}) does not exist — check BUILDING_MAP")
-
     rows = frappe.db.sql("""
         SELECT pbu.name AS row_name, pbu.parent AS booking, pbu.building AS building,
                pbu.project AS project, pbu.cost_center AS cost_center
@@ -57,12 +35,16 @@ def run(apply=False):
     for r in rows:
         seen_buildings[r.building] = seen_buildings.get(r.building, 0) + 1
 
+    building_dims = {}
     print("=== Buildings found on Property Booking Unit rows (production) ===")
     for building, count in sorted(seen_buildings.items()):
-        mapped = "-> " + str(BUILDING_MAP[building]) if building in BUILDING_MAP else "** NOT IN BUILDING_MAP **"
-        print(f"  {building}: {count} rows  {mapped}")
+        project, cost_center = get_building_dimensions(building)
+        building_dims[building] = (project, cost_center)
+        status = f"-> ({project}, {cost_center})" if project and cost_center else "** Item Group has no project/cost_center set **"
+        print(f"  {building}: {count} rows  {status}")
 
-    to_update_rows = [r for r in rows if r.building in BUILDING_MAP and not (r.project and r.cost_center)]
+    resolvable_buildings = {b for b, (p, c) in building_dims.items() if p and c}
+    to_update_rows = [r for r in rows if r.building in resolvable_buildings and not (r.project and r.cost_center)]
     print(f"\n{len(to_update_rows)} Property Booking Unit rows would be updated (of {len(rows)} total)")
 
     booking_buildings = {}
@@ -79,7 +61,7 @@ def run(apply=False):
 
     updated_rows = 0
     for r in to_update_rows:
-        project, cost_center = BUILDING_MAP[r.building]
+        project, cost_center = building_dims[r.building]
         updates = {}
         if not r.project:
             updates["project"] = project
@@ -99,9 +81,9 @@ def run(apply=False):
         if h.project and h.cost_center:
             continue
         building = next(iter(single_building_bookings[h.name]))
-        if building not in BUILDING_MAP:
+        if building not in resolvable_buildings:
             continue
-        project, cost_center = BUILDING_MAP[building]
+        project, cost_center = building_dims[building]
         updates = {}
         if not h.project:
             updates["project"] = project
