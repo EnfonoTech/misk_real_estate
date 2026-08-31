@@ -45,6 +45,82 @@ def get_building_dimensions(building):
     return row.project, row.cost_center
 
 
+# Two buildings' real Project/Cost Center names in production don't follow
+# the plain "MR-<Building>" rule below — confirmed against the user's own
+# Project.csv / Cost Center export. Both already have project/cost_center
+# set wherever this matters, so this only documents why, in case either
+# ever needs (re)creating from scratch.
+BUILDING_LABEL_OVERRIDES = {
+    "Misk Al Mawalah": "MR-Misk Mawalah",
+    "Misk Wallk": "MR-Misk Walk",
+}
+
+
+def ensure_building_dimensions(building):
+    """Create (idempotently) a Project + Cost Center for `building` (an
+    Item Group) and set them on its project/cost_center fields — the
+    master-data counterpart to get_building_dimensions(). A no-op, returning
+    the existing pair, if the Item Group already has both set. Company and
+    its root group Cost Center are resolved from the building itself
+    (resolve_unit_company / the Company's own top-level Cost Center) —
+    never hardcoded, so this works for any building, present or future.
+    Label follows this app's "MR-<Building>" convention unless
+    BUILDING_LABEL_OVERRIDES has a specific one. Returns (project, cost_center)."""
+    existing_project, existing_cost_center = get_building_dimensions(building)
+    if existing_project and existing_cost_center:
+        return existing_project, existing_cost_center
+
+    company = resolve_unit_company(building)
+    if not company:
+        frappe.throw(f"Cannot resolve a company for building {building!r} — set Item Group.company first.")
+    abbr = frappe.db.get_value("Company", company, "abbr")
+    label = BUILDING_LABEL_OVERRIDES.get(building, f"MR-{building}")
+
+    project = existing_project or frappe.db.get_value("Project", {"project_name": label}, "name")
+    if not project:
+        project = frappe.get_doc({
+            "doctype": "Project",
+            "project_name": label,
+            "naming_series": "PROJ-.####",
+            "company": company,
+        }).insert(ignore_permissions=True).name
+
+    cost_center = existing_cost_center or f"{label} - {abbr}"
+    if not frappe.db.exists("Cost Center", cost_center):
+        parent_cost_center = frappe.db.get_value(
+            "Cost Center",
+            {"company": company, "is_group": 1, "parent_cost_center": ("is", "not set")},
+            "name",
+        )
+        frappe.get_doc({
+            "doctype": "Cost Center",
+            "cost_center_name": label,
+            "parent_cost_center": parent_cost_center,
+            "company": company,
+            "is_group": 0,
+        }).insert(ignore_permissions=True)
+
+    frappe.db.set_value("Item Group", building, {"project": project, "cost_center": cost_center})
+    return project, cost_center
+
+
+def ensure_all_building_dimensions():
+    """Bulk entrypoint: for every Building (an Item Group with at least one
+    is_unit Item) missing Project or Cost Center, create and set them via
+    ensure_building_dimensions. Safe to re-run — buildings that already
+    have both are skipped/untouched. Callable directly:
+        bench --site <site> execute misk_real_estate.utils.company.ensure_all_building_dimensions
+    """
+    buildings = frappe.db.sql_list("""
+        SELECT DISTINCT item_group FROM `tabItem`
+        WHERE is_unit = 1 AND item_group IS NOT NULL AND item_group != ''
+    """)
+    for building in buildings:
+        project, cost_center = ensure_building_dimensions(building)
+        print(f"{building}: {project}, {cost_center}")
+    frappe.db.commit()
+
+
 def get_sales_team(sales_person):
     """Sales Invoice `sales_team` child rows for a single Sales Person at
     100% contribution — used by every place this app auto-creates a Sales
