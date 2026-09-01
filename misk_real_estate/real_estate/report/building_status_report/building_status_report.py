@@ -7,11 +7,11 @@ Total/Maintenance), driven by Property Booking + PDC Schedule instead of a
 manually maintained spreadsheet.
 """
 
-import json
-
 import frappe
 from frappe import _
 from frappe.utils import add_months, flt, getdate
+
+from misk_real_estate.utils.company import split_amount_by_unit_weight
 
 
 def execute(filters=None):
@@ -51,21 +51,22 @@ def get_columns(month_keys):
         {"label": _("Status"), "fieldname": "unit_status", "fieldtype": "Data", "width": 100},
         {"label": _("Buyer Name"), "fieldname": "customer_name", "fieldtype": "Data", "width": 170},
         {"label": _("Sales Person"), "fieldname": "sales_person", "fieldtype": "Link", "options": "Sales Person", "width": 110},
-        {"label": _("Selling Price"), "fieldname": "unit_price", "fieldtype": "Currency", "width": 110},
-        {"label": _("Booking Amount"), "fieldname": "booking_amount", "fieldtype": "Currency", "width": 110},
-        {"label": _("Down Payment"), "fieldname": "down_payment", "fieldtype": "Currency", "width": 110},
+        {"label": _("Selling Price"), "fieldname": "unit_price", "fieldtype": "Currency", "precision": 3, "width": 110},
+        {"label": _("Booking Amount"), "fieldname": "booking_amount", "fieldtype": "Currency", "precision": 3, "width": 110},
+        {"label": _("Down Payment"), "fieldname": "down_payment", "fieldtype": "Currency", "precision": 3, "width": 110},
     ]
     for d in month_keys:
         columns.append({
             "label": d.strftime("%b %Y"),
             "fieldname": _month_fieldname(d),
             "fieldtype": "Currency",
+            "precision": 3,
             "width": 90,
         })
     columns += [
-        {"label": _("Total"), "fieldname": "total", "fieldtype": "Currency", "width": 110},
-        {"label": _("Diff"), "fieldname": "diff", "fieldtype": "Currency", "width": 90},
-        {"label": _("Maintenance"), "fieldname": "maintenance", "fieldtype": "Currency", "width": 100},
+        {"label": _("Total"), "fieldname": "total", "fieldtype": "Currency", "precision": 3, "width": 110},
+        {"label": _("Diff"), "fieldname": "diff", "fieldtype": "Currency", "precision": 3, "width": 90},
+        {"label": _("Maintenance"), "fieldname": "maintenance", "fieldtype": "Currency", "precision": 3, "width": 100},
         {"label": _("Booking"), "fieldname": "booking", "fieldtype": "Link", "options": "Property Booking", "width": 130},
         {"label": _("Booking Date"), "fieldname": "booking_date", "fieldtype": "Date", "width": 100},
     ]
@@ -126,11 +127,21 @@ def get_data(filters, month_keys):
         if b.unit not in booking_by_unit:
             booking_by_unit[b.unit] = b
 
-    # Every unit's own monthly_installment, grouped by booking — used below
-    # to split a PDC row that has neither `unit` nor `unit_breakdown` set.
+    # Each unit's own remaining installment total (price minus booking
+    # amount minus down payment), grouped by booking — used below to split
+    # a PDC row that has neither `unit` nor `unit_breakdown` set. NOT based
+    # on the stored monthly_installment/number_of_installments fields —
+    # those are only ever computed when a Payment Plan is set, and are left
+    # at 0/blank for bookings imported directly into PDC Schedule without
+    # one (confirmed on a real production booking). unit_price/booking_
+    # amount/down_payment_amount are reliably set either way. This is used
+    # purely as a ratio between units, so dividing by the number of
+    # installments (which would give the true per-month rate) is
+    # unnecessary — it cancels out in the split.
     unit_weights_by_booking = {}
     for b in bookings:
-        unit_weights_by_booking.setdefault(b.booking, {})[b.unit] = flt(b.monthly_installment)
+        remaining = flt(b.unit_price) - flt(b.booking_amount) - flt(b.down_payment_amount)
+        unit_weights_by_booking.setdefault(b.booking, {})[b.unit] = remaining
 
     booking_names = list({b.booking for b in booking_by_unit.values()})
 
@@ -138,45 +149,66 @@ def get_data(filters, month_keys):
     if booking_names:
         pdc_rows = frappe.db.sql(
             """
-            SELECT parent AS booking, unit, cheque_date, amount, unit_breakdown
+            SELECT parent AS booking, cheque_date, amount
             FROM `tabPDC Schedule`
             WHERE parent IN %(names)s AND installment_type = 'Installment'
+            ORDER BY cheque_date ASC
             """,
             {"names": booking_names},
             as_dict=True,
         )
 
     month_key_set = set(month_keys)
-    month_amounts = {}   # (booking, unit) -> {month_date: amount}
-    full_total = {}      # (booking, unit) -> total installment amount (whole schedule)
+    # (booking, unit) -> [(month_key_or_None, amount), ...] in chronological
+    # order — kept as a list rather than aggregating straight into
+    # month_amounts/full_total so the very last entry can absorb the whole
+    # schedule's rounding below, same as generate_pdc_schedule() itself does
+    # for a freshly-generated schedule (its last installment row absorbs
+    # rounding so the table matches the unit's price exactly).
+    contributions_by_key = {}
 
     for row in pdc_rows:
-        if row.unit:
-            contributions = [(row.unit, flt(row.amount))]
-        elif row.unit_breakdown:
-            try:
-                parsed = json.loads(row.unit_breakdown)
-            except ValueError:
-                parsed = []
-            contributions = [(c.get("unit"), flt(c.get("amount"))) for c in parsed if c.get("unit")]
-        else:
-            # Neither recorded — split this row's own real amount across the
-            # booking's units by their own monthly_installment weight (same
-            # per-unit split principle a Sales Invoice would apply), purely
-            # from these two tables. The row's date/amount are trusted as-is;
-            # this only decides how much of it belongs to which unit.
-            weights = {u: w for u, w in unit_weights_by_booking.get(row.booking, {}).items() if w}
-            total_weight = sum(weights.values())
-            if total_weight:
-                contributions = [
-                    (u, round(flt(row.amount) * w / total_weight, 3)) for u, w in weights.items()
-                ]
-            else:
-                contributions = []
+        # Always split this row's own real amount across the booking's units
+        # by weight — one uniform rule regardless of what's recorded on the
+        # row itself (unit/unit_breakdown), since a recorded breakdown can be
+        # incomplete (e.g. missing a unit added to the booking after the
+        # schedule already existed) and there'd be no way to tell that apart
+        # from a genuinely-correct recorded split. The row's date/amount are
+        # trusted as-is; this only decides how much belongs to which unit.
+        # Same helper (and so the exact same algorithm) used when building
+        # the actual Sales Invoice line items — see build_pdc_row_invoice_items.
+        contributions = split_amount_by_unit_weight(row.amount, unit_weights_by_booking.get(row.booking, {}))
 
         month_key = getdate(row.cheque_date).replace(day=1) if row.cheque_date else None
         for unit_code, amount in contributions:
             key = (row.booking, unit_code)
+            contributions_by_key.setdefault(key, []).append([month_key, amount])
+
+    # Correct each unit's very last contribution (chronologically, across
+    # its whole schedule — not just within the report's date filter) so its
+    # total exactly equals its own expected installment total, instead of
+    # drifting by a cent or two from rounding every row's share to 3
+    # decimals independently. Capped to a tiny threshold on purpose — a real
+    # shortfall (the source data genuinely doesn't add up to the unit's
+    # price, e.g. a buyer who never finished setting up their installment
+    # plan) must keep showing as a real Diff, not get silently absorbed here.
+    # Worst-case pure-rounding drift is bounded by roughly 0.0005 per row, so
+    # even a 100-installment schedule tops out well under this.
+    ROUNDING_THRESHOLD = 0.1
+    for key, entries in contributions_by_key.items():
+        _booking, unit = key
+        target = unit_weights_by_booking.get(_booking, {}).get(unit)
+        if target is None:
+            continue
+        current_total = round(sum(e[1] for e in entries), 3)
+        residual = round(target - current_total, 3)
+        if residual and abs(residual) <= ROUNDING_THRESHOLD:
+            entries[-1][1] = round(entries[-1][1] + residual, 3)
+
+    month_amounts = {}   # (booking, unit) -> {month_date: amount}
+    full_total = {}      # (booking, unit) -> total installment amount (whole schedule)
+    for key, entries in contributions_by_key.items():
+        for month_key, amount in entries:
             full_total[key] = full_total.get(key, 0) + amount
             if month_key and month_key in month_key_set:
                 month_amounts.setdefault(key, {})

@@ -6,6 +6,7 @@ where an individual item may need a company distinct from its group's.
 """
 
 import frappe
+from frappe.utils import flt
 
 
 def get_item_company(item_code):
@@ -119,6 +120,60 @@ def ensure_all_building_dimensions():
         project, cost_center = ensure_building_dimensions(building)
         print(f"{building}: {project}, {cost_center}")
     frappe.db.commit()
+
+
+def get_unit_installment_weights(booking_name):
+    """{unit: weight} for every unit on a Property Booking, weight = its own
+    unit_price - booking_amount - down_payment_amount (its remaining
+    installment total). Used to split an Installment PDC row/invoice line
+    across units when there's no reliable per-unit attribution already
+    recorded on it. Deliberately NOT based on the stored monthly_installment/
+    number_of_installments fields — those are only ever computed when a
+    Payment Plan is set, and are left at 0/blank for bookings whose PDC
+    Schedule was populated directly (confirmed on a real production
+    booking). unit_price/booking_amount/down_payment_amount are reliably
+    set either way."""
+    rows = frappe.db.get_all(
+        "Property Booking Unit",
+        filters={"parent": booking_name},
+        fields=["unit", "unit_price", "booking_amount", "down_payment_amount"],
+    )
+    return {
+        r.unit: flt(r.unit_price) - flt(r.booking_amount) - flt(r.down_payment_amount)
+        for r in rows if r.unit
+    }
+
+
+def split_amount_by_unit_weight(amount, weights):
+    """Split `amount` across `weights` ({unit: weight}) proportionally, one
+    uniform rule used everywhere a PDC Schedule row/invoice line needs to be
+    attributed to specific units: weighted by each unit's own remaining
+    installment total (see get_unit_installment_weights), falling back to an
+    equal split when every weight is 0 (e.g. imported directly, no Payment
+    Plan ever set — real production case). The last unit (by name, for a
+    stable/reproducible order) absorbs whatever's left over so the shares
+    always sum to exactly `amount`, rather than drifting from rounding each
+    share to 3 decimals independently. Returns [(unit, amount), ...], or []
+    if `weights` is empty."""
+    positive = {u: w for u, w in weights.items() if w}
+    total = sum(positive.values())
+    if total:
+        shares = [(u, w / total) for u, w in sorted(positive.items())]
+    elif weights:
+        shares = [(u, 1 / len(weights)) for u in sorted(weights)]
+    else:
+        return []
+
+    result = []
+    running = 0.0
+    for i, (u, ratio) in enumerate(shares):
+        if i == len(shares) - 1:
+            amt = round(flt(amount) - running, 3)
+        else:
+            amt = round(flt(amount) * ratio, 3)
+            running = round(running + amt, 3)
+        result.append((u, amt))
+    return result
 
 
 def get_sales_team(sales_person):

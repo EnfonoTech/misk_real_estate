@@ -146,25 +146,33 @@ def _create_invoice(row, submit=False, payment_purpose=None):
 
 
 def build_pdc_row_invoice_items(row, taxes_and_charges, oa_item, company, base_description, booking_name):
-    """Build Sales Invoice items (+ tax rows) for one PDC Schedule row. A
-    single-unit row (row.unit set, no unit_breakdown) produces today's exact
-    single line item, using base_description as-is. A combined multi-unit
-    row (row.unit blank, unit_breakdown populated — see Property Booking's
-    _combined_pdc_row) produces one line per contributing unit, each tagged
-    with its unit in the description — mirrors the multi-line invoice
-    _ensure_advance_invoice already builds for Booking Amount / Down Payment
-    in property_booking.py. Each line's project/cost center resolves via
-    get_booking_dimensions (unit-level override, else the booking's own
-    default). Which unit an invoice is for is read off Sales Invoice Item's
-    own item_code — no separate header-level field needed. Non-OA lines get
-    an explicit income_account from Misk Real Estate Settings' Income
-    Account Mapping (company + this row's own installment_type) when one is
-    configured; OA lines are left to resolve via the OA-FEE Item's own Item
-    Default instead. Either way, the fallback chain is only skipped when we
-    have a real value — never set the key to a blank/None value.
+    """Build Sales Invoice items (+ tax rows) for one PDC Schedule row.
+    Owners Association Fee always uses the shared OA-FEE item (oa_item) —
+    which unit(s) it's for doesn't change the item, so its existing
+    recorded unit/unit_breakdown is used as-is. Installment lines are
+    different: they must always be the real unit's own Item — a generic
+    placeholder item is never acceptable — so this row's own recorded
+    amount is always split across the booking's units by weight (see
+    get_unit_installment_weights/split_amount_by_unit_weight in
+    utils.company), uniformly, regardless of what's recorded on the row
+    itself. Same rule as (and sharing the exact same helpers with) the
+    Building Status Report, since a recorded unit/unit_breakdown can be
+    incomplete — e.g. a unit added to the booking after its PDC Schedule
+    already existed, whose contribution never got merged into any row.
+    Each line's project/cost center resolves via get_booking_dimensions
+    (unit-level override, else the booking's own default). Which unit an
+    invoice is for is read off Sales Invoice Item's own item_code — no
+    separate header-level field needed. Non-OA lines get an explicit
+    income_account from Misk Real Estate Settings' Income Account Mapping
+    (company + this row's own installment_type) when one is configured; OA
+    lines are left to resolve via the OA-FEE Item's own Item Default
+    instead. Either way, the fallback chain is only skipped when we have a
+    real value — never set the key to a blank/None value.
     Returns (items, tax_rows)."""
     from misk_real_estate.real_estate.doctype.property_booking.property_booking import get_booking_dimensions
-    from misk_real_estate.utils.company import get_income_account
+    from misk_real_estate.utils.company import (
+        get_income_account, get_unit_installment_weights, split_amount_by_unit_weight,
+    )
 
     is_oa = row.get("installment_type") == "Owners Association Fee"
     # OA lines keep income_account unset — that's resolved via the OA-FEE
@@ -172,11 +180,27 @@ def build_pdc_row_invoice_items(row, taxes_and_charges, oa_item, company, base_d
     # "Installment" at this call site) is looked up once, from the PDC
     # Schedule row's own type, not any saved invoice header field.
     income_account = None if is_oa else get_income_account(row.get("installment_type") or "Installment", company)
-    raw_breakdown = row.get("unit_breakdown")
-    if isinstance(raw_breakdown, str) and raw_breakdown:
-        contributions = frappe.parse_json(raw_breakdown)
+
+    if is_oa:
+        raw_breakdown = row.get("unit_breakdown")
+        if isinstance(raw_breakdown, str) and raw_breakdown:
+            contributions = frappe.parse_json(raw_breakdown)
+        else:
+            contributions = raw_breakdown or [{
+                "unit": row.get("unit"),
+                "net_amount": row.get("net_amount"),
+                "tax_amount": row.get("tax_amount"),
+                "amount": row.get("amount"),
+            }]
     else:
-        contributions = raw_breakdown or [{
+        weights = get_unit_installment_weights(booking_name)
+        amount_splits = dict(split_amount_by_unit_weight(row.get("amount"), weights))
+        net_splits = dict(split_amount_by_unit_weight(row.get("net_amount"), weights))
+        tax_splits = dict(split_amount_by_unit_weight(row.get("tax_amount"), weights))
+        contributions = [
+            {"unit": u, "amount": amt, "net_amount": net_splits.get(u, 0), "tax_amount": tax_splits.get(u, 0)}
+            for u, amt in amount_splits.items()
+        ] or [{
             "unit": row.get("unit"),
             "net_amount": row.get("net_amount"),
             "tax_amount": row.get("tax_amount"),
