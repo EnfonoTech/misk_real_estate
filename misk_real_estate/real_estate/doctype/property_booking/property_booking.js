@@ -418,17 +418,23 @@ frappe.ui.form.on("Property Booking Unit", {
 		}
 		frm.trigger("set_unit_filter");
 
-		// Default Project/Cost Center from the Building — only fills a blank,
-		// mirrors the server-side fallback in _fill_unit_dimensions
-		// (property_booking.py) so it shows immediately instead of waiting
-		// for the next save.
+		// Always sync Project/Cost Center to the Building just picked — same
+		// treatment as unit/unit_price just above, and for the same reason:
+		// changing Building on a row that already had them filled (e.g.
+		// picked AZZ by mistake, then corrected it to REEF) must not leave
+		// the OLD building's Project/Cost Center behind. Mirrors the
+		// server-side default in _fill_unit_dimensions (property_booking.py)
+		// so it shows immediately instead of waiting for the next save.
 		const row = locals[cdt][cdn];
-		if (row.building && (!row.project || !row.cost_center)) {
+		if (row.building) {
 			frappe.db.get_value("Item Group", row.building, ["project", "cost_center"], (r) => {
 				if (!r) return;
-				if (!row.project && r.project) frappe.model.set_value(cdt, cdn, "project", r.project);
-				if (!row.cost_center && r.cost_center) frappe.model.set_value(cdt, cdn, "cost_center", r.cost_center);
+				frappe.model.set_value(cdt, cdn, "project", r.project || "");
+				frappe.model.set_value(cdt, cdn, "cost_center", r.cost_center || "");
 			});
+		} else {
+			frappe.model.set_value(cdt, cdn, "project", "");
+			frappe.model.set_value(cdt, cdn, "cost_center", "");
 		}
 	},
 

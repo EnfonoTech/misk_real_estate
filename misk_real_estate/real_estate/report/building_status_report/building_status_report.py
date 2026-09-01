@@ -105,12 +105,9 @@ def get_data(filters, month_keys):
         SELECT pbu.unit AS unit, pb.name AS booking, pb.docstatus AS docstatus,
                pb.customer AS customer, pb.customer_name AS customer_name,
                pb.sales_person AS sales_person, pb.booking_date AS booking_date,
-               pb.first_installment_date AS first_installment_date,
                pbu.unit_price AS unit_price, pbu.booking_amount AS booking_amount,
                pbu.down_payment_amount AS down_payment_amount,
-               pbu.owners_association_fee AS owners_association_fee,
-               pbu.monthly_installment AS monthly_installment,
-               pbu.number_of_installments AS number_of_installments
+               pbu.owners_association_fee AS owners_association_fee
         FROM `tabProperty Booking Unit` pbu
         INNER JOIN `tabProperty Booking` pb ON pb.name = pbu.parent
         WHERE pbu.unit IN %(units)s AND pb.docstatus < 2
@@ -127,23 +124,45 @@ def get_data(filters, month_keys):
         if b.unit not in booking_by_unit:
             booking_by_unit[b.unit] = b
 
+    booking_names = list({b.booking for b in booking_by_unit.values()})
+
     # Each unit's own remaining installment total (price minus booking
     # amount minus down payment), grouped by booking — used below to split
-    # a PDC row that has neither `unit` nor `unit_breakdown` set. NOT based
-    # on the stored monthly_installment/number_of_installments fields —
-    # those are only ever computed when a Payment Plan is set, and are left
-    # at 0/blank for bookings imported directly into PDC Schedule without
-    # one (confirmed on a real production booking). unit_price/booking_
-    # amount/down_payment_amount are reliably set either way. This is used
-    # purely as a ratio between units, so dividing by the number of
-    # installments (which would give the true per-month rate) is
-    # unnecessary — it cancels out in the split.
+    # a PDC row across units. NOT based on the stored monthly_installment/
+    # number_of_installments fields — those are only ever computed when a
+    # Payment Plan is set, and are left at 0/blank for bookings imported
+    # directly into PDC Schedule without one (confirmed on a real
+    # production booking). unit_price/booking_amount/down_payment_amount
+    # are reliably set either way. This is used purely as a ratio between
+    # units, so dividing by the number of installments (which would give
+    # the true per-month rate) is unnecessary — it cancels out in the split.
+    #
+    # Fetched separately from `bookings` above, scoped by booking name
+    # rather than by unit_codes — a booking's units can span more than one
+    # building, and `bookings`/unit_codes is filtered to whatever building
+    # the report itself is currently scoped to. Building the weights from
+    # that same filtered set would silently drop any of the booking's units
+    # in a different building, making a shared PDC row's split (and the
+    # rounding-correction target below) wrong the moment someone filters by
+    # a single building — confirmed on a real production booking that
+    # showed Diff = 0 unfiltered but a large phantom Diff once filtered to
+    # one of its two buildings.
     unit_weights_by_booking = {}
-    for b in bookings:
-        remaining = flt(b.unit_price) - flt(b.booking_amount) - flt(b.down_payment_amount)
-        unit_weights_by_booking.setdefault(b.booking, {})[b.unit] = remaining
-
-    booking_names = list({b.booking for b in booking_by_unit.values()})
+    if booking_names:
+        all_booking_units = frappe.db.sql(
+            """
+            SELECT parent AS booking, unit, unit_price, booking_amount, down_payment_amount
+            FROM `tabProperty Booking Unit`
+            WHERE parent IN %(names)s
+            """,
+            {"names": booking_names},
+            as_dict=True,
+        )
+        for b in all_booking_units:
+            if not b.unit:
+                continue
+            remaining = flt(b.unit_price) - flt(b.booking_amount) - flt(b.down_payment_amount)
+            unit_weights_by_booking.setdefault(b.booking, {})[b.unit] = remaining
 
     pdc_rows = []
     if booking_names:

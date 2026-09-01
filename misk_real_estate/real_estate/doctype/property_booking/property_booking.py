@@ -403,14 +403,18 @@ class PropertyBooking(Document):
             self._calculate_unit_payment_schedule(row)
 
     def _fill_unit_dimensions(self):
-        """Default each unit row's Project/Cost Center from its Building
-        (Item Group) — same "lives on the Building" convention as company
-        (see resolve_unit_company). Only fills a row's field when it's
-        currently blank; never overrides an explicit per-unit value. Also
-        defaults the booking header's own project/cost_center from the same
-        source, but only when every unit resolves to the SAME building (a
-        booking spanning several buildings has no single correct header
-        value, so it's left as-is rather than picking one arbitrarily)."""
+        """Keep each unit row's Project/Cost Center in sync with its
+        Building (Item Group) — same "lives on the Building" convention as
+        company (see resolve_unit_company). Corrects a mismatch, not just a
+        blank — e.g. a row's Building was changed after Project/Cost Center
+        had already been filled for a different building, leaving the OLD
+        building's values behind (confirmed live in production). A no-op
+        whenever the Building itself has no project/cost_center configured
+        (get_building_dimensions returns blank) — an existing value is never
+        cleared based on nothing. Also syncs the booking header's own
+        project/cost_center from the same source, but only when every unit
+        resolves to the SAME building (a booking spanning several buildings
+        has no single correct header value, so it's left as-is)."""
         from misk_real_estate.utils.company import get_building_dimensions
 
         buildings = set()
@@ -418,19 +422,17 @@ class PropertyBooking(Document):
             if not row.building:
                 continue
             buildings.add(row.building)
-            if row.project and row.cost_center:
-                continue
             project, cost_center = get_building_dimensions(row.building)
-            if not row.project and project:
+            if project and row.project != project:
                 row.project = project
-            if not row.cost_center and cost_center:
+            if cost_center and row.cost_center != cost_center:
                 row.cost_center = cost_center
 
-        if len(buildings) == 1 and (not self.project or not self.cost_center):
+        if len(buildings) == 1:
             project, cost_center = get_building_dimensions(buildings.pop())
-            if not self.project and project:
+            if project and self.project != project:
                 self.project = project
-            if not self.cost_center and cost_center:
+            if cost_center and self.cost_center != cost_center:
                 self.cost_center = cost_center
 
     def _calculate_unit_payment_schedule(self, row):
