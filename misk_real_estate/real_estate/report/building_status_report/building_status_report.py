@@ -104,9 +104,12 @@ def get_data(filters, month_keys):
         SELECT pbu.unit AS unit, pb.name AS booking, pb.docstatus AS docstatus,
                pb.customer AS customer, pb.customer_name AS customer_name,
                pb.sales_person AS sales_person, pb.booking_date AS booking_date,
+               pb.first_installment_date AS first_installment_date,
                pbu.unit_price AS unit_price, pbu.booking_amount AS booking_amount,
                pbu.down_payment_amount AS down_payment_amount,
-               pbu.owners_association_fee AS owners_association_fee
+               pbu.owners_association_fee AS owners_association_fee,
+               pbu.monthly_installment AS monthly_installment,
+               pbu.number_of_installments AS number_of_installments
         FROM `tabProperty Booking Unit` pbu
         INNER JOIN `tabProperty Booking` pb ON pb.name = pbu.parent
         WHERE pbu.unit IN %(units)s AND pb.docstatus < 2
@@ -122,6 +125,12 @@ def get_data(filters, month_keys):
     for b in bookings:
         if b.unit not in booking_by_unit:
             booking_by_unit[b.unit] = b
+
+    # Every unit's own monthly_installment, grouped by booking — used below
+    # to split a PDC row that has neither `unit` nor `unit_breakdown` set.
+    unit_weights_by_booking = {}
+    for b in bookings:
+        unit_weights_by_booking.setdefault(b.booking, {})[b.unit] = flt(b.monthly_installment)
 
     booking_names = list({b.booking for b in booking_by_unit.values()})
 
@@ -151,7 +160,19 @@ def get_data(filters, month_keys):
                 parsed = []
             contributions = [(c.get("unit"), flt(c.get("amount"))) for c in parsed if c.get("unit")]
         else:
-            contributions = []
+            # Neither recorded — split this row's own real amount across the
+            # booking's units by their own monthly_installment weight (same
+            # per-unit split principle a Sales Invoice would apply), purely
+            # from these two tables. The row's date/amount are trusted as-is;
+            # this only decides how much of it belongs to which unit.
+            weights = {u: w for u, w in unit_weights_by_booking.get(row.booking, {}).items() if w}
+            total_weight = sum(weights.values())
+            if total_weight:
+                contributions = [
+                    (u, round(flt(row.amount) * w / total_weight, 3)) for u, w in weights.items()
+                ]
+            else:
+                contributions = []
 
         month_key = getdate(row.cheque_date).replace(day=1) if row.cheque_date else None
         for unit_code, amount in contributions:
