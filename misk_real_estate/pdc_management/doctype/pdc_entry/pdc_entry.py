@@ -15,6 +15,9 @@ class PDCEntry(Document):
         self._validate_allocations()
         if flt(self.amount) <= 0:
             frappe.throw(_("Cheque amount must be greater than zero."))
+        # Balance is always derived, never typed — after _validate_allocations,
+        # which is what (re)computes self.amount from the allocation rows.
+        self.balance_amount = round(flt(self.amount) - flt(self.cleared_amount), 3)
 
     @property
     def is_allocated(self):
@@ -73,11 +76,11 @@ class PDCEntry(Document):
         document's reference to this cheque here means the standard Desk
         delete (trash icon, list view multi-select, frappe.delete_doc(),
         all of it) just works, with nothing left over to block it."""
-        if self.gl_posted:
+        if self.gl_posted or flt(self.cleared_amount) > 0:
             frappe.throw(
-                _("{0} has already posted GL (Cleared, with a Payment Entry) — deleting it "
-                  "would leave that accounting entry with nothing behind it. Reverse/cancel "
-                  "the Payment Entry first if you really need to remove this cheque.").format(self.name)
+                _("{0} has already posted GL (Cleared or Partially Cleared, with a Payment Entry) "
+                  "— deleting it would leave that accounting entry with nothing behind it. "
+                  "Reverse/cancel the Payment Entry first if you really need to remove this cheque.").format(self.name)
             )
 
         for row_name in frappe.get_all("PDC Schedule", filters={"pdc_entry": self.name}, pluck="name"):
@@ -98,9 +101,10 @@ class PDCEntry(Document):
             )
             if not rows:
                 return
-            update = {"status": self.status}
-            if self.status == "Cleared" and self.payment_entry:
-                update["payment_entry"] = self.payment_entry
+            # payment_entry is mirrored unconditionally (not only when set) so a
+            # rolled-back clearance actually CLEARS the row's stale link instead
+            # of leaving it pointing at a cancelled Payment Entry.
+            update = {"status": self.status, "payment_entry": self.payment_entry or ""}
             for r in rows:
                 frappe.db.set_value("PDC Schedule", r.name, update)
             # Recompute the affected booking(s) AFTER the rows are synced, so
@@ -147,6 +151,21 @@ def mark_cleared(pdc_entry_name, cleared_date=None):
     if entry.gl_posted:
         frappe.throw(_("GL already posted for {0}.").format(pdc_entry_name))
 
+    # Part of this cheque has already been received (the rare partial-clearance
+    # path). Clearing it in full here would post the WHOLE cheque amount a second
+    # time — the remaining balance has to go through the same partial action,
+    # which settles the cheque automatically once nothing is left.
+    if flt(entry.cleared_amount) > 0:
+        frappe.throw(
+            _("{0} of cheque {1} has already been received. Use <b>Record Partial Clearance</b> "
+              "for the remaining balance of {2} — it marks the cheque Cleared by itself once "
+              "the balance is fully received.").format(
+                frappe.format_value(flt(entry.cleared_amount), {"fieldtype": "Currency"}),
+                entry.cheque_no,
+                frappe.format_value(flt(entry.amount) - flt(entry.cleared_amount), {"fieldtype": "Currency"}),
+            )
+        )
+
     # A cheque clears in one shot — block unless EVERY allocation has an invoice.
     missing = [str(a.idx) for a in entry.allocations if not a.sales_invoice]
     if missing:
@@ -166,6 +185,99 @@ def mark_cleared(pdc_entry_name, cleared_date=None):
         alert=True,
     )
     return entry.payment_entry
+
+
+# Amounts below this are treated as fully settled — guards against a cheque
+# hanging at "Partially Cleared" over a sub-Baisa rounding remainder.
+CLEARANCE_TOLERANCE = 0.005
+
+
+@frappe.whitelist()
+def record_partial_clearance(pdc_entry_name, amount, clearance_date=None,
+                             mode_of_payment=None, notes=None):
+    """RARE CASE: the bank released only part of the cheque (e.g. 500 against a
+    1,000 cheque). Posts a Payment Entry for what was actually received and
+    leaves the cheque open at "Partially Cleared" for the balance.
+
+    The balance is recorded with this same action, whichever way it eventually
+    arrives — the same cheque re-deposited, or cash/transfer instead (pick the
+    Mode of Payment accordingly). Once the running total reaches the cheque
+    amount the cheque marks ITSELF Cleared + GL posted, so the end state is
+    identical to a cheque that cleared in one shot through Mark Cleared.
+
+    Deliberately separate from mark_cleared(), which stays the untouched
+    one-shot path used by the overwhelming majority of cheques."""
+    frappe.has_permission("PDC Entry", "write", throw=True)
+
+    entry = frappe.get_doc("PDC Entry", pdc_entry_name)
+    amount = flt(amount)
+    clearance_date = clearance_date or today()
+
+    if entry.gl_posted or entry.status == "Cleared":
+        frappe.throw(_("Cheque {0} is already fully cleared.").format(entry.cheque_no))
+
+    if entry.status not in ("Pending", "Sent to Bank", "In Batch", "Deposited", "Partially Cleared"):
+        frappe.throw(
+            _("Cannot record a clearance against a {0} cheque.").format(entry.status)
+        )
+
+    # Same precondition as mark_cleared — a Payment Entry has to have an invoice
+    # to settle against.
+    missing = [str(a.idx) for a in entry.allocations if not a.sales_invoice]
+    if missing:
+        frappe.throw(
+            _("Every allocation must have a Sales Invoice before a clearance can be recorded. "
+              "Missing on row(s): {0}.").format(", ".join(missing))
+        )
+
+    balance = round(flt(entry.amount) - flt(entry.cleared_amount), 3)
+    if amount <= 0:
+        frappe.throw(_("Amount received must be greater than zero."))
+    if amount > balance + CLEARANCE_TOLERANCE:
+        frappe.throw(
+            _("Amount received ({0}) is more than the outstanding balance of this cheque ({1}).").format(
+                frappe.format_value(amount, {"fieldtype": "Currency"}),
+                frappe.format_value(balance, {"fieldtype": "Currency"}),
+            )
+        )
+
+    pe_name = _create_allocated_payment_entry(
+        entry, clearance_date, amount=amount, mode_of_payment=mode_of_payment,
+        remarks=notes or _("Partial PDC Clearance — {0}").format(entry.cheque_no),
+    )
+
+    entry.append("clearances", {
+        "clearance_date": clearance_date,
+        "amount": amount,
+        "mode_of_payment": mode_of_payment,
+        "payment_entry": pe_name,
+        "notes": notes,
+    })
+    entry.cleared_amount = round(flt(entry.cleared_amount) + amount, 3)
+    entry.payment_entry = pe_name
+    remaining = round(flt(entry.amount) - flt(entry.cleared_amount), 3)
+
+    if remaining <= CLEARANCE_TOLERANCE:
+        # The balance has now arrived — same end state as a one-shot Mark Cleared.
+        entry.status = "Cleared"
+        entry.cleared_date = clearance_date
+        entry.gl_posted = 1
+        message = _("Cheque {0} is now fully cleared ({1} received in {2} parts).").format(
+            entry.cheque_no,
+            frappe.format_value(flt(entry.cleared_amount), {"fieldtype": "Currency"}),
+            len(entry.clearances),
+        )
+    else:
+        entry.status = "Partially Cleared"
+        message = _("{0} received against cheque {1}. Balance still due: {2}.").format(
+            frappe.format_value(amount, {"fieldtype": "Currency"}),
+            entry.cheque_no,
+            frappe.format_value(remaining, {"fieldtype": "Currency"}),
+        )
+
+    entry.save(ignore_permissions=True)
+    frappe.msgprint(message, alert=True)
+    return pe_name
 
 
 @frappe.whitelist()
@@ -193,6 +305,14 @@ def mark_returned(pdc_entry_name, notes=None):
     entry = frappe.get_doc("PDC Entry", pdc_entry_name)
     if entry.status in ("Cleared", "Cancelled", "Returned"):
         frappe.throw(_("A {0} cheque cannot be returned.").format(entry.status))
+    if flt(entry.cleared_amount) > 0:
+        frappe.throw(
+            _("Cheque {0} has already received {1} (Payment Entry posted) and cannot be returned. "
+              "Reverse/cancel that Payment Entry first.").format(
+                entry.cheque_no,
+                frappe.format_value(flt(entry.cleared_amount), {"fieldtype": "Currency"}),
+            )
+        )
     entry.status = "Returned"
     if notes:
         entry.notes = (entry.notes or "") + f"\nReturned: {notes}"
@@ -207,6 +327,14 @@ def mark_cancelled(pdc_entry_name, notes=None):
     entry = frappe.get_doc("PDC Entry", pdc_entry_name)
     if entry.status in ("Cleared", "Cancelled"):
         frappe.throw(_("A {0} cheque cannot be cancelled.").format(entry.status))
+    if flt(entry.cleared_amount) > 0:
+        frappe.throw(
+            _("Cheque {0} has already received {1} (Payment Entry posted) and cannot be cancelled. "
+              "Reverse/cancel that Payment Entry first.").format(
+                entry.cheque_no,
+                frappe.format_value(flt(entry.cleared_amount), {"fieldtype": "Currency"}),
+            )
+        )
     entry.status = "Cancelled"
     if notes:
         entry.notes = (entry.notes or "") + f"\nCancelled: {notes}"
@@ -222,6 +350,14 @@ def mark_substituted(pdc_entry_name, new_cheque_no, new_cheque_date, notes=None)
     entry = frappe.get_doc("PDC Entry", pdc_entry_name)
     if entry.status in ("Cleared", "Cancelled", "Substituted"):
         frappe.throw(_("A {0} cheque cannot be substituted.").format(entry.status))
+    if flt(entry.cleared_amount) > 0:
+        frappe.throw(
+            _("Cheque {0} has already received {1} (Payment Entry posted) and cannot be substituted. "
+              "Reverse/cancel that Payment Entry first.").format(
+                entry.cheque_no,
+                frappe.format_value(flt(entry.cleared_amount), {"fieldtype": "Currency"}),
+            )
+        )
     if not new_cheque_no or not new_cheque_date:
         frappe.throw(_("New cheque number and date are required."))
     if frappe.db.exists("PDC Entry", {"cheque_no": new_cheque_no}):
@@ -383,12 +519,53 @@ def bulk_action(names, action, date=None, notes=None, bounce_reason=None):
     return {"ok": ok, "failed": failed}
 
 
-def _create_allocated_payment_entry(pdc_entry, payment_date):
+def _split_across_allocations(pdc_entry, amount):
+    """Split `amount` across this cheque's allocation rows in proportion to their
+    own allocated_amount — used when only PART of a cheque was received and there
+    is no way to know which allocation the bank shortfall belongs to. The last
+    row absorbs the rounding remainder so the shares always sum to exactly
+    `amount` (same rule as utils.company.split_amount_by_unit_weight). Returns
+    [(allocation_row, share), ...]."""
+    rows = list(pdc_entry.allocations or [])
+    if not rows:
+        return []
+    if len(rows) == 1:
+        return [(rows[0], round(flt(amount), 3))]
+
+    total = sum(flt(r.allocated_amount) for r in rows)
+    result, running = [], 0.0
+    for i, row in enumerate(rows):
+        if i == len(rows) - 1:
+            share = round(flt(amount) - running, 3)
+        else:
+            ratio = (flt(row.allocated_amount) / total) if total else (1.0 / len(rows))
+            share = round(flt(amount) * ratio, 3)
+            running = round(running + share, 3)
+        result.append((row, share))
+    return result
+
+
+def _create_allocated_payment_entry(pdc_entry, payment_date, amount=None,
+                                    mode_of_payment=None, remarks=None):
     """One physical cheque -> ONE Payment Entry that settles every allocated
-    Sales Invoice (booking amount / down payment across one or more bookings)."""
+    Sales Invoice (booking amount / down payment across one or more bookings).
+
+    Called with no `amount` for the normal full clearance — unchanged behaviour,
+    the whole cheque in one Payment Entry. `amount`/`mode_of_payment` are only
+    passed by the rare partial-clearance path, where just part of the cheque was
+    received (possibly in cash/transfer rather than through the cheque itself)."""
     company = pdc_entry.company or frappe.defaults.get_user_default("company")
     receivable_account = frappe.db.get_value("Company", company, "default_receivable_account")
-    bank_account = _get_bank_account(pdc_entry, company)
+    paid_amount = flt(amount) if amount is not None else flt(pdc_entry.amount)
+    # A partial received by another mode (cash/transfer) lands in THAT mode's
+    # account, not the cheque's deposit bank.
+    bank_account = (
+        frappe.db.get_value(
+            "Mode of Payment Account",
+            {"parent": mode_of_payment, "company": company},
+            "default_account",
+        ) if mode_of_payment else None
+    ) or _get_bank_account(pdc_entry, company)
     account_currency = (
         frappe.db.get_value("Account", bank_account, "account_currency")
         if bank_account else None
@@ -417,17 +594,17 @@ def _create_allocated_payment_entry(pdc_entry, payment_date):
         "party": pdc_entry.customer,
         "company": company,
         "posting_date": payment_date,
-        "paid_amount": flt(pdc_entry.amount),
-        "received_amount": flt(pdc_entry.amount),
+        "paid_amount": paid_amount,
+        "received_amount": paid_amount,
         "source_exchange_rate": 1,
         "target_exchange_rate": 1,
         "paid_to": bank_account,
         "paid_to_account_currency": account_currency,
         "paid_from": receivable_account,
-        "mode_of_payment": getattr(pdc_entry, "mode_of_payment", None) or "Cheque",
+        "mode_of_payment": mode_of_payment or getattr(pdc_entry, "mode_of_payment", None) or "Cheque",
         "reference_no": pdc_entry.cheque_no,
         "reference_date": pdc_entry.cheque_date,
-        "remarks": f"PDC Clearance — {pdc_entry.cheque_no} / {len(pdc_entry.allocations)} allocation(s)",
+        "remarks": remarks or f"PDC Clearance — {pdc_entry.cheque_no} / {len(pdc_entry.allocations)} allocation(s)",
         "property_booking": single_booking,
         "project": project,
         "cost_center": cost_center,
@@ -435,14 +612,23 @@ def _create_allocated_payment_entry(pdc_entry, payment_date):
         "cheque_status": "Cleared",
     })
 
-    for alloc in pdc_entry.allocations:
+    # Full clearance settles each allocation's own amount; a partial settles each
+    # allocation's proportional share of what was actually received.
+    if amount is None:
+        shares = [(a, flt(a.allocated_amount)) for a in pdc_entry.allocations]
+    else:
+        shares = _split_across_allocations(pdc_entry, paid_amount)
+
+    for alloc, share in shares:
+        if share <= 0:
+            continue
         outstanding = flt(frappe.db.get_value("Sales Invoice", alloc.sales_invoice, "outstanding_amount") or 0)
         if outstanding <= 0:
             continue  # already settled — skip, don't over-allocate
         pe.append("references", {
             "reference_doctype": "Sales Invoice",
             "reference_name": alloc.sales_invoice,
-            "allocated_amount": min(flt(alloc.allocated_amount), outstanding),
+            "allocated_amount": min(share, outstanding),
         })
 
     if not pe.get("references"):
@@ -459,6 +645,13 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
     Create a manual Payment Entry when customer cancels PDC cheque and pays by other means
     (cash / bank transfer).  Marks PDC Entry as Cancelled, overrides the PDC Schedule row
     to Cleared so the booking AR remains accurate.
+
+    WHOLE CHEQUE ONLY. This is the "the cheque is dead, the customer settled it
+    another way" case — it cancels the cheque outright and force-marks the
+    schedule row Cleared, which is only true if the FULL amount came in. Anything
+    less belongs in record_partial_clearance(), which keeps the cheque alive and
+    tracks the balance; the two used to overlap on the amount field, and a part
+    amount entered here would silently mark the installment fully paid.
     """
     frappe.has_permission("PDC Entry", "write", throw=True)
 
@@ -471,6 +664,26 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
         frappe.throw(
             _("PDC Entry {0} is already {1} — cannot record another payment.").format(
                 pdc_entry_name, entry.status
+            )
+        )
+
+    if flt(entry.cleared_amount) > 0:
+        frappe.throw(
+            _("Cheque {0} has already received {1}. Use <b>Record Partial Clearance</b> for "
+              "the balance — this action is only for a cheque settled entirely by another "
+              "payment mode.").format(
+                entry.cheque_no,
+                frappe.format_value(flt(entry.cleared_amount), {"fieldtype": "Currency"}),
+            )
+        )
+
+    if abs(flt(amount) - flt(entry.amount)) > CLEARANCE_TOLERANCE:
+        frappe.throw(
+            _("Record Manual Payment settles the whole cheque ({0}). To receive only {1}, "
+              "use <b>Record Partial Clearance</b> — it keeps the cheque open for the balance "
+              "instead of cancelling it.").format(
+                frappe.format_value(flt(entry.amount), {"fieldtype": "Currency"}),
+                frappe.format_value(flt(amount), {"fieldtype": "Currency"}),
             )
         )
 
@@ -541,6 +754,7 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
 
     # Cancel PDC Entry — on_update will fire and set PDC Schedule row → Cancelled
     entry.status = "Cancelled"
+    entry.payment_entry = pe.name
     note_text = notes or _("Customer cancelled cheque. Manual payment {0} recorded.").format(pe.name)
     entry.notes = ((entry.notes or "") + f"\n{note_text}").strip()
     entry.save(ignore_permissions=True)
@@ -565,6 +779,82 @@ def record_manual_payment(pdc_entry_name, mode_of_payment, payment_date, amount,
         alert=True,
     )
     return pe.name
+
+
+def _pre_clearance_status(entry):
+    """Where a cheque goes back to when its clearance is undone — the furthest
+    point it had actually reached before any money was recorded against it."""
+    if entry.batch:
+        return "In Batch"
+    if entry.deposited_date:
+        return "Deposited"
+    if entry.sent_to_bank_date:
+        return "Sent to Bank"
+    return "Pending"
+
+
+def on_payment_entry_cancel(doc, method=None):
+    """Cancelling the Payment Entry IS the undo for a cleared cheque — full or
+    partial. There is deliberately no separate "un-clear" button: the money
+    only ever became real through that Payment Entry, so reversing it is the
+    one action that can't leave the GL and the cheque disagreeing."""
+    # Frappe's pre-cancel link check walks every Link field pointing at this
+    # Payment Entry. PDC Schedule.payment_entry is one of them, and PDC Schedule
+    # is a CHILD TABLE of Property Booking — so without this exemption the Desk
+    # announces the booking as a linked submitted document and offers to cancel
+    # it too, which would take down the whole booking just to release a cheque.
+    doc.ignore_linked_doctypes = tuple(
+        getattr(doc, "ignore_linked_doctypes", None) or ()
+    ) + ("Property Booking",)
+    _rollback_clearance(doc.name)
+
+
+def _rollback_clearance(payment_entry):
+    """Put every cheque this Payment Entry had settled back the way it was.
+
+    Handles both shapes: a one-shot Mark Cleared (gl_posted, no itemised rows)
+    and one instalment of a partial clearance (the matching PDC Clearance rows
+    are dropped and cleared_amount reduced, so a cheque cleared in two parts
+    correctly falls back to Partially Cleared when only one is reversed)."""
+    names = set(frappe.get_all("PDC Clearance", filters={"payment_entry": payment_entry}, pluck="parent"))
+    names |= set(frappe.get_all("PDC Entry", filters={"payment_entry": payment_entry}, pluck="name"))
+
+    for name in names:
+        entry = frappe.get_doc("PDC Entry", name)
+        removed = [c for c in entry.clearances if c.payment_entry == payment_entry]
+        # gl_posted distinguishes a real Mark Cleared from record_manual_payment,
+        # which also parks its Payment Entry here but deliberately leaves the
+        # cheque Cancelled — that one is not ours to roll back.
+        full_clear = bool(entry.gl_posted) and entry.payment_entry == payment_entry and not removed
+        if not removed and not full_clear:
+            continue
+
+        if removed:
+            entry.clearances = [c for c in entry.clearances if c.payment_entry != payment_entry]
+            for i, row in enumerate(entry.clearances, start=1):
+                row.idx = i
+            entry.cleared_amount = round(
+                flt(entry.cleared_amount) - sum(flt(c.amount) for c in removed), 3
+            )
+        else:
+            entry.cleared_amount = 0
+
+        entry.gl_posted = 0
+        entry.cleared_date = None
+        # Fall back to the newest surviving clearance, else no Payment Entry.
+        entry.payment_entry = entry.clearances[-1].payment_entry if entry.clearances else None
+
+        if flt(entry.cleared_amount) > CLEARANCE_TOLERANCE:
+            entry.status = "Partially Cleared"
+        else:
+            entry.cleared_amount = 0
+            entry.status = _pre_clearance_status(entry)
+
+        entry.save(ignore_permissions=True)
+        frappe.msgprint(
+            _("Cheque {0} rolled back to {1}.").format(entry.cheque_no, _(entry.status)),
+            alert=True,
+        )
 
 
 def _get_bank_account(pdc_entry, company):

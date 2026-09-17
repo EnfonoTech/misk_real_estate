@@ -53,7 +53,13 @@ doc_events = {
     },
     "Payment Entry": {
         "on_submit": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_payment_entry_change",
-        "on_cancel": "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_payment_entry_change",
+        # Cancelling a Payment Entry is the undo for a PDC clearance — it rolls
+        # the cheque back to its pre-clearance state, and stops the Desk from
+        # offering to cancel the whole Property Booking along with it.
+        "on_cancel": [
+            "misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry.on_payment_entry_cancel",
+            "misk_real_estate.real_estate.doctype.property_booking.property_booking.on_payment_entry_change",
+        ],
     },
     # Multi-company: a child Building/Item Group inherits its company from its
     # parent when blank (one-time copy-down, not a live recompute).

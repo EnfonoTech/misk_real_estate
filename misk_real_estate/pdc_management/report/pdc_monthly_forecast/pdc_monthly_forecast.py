@@ -34,6 +34,7 @@ def get_columns():
         {"label": _("In Batch"),           "fieldname": "inbatch_amount",  "fieldtype": "Currency", "width": 120},
         {"label": _("Deposited"),          "fieldname": "deposited_amount","fieldtype": "Currency", "width": 120},
         {"label": _("Cleared"),            "fieldname": "cleared_amount",  "fieldtype": "Currency", "width": 120},
+        {"label": _("Partially Cleared"),  "fieldname": "partial_amount",  "fieldtype": "Currency", "width": 140},
         {"label": _("Bounced"),            "fieldname": "bounced_amount",  "fieldtype": "Currency", "width": 110},
     ]
 
@@ -94,6 +95,7 @@ def get_data(filters):
                 "inbatch_amount":  0.0,
                 "deposited_amount":0.0,
                 "cleared_amount":  0.0,
+                "partial_amount":  0.0,
                 "bounced_amount":  0.0,
             }
         months[mk]["total_count"]  += row.cnt
@@ -109,6 +111,14 @@ def get_data(filters):
             months[mk]["deposited_amount"] += flt(row.amount)
         elif status == "Cleared":
             months[mk]["cleared_amount"]   += flt(row.amount)
+        elif status == "Partially Cleared":
+            # Its own bucket, at face value — every column here means "cheques
+            # in this status", so one cheque shows up as one number in one
+            # column. Splitting it between Cleared and Pending would reconcile
+            # just as well but makes a single cheque appear twice; how much of
+            # it has actually been banked belongs in the PDC Status/Aging
+            # reports, which show Received and Balance per cheque.
+            months[mk]["partial_amount"]   += flt(row.amount)
         elif status == "Bounced":
             months[mk]["bounced_amount"]   += flt(row.amount)
 
@@ -137,12 +147,13 @@ def get_chart(data):
                 {"name": _("Sent to Bank"), "values": [r["sent_to_bank_amount"] for r in data]},
                 {"name": _("Deposited"),    "values": [r["deposited_amount"]    for r in data]},
                 {"name": _("Cleared"),      "values": [r["cleared_amount"]      for r in data]},
+                {"name": _("Partially Cleared"), "values": [r["partial_amount"] for r in data]},
                 {"name": _("Bounced"),      "values": [r["bounced_amount"]      for r in data]},
             ],
         },
         "type": "bar",
         "barOptions": {"stacked": True},
-        "colors": ["#F39C12", "#9B59B6", "#2490EF", "#2ECC71", "#E74C3C"],
+        "colors": ["#F39C12", "#9B59B6", "#2490EF", "#2ECC71", "#48CFCB", "#E74C3C"],
     }
 
 
@@ -155,9 +166,11 @@ def get_summary(data):
     sent_to_bank= sum(r["sent_to_bank_amount"] for r in data)
     deposited   = sum(r["deposited_amount"]    for r in data)
     bounced     = sum(r["bounced_amount"]      for r in data)
+    partial     = sum(r["partial_amount"]      for r in data)
     return [
         {"label": _("Total Expected"),  "value": total,       "datatype": "Currency"},
         {"label": _("Cleared"),         "value": cleared,     "datatype": "Currency", "color": "green"},
+        {"label": _("Partially Cleared"), "value": partial,   "datatype": "Currency", "color": "light-blue"},
         {"label": _("Deposited"),       "value": deposited,   "datatype": "Currency", "color": "blue"},
         {"label": _("Sent to Bank"),    "value": sent_to_bank,"datatype": "Currency", "color": "purple"},
         {"label": _("Pending"),         "value": pending,     "datatype": "Currency", "color": "orange"},

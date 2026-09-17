@@ -23,7 +23,9 @@ def get_columns():
         {"label": _("Type"),           "fieldname": "purpose",      "fieldtype": "Data",     "width": 120},
         {"label": _("Cheque No"),      "fieldname": "cheque_no",    "fieldtype": "Data",     "width": 130},
         {"label": _("Cheque Date"),    "fieldname": "cheque_date",  "fieldtype": "Date",     "width": 110},
-        {"label": _("Amount (OMR)"),   "fieldname": "amount",       "fieldtype": "Currency", "width": 120},
+        {"label": _("Cheque Amount"),  "fieldname": "cheque_amount","fieldtype": "Currency", "width": 130},
+        {"label": _("Received"),       "fieldname": "received",     "fieldtype": "Currency", "width": 110},
+        {"label": _("Outstanding"),    "fieldname": "amount",       "fieldtype": "Currency", "width": 130},
         {"label": _("Status"),         "fieldname": "status",       "fieldtype": "Data",     "width": 110},
         {"label": _("Days Overdue"),   "fieldname": "days_overdue", "fieldtype": "Int",      "width": 110},
         {"label": _("Aging Bucket"),   "fieldname": "aging_bucket", "fieldtype": "Data",     "width": 120},
@@ -35,6 +37,11 @@ def get_data(filters, as_of):
     # Cleared = already collected; Cancelled/Returned = no cash coming via this
     # cheque; Substituted = superseded by its replacement PDC Entry, which is
     # itself Pending and already counted — none of these are still outstanding.
+    # A "Partially Cleared" cheque IS still outstanding, but only for its unpaid
+    # balance. So the report shows all three numbers side by side — Cheque
+    # Amount (face), Received, Outstanding — and everything that totals or ages
+    # keys off Outstanding. On an ordinary cheque Received is 0 and Outstanding
+    # equals the face value, so nothing about the existing report changes.
     conditions = ["pe.status NOT IN ('Cleared', 'Cancelled', 'Substituted', 'Returned')"]
     values = {"as_of": str(as_of)}
 
@@ -61,7 +68,9 @@ def get_data(filters, as_of):
             GROUP_CONCAT(DISTINCT a.purpose) AS purpose,
             pe.cheque_no,
             pe.cheque_date,
-            pe.amount AS amount,
+            pe.amount AS cheque_amount,
+            COALESCE(pe.cleared_amount, 0) AS received,
+            (pe.amount - COALESCE(pe.cleared_amount, 0)) AS amount,
             pe.status,
             GROUP_CONCAT(DISTINCT a.property_booking) AS booking,
             DATEDIFF(%(as_of)s, pe.cheque_date) AS days_overdue

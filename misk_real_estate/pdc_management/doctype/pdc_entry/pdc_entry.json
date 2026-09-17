@@ -28,6 +28,11 @@
   "deposited_date",
   "cleared_date",
   "bounce_reason_color",
+  "section_break_partial",
+  "clearances",
+  "column_break_partial",
+  "cleared_amount",
+  "balance_amount",
   "section_break_links",
   "payment_entry",
   "gl_posted",
@@ -141,7 +146,7 @@
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Status",
-   "options": "Pending\nSent to Bank\nIn Batch\nDeposited\nCleared\nBounced\nSubstituted\nCancelled\nReturned",
+   "options": "Pending\nSent to Bank\nIn Batch\nDeposited\nPartially Cleared\nCleared\nBounced\nSubstituted\nCancelled\nReturned",
    "reqd": 1,
    "search_index": 1
   },
@@ -197,6 +202,42 @@
    "fieldtype": "Link",
    "label": "Substituted By",
    "options": "PDC Entry"
+  },
+  {
+   "collapsible": 1,
+   "depends_on": "eval:doc.status=='Partially Cleared' || (doc.clearances && doc.clearances.length)",
+   "fieldname": "section_break_partial",
+   "fieldtype": "Section Break",
+   "label": "Partial Clearance"
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "clearances",
+   "fieldtype": "Table",
+   "label": "Clearances",
+   "options": "PDC Clearance",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_partial",
+   "fieldtype": "Column Break"
+  },
+  {
+   "allow_on_submit": 1,
+   "default": "0",
+   "fieldname": "cleared_amount",
+   "fieldtype": "Currency",
+   "label": "Amount Received",
+   "options": "company:default_currency",
+   "read_only": 1
+  },
+  {
+   "allow_on_submit": 1,
+   "fieldname": "balance_amount",
+   "fieldtype": "Currency",
+   "label": "Balance Due",
+   "options": "company:default_currency",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_links",

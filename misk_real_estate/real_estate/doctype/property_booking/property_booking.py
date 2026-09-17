@@ -146,9 +146,12 @@ class PropertyBooking(Document):
         return all(flt(inv.outstanding_amount) <= 0.01 for inv in invoices)
 
     def _installment_received(self):
-        """True once any Installment PDC schedule row has cleared."""
+        """True once any Installment PDC schedule row has cleared — including a
+        PARTIALLY cleared one: real money did arrive against it, so the booking
+        has genuinely moved into "Installments in Progress" even though that
+        cheque isn't settled in full yet (see PDC Entry.record_partial_clearance)."""
         return any(
-            r.installment_type == "Installment" and r.status == "Cleared"
+            r.installment_type == "Installment" and r.status in ("Cleared", "Partially Cleared")
             for r in (self.pdc_schedule or [])
         )
 
@@ -1025,8 +1028,11 @@ def update_booking_payment_status(booking_name):
     rows = frappe.get_all(
         "PDC Schedule", filters={"parent": booking_name}, fields=["status", "installment_type"]
     )
+    # "Partially Cleared" counts as received here for the same reason as
+    # _installment_received() — money arrived, just not the whole cheque.
     installment_received = any(
-        r.status == "Cleared" and r.installment_type == "Installment" for r in rows
+        r.status in ("Cleared", "Partially Cleared") and r.installment_type == "Installment"
+        for r in rows
     )
 
     # Payment status — milestones take precedence; never override a terminal state
@@ -1043,6 +1049,8 @@ def update_booking_payment_status(booking_name):
             updates["status"] = "Draft"
 
     # Installment progress (percent)
+    # Progress counts only fully-cleared rows — a partially cleared cheque
+    # still owes a balance, so it isn't a completed installment yet.
     active = [r for r in rows if r.status != "Cancelled"]
     if active:
         cleared = len([r for r in active if r.status == "Cleared"])

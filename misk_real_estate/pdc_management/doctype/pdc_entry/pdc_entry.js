@@ -42,6 +42,7 @@ frappe.ui.form.on("PDC Entry", {
 			"Sent to Bank": "purple",
 			"In Batch":     "blue",
 			"Deposited":    "yellow",
+			"Partially Cleared": "light-blue",
 			"Cleared":      "green",
 			"Bounced":      "red",
 		};
@@ -68,6 +69,15 @@ frappe.ui.form.on("PDC Entry", {
 		if (["Pending", "Deposited", "In Batch"].includes(status) && !frm.doc.gl_posted) {
 			frm.add_custom_button(__("Mark Cleared"), () => {
 				_confirm_clearance(frm);
+			}, __("Actions"));
+		}
+
+		// Record Partial Clearance — RARE: the bank released less than the cheque
+		// amount. Also the way the remaining balance is recorded afterwards, which
+		// is why "Partially Cleared" is in this list.
+		if (["Pending", "Deposited", "In Batch", "Sent to Bank", "Partially Cleared"].includes(status) && !frm.doc.gl_posted) {
+			frm.add_custom_button(__("Record Partial Clearance"), () => {
+				_record_partial_clearance(frm);
 			}, __("Actions"));
 		}
 
@@ -117,10 +127,23 @@ frappe.ui.form.on("PDC Entry", {
 			}, __("Actions"));
 		}
 
-		// View linked Payment Entry
-		if (frm.doc.payment_entry) {
+		// View linked Payment Entry. frm.doc.payment_entry holds the LATEST one
+		// — which is the only one for a cheque cleared in a single shot, but not
+		// for a rare partially cleared cheque settled in two or more receipts.
+		// So when the Clearances table names several, open the filtered list
+		// instead of silently showing just the most recent.
+		const pes = [...new Set(
+			(frm.doc.clearances || []).map(c => c.payment_entry)
+				.concat([frm.doc.payment_entry])
+				.filter(Boolean)
+		)];
+		if (pes.length === 1) {
 			frm.add_custom_button(__("Payment Entry"), () => {
-				frappe.set_route("Form", "Payment Entry", frm.doc.payment_entry);
+				frappe.set_route("Form", "Payment Entry", pes[0]);
+			}, __("View"));
+		} else if (pes.length > 1) {
+			frm.add_custom_button(__("Payment Entries ({0})", [pes.length]), () => {
+				frappe.set_route("List", "Payment Entry", { name: ["in", pes] });
 			}, __("View"));
 		}
 
@@ -197,6 +220,78 @@ function _confirm_clearance(frm) {
 	d.show();
 }
 
+function _record_partial_clearance(frm) {
+	const received = flt(frm.doc.cleared_amount);
+	const balance = flt(frm.doc.amount) - received;
+	const d = new frappe.ui.Dialog({
+		title: __("Record Partial Clearance"),
+		fields: [
+			{
+				fieldname: "info",
+				fieldtype: "HTML",
+				options: `<div class="alert alert-info" style="margin-bottom:10px">
+					${__("Cheque <b>{0}</b> — Amount <b>{1}</b>", [frm.doc.cheque_no, format_currency(frm.doc.amount, frm.doc.currency)])}<br>
+					${__("Already received: <b>{0}</b> &nbsp;·&nbsp; Balance due: <b>{1}</b>", [format_currency(received, frm.doc.currency), format_currency(balance, frm.doc.currency)])}
+					<div class="text-muted" style="margin-top:6px">${__("Use this button again for the balance.")}</div>
+				</div>`,
+			},
+			{
+				fieldname: "amount",
+				fieldtype: "Currency",
+				label: __("Amount Received"),
+				reqd: 1,
+				default: balance,
+				description: __("Must not exceed the balance due."),
+			},
+			{
+				fieldname: "clearance_date",
+				fieldtype: "Date",
+				label: __("Date Received"),
+				reqd: 1,
+				default: frappe.datetime.get_today(),
+			},
+			{
+				fieldname: "mode_of_payment",
+				fieldtype: "Link",
+				label: __("Mode of Payment"),
+				options: "Mode of Payment",
+				default: frm.doc.mode_of_payment || "",
+			},
+			{ fieldname: "notes", fieldtype: "Small Text", label: __("Notes") },
+		],
+		primary_action_label: __("Record & Post Payment Entry"),
+		primary_action(values) {
+			if (flt(values.amount) > balance + 0.005) {
+				frappe.msgprint(__("Amount received cannot exceed the balance due of {0}.", [format_currency(balance, frm.doc.currency)]));
+				return;
+			}
+			d.hide();
+			frappe.call({
+				method: "misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry.record_partial_clearance",
+				args: {
+					pdc_entry_name: frm.doc.name,
+					amount: values.amount,
+					clearance_date: values.clearance_date,
+					mode_of_payment: values.mode_of_payment || "",
+					notes: values.notes || "",
+				},
+				freeze: true,
+				freeze_message: __("Posting Payment Entry..."),
+				callback(r) {
+					if (!r.exc) {
+						frappe.show_alert({
+							message: __("Recorded. Payment Entry: {0}", [r.message]),
+							indicator: "green",
+						});
+						frm.reload_doc();
+					}
+				},
+			});
+		},
+	});
+	d.show();
+}
+
 function _confirm_sent_to_bank(frm) {
 	const d = new frappe.ui.Dialog({
 		title: __("Mark Sent to Bank"),
@@ -253,6 +348,7 @@ function _record_manual_payment(frm) {
 				options: `<div class="alert alert-warning" style="margin-bottom:10px">
 					<b>${__("Cheque {0} will be cancelled.", [frm.doc.cheque_no])}</b><br>
 					${__("A Payment Entry will be created against Sales Invoice {0}.", [(frm.doc.allocations && frm.doc.allocations[0] && frm.doc.allocations[0].sales_invoice) || ""])}
+					<div style="margin-top:6px">${__("Full amount only — for part-payments use <b>Record Partial Clearance</b>.")}</div>
 				</div>`,
 			},
 			{
@@ -275,6 +371,7 @@ function _record_manual_payment(frm) {
 				label: __("Amount (OMR)"),
 				reqd: 1,
 				default: frm.doc.amount,
+				read_only: 1,
 			},
 			{
 				fieldname: "notes",

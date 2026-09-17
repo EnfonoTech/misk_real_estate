@@ -101,7 +101,7 @@
    "fieldtype": "Select",
    "in_list_view": 1,
    "label": "Status",
-   "options": "Pending\nSent to Bank\nIn Batch\nDeposited\nCleared\nBounced\nSubstituted\nCancelled",
+   "options": "Pending\nSent to Bank\nIn Batch\nDeposited\nPartially Cleared\nCleared\nBounced\nSubstituted\nCancelled",
    "read_only": 1
   },
   {
