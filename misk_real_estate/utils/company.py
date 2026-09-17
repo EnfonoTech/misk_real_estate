@@ -46,14 +46,20 @@ def get_building_dimensions(building):
     return row.project, row.cost_center
 
 
-# Two buildings' real Project/Cost Center names in production don't follow
-# the plain "MR-<Building>" rule below — confirmed against the user's own
-# Project.csv / Cost Center export. Both already have project/cost_center
-# set wherever this matters, so this only documents why, in case either
-# ever needs (re)creating from scratch.
+# Buildings whose real Project/Cost Center label in production doesn't
+# follow the plain "MR-<Building>" rule below — confirmed against the
+# user's own Project.csv / Cost Center export. Misk Al Mawalah and Misk
+# Wallk already have project/cost_center set wherever this matters, so
+# this only documents why, in case either ever needs (re)creating from
+# scratch. Al Hail Front is different: production already has a Project
+# named "MR-Alhail Front" (no space, confirmed in the same export) with no
+# matching Cost Center yet — this override makes ensure_building_dimensions
+# reuse that existing Project instead of creating a differently-spelled
+# duplicate, while still creating the missing Cost Center under the same label.
 BUILDING_LABEL_OVERRIDES = {
     "Misk Al Mawalah": "MR-Misk Mawalah",
     "Misk Wallk": "MR-Misk Walk",
+    "AL HAIL FRONT": "MR-Alhail Front",
 }
 
 
