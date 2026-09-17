@@ -9,7 +9,12 @@ app_license = "mit"
 
 # ── Assets ────────────────────────────────────────────────────────────────────
 app_include_css = ["/assets/misk_real_estate/css/misk_real_estate.css"]
-app_include_js  = ["/assets/misk_real_estate/js/misk_icons.js"]
+app_include_js  = [
+    "/assets/misk_real_estate/js/misk_icons.js",
+    # Shared form behaviour for the Voucher Entry screens — must load
+    # before the per-doctype scripts, which are only thin calls into it.
+    "/assets/misk_real_estate/js/voucher_common.js",
+]
 
 # ── B3: PDC Auto-Invoice Scheduler ────────────────────────────────────────────
 # Runs daily. The configured day-of-month is read from Misk Real Estate Settings

@@ -7,24 +7,33 @@ from frappe.utils import flt
 
 
 class ExpenseEntry(Document):
+    def _validate_links(self):
+        """Clear a stale journal_entry before Frappe's own link check sees it.
+
+        Frappe runs _validate_links() ahead of validate()/before_insert on
+        BOTH insert and save, so this is the only server-side hook early
+        enough: anything later dies on "Cannot link cancelled document"
+        before it ever runs.
+
+        Why it needs clearing: journal_entry is no_copy, but Frappe's Amend
+        action does not honour no_copy (confirmed in create_new.js: no_copy
+        is honoured for a plain Duplicate, not an amend), so an amended draft
+        still points at the old, now-cancelled Journal Entry. The browser
+        clears it in expense_entry.js, which is why amending from the form
+        works; this covers every other path — the API, data import, bulk
+        tools and scripts. Kept in step with voucher_entry/voucher_base.py.
+        """
+        self._clear_stale_journal_entry()
+        return super()._validate_links()
+
     def validate(self):
-        self._reset_journal_entry_if_amended()
         self._calculate_total()
         self._validate_expenses()
 
-    def _reset_journal_entry_if_amended(self):
-        """journal_entry is only ever set inside before_submit, right before
-        docstatus flips to 1 — a docstatus=0 doc should never have it set
-        through any normal flow. But Frappe's Amend action does *not* clear
-        no_copy fields (confirmed in create_new.js: no_copy is only honoured
-        for a plain Duplicate, not an amend), so a fresh amended draft would
-        otherwise keep pointing at the old, now-cancelled Journal Entry —
-        tripping "Cannot link cancelled document" on save. This check alone
-        can't prevent that error (validate() runs after Frappe's own link
-        validation), so the real fix is client-side (expense_entry.js); this
-        is a defensive backstop for any other path that reaches validate()
-        with the field already cleared some other way.
-        """
+    def _clear_stale_journal_entry(self):
+        """journal_entry is only ever assigned in before_submit, by which
+        point docstatus is already 1 — so a draft holding a value can only
+        have inherited it from an amend, and it is never legitimate."""
         if self.docstatus == 0 and self.journal_entry:
             self.journal_entry = None
 
@@ -57,19 +66,33 @@ class ExpenseEntry(Document):
         self.journal_entry = je.name
 
     def _build_journal_entry(self):
-        # Header cost_center/project are the default for every line — a row's
-        # own value (if set) wins, same as the payable account's own line
-        # (which has no row of its own, so it always takes the header value).
+        # Each row posts its OWN cost_center/project, verbatim — a row left
+        # blank stays blank. The header's values reach rows only through the
+        # client-side fill-down (expense_entry.js), which writes them into
+        # blank rows where they are visible and overridable.
+        #
+        # There is deliberately no `row.x or self.x` fallback here any more:
+        # it made it impossible to clear one row while the header was set,
+        # because it silently put the header value back at submit time. Kept
+        # in step with voucher_entry/voucher_base.py, which is the same shape.
+        #
+        # A row left with no cost_center falls through to ERPNext's own
+        # company default (journal_entry_account.cost_center is
+        # `default: ":Company"`), which is what keeps Profit and Loss lines
+        # postable at all — GL Entry's pl_must_have_cost_center throws
+        # without one. Project has no such default, so blank posts blank.
         accounts = []
         for row in self.expenses:
             accounts.append({
                 "account": row.expense_account,
                 "debit_in_account_currency": flt(row.amount),
                 "debit": flt(row.amount),
-                "cost_center": row.cost_center or self.cost_center,
-                "project": row.project or self.project,
+                "cost_center": row.cost_center,
+                "project": row.project,
                 "user_remark": row.description,
             })
+        # The payable account has no row of its own, so it is the one line
+        # that legitimately takes the header's dimensions.
         accounts.append({
             "account": self.payable_account,
             "credit_in_account_currency": flt(self.total_amount),
