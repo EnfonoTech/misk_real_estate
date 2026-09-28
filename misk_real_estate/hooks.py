@@ -89,7 +89,7 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Attendance", "Shift Assignment", "Salary Slip", "Payroll Entry", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead"]],
+            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Attendance", "Shift Assignment", "Salary Slip", "Payroll Entry", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead", "Leave Application"]],
             # Excludes fields that belong to OTHER installed apps/core regional
             # setup on a shared doctype (e.g. Sales Invoice) — the dt filter
             # above can't tell those apart on its own. cms_ipc_ref
@@ -110,7 +110,7 @@ fixtures = [
     },
     {
         "dt": "Property Setter",
-        "filters": [["doc_type", "in", ["Sales Order", "Property Booking", "Item", "Quotation Item", "Sales Invoice", "Attendance"]]]
+        "filters": [["doc_type", "in", ["Sales Order", "Property Booking", "Item", "Quotation Item", "Sales Invoice", "Attendance", "Gratuity"]]]
     },
     {
         "dt": "Translation",
@@ -205,4 +205,7 @@ naming_series_variables = {
 # instead of the slip's own full calendar-month start_date/end_date.
 override_doctype_class = {
     "Salary Slip": "misk_real_estate.wps.custom_salary_slip.CustomSalarySlip",
+    "Gratuity": "misk_real_estate.wps.custom_gratuity.CustomGratuity",
+    "Leave Encashment": "misk_real_estate.wps.custom_leave_encashment.CustomLeaveEncashment",
+    "Leave Application": "misk_real_estate.wps.custom_leave_application.CustomLeaveApplication",
 }
