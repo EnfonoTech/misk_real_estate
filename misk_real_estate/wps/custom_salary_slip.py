@@ -24,13 +24,53 @@
 #
 # Applies only when custom_attendance_cutoff_date is actually set (Payroll
 # Entry or slip); otherwise this is a no-op and stock HRMS behaviour applies.
+#
+# Leave Salary vacations (wps/leave_salary.py) are also taken out of payment
+# days here -- see deduct_leave_salary_days.
 
 import frappe
-from frappe.utils import add_days, cint, date_diff, getdate
+from frappe.utils import add_days, cint, date_diff, flt, getdate
 from hrms.payroll.doctype.salary_slip.salary_slip import SalarySlip
+
+from misk_real_estate.wps.leave_salary import get_vacation_days
 
 
 class CustomSalarySlip(SalarySlip):
+	def get_working_days_details(self, lwp=None, for_preview=0):
+		super().get_working_days_details(lwp=lwp, for_preview=for_preview)
+		if not for_preview:
+			self.deduct_leave_salary_days()
+
+	def deduct_leave_salary_days(self):
+		"""Leave Salary vacations (wps/leave_salary.py) are paid by their own
+		Leave Salary earning, so take those days -- and the days after the
+		leave until HR enters the Actual Rejoining Date -- out of the monthly
+		salary's payment days. Same lookup window as LWP (the attendance
+		cutoff window when set, else the slip's own period)."""
+		window_start, window_end = self._get_attendance_cutoff_window()
+		if not window_start:
+			window_start, window_end = self.start_date, self.end_date
+		window_start, window_end = getdate(window_start), getdate(window_end)
+
+		skip_dates = set()
+		if not cint(frappe.db.get_single_value("Payroll Settings", "include_holidays_in_total_working_days")):
+			skip_dates.update(getdate(d) for d in self.get_holidays_for_employee(window_start, window_end))
+		# outside employment is never paid anyway
+		if self.joining_date and getdate(self.joining_date) > window_start:
+			skip_dates.update(
+				add_days(window_start, d) for d in range(date_diff(self.joining_date, window_start))
+			)
+		if self.relieving_date and getdate(self.relieving_date) < window_end:
+			skip_dates.update(
+				add_days(self.relieving_date, d) for d in range(1, date_diff(window_end, self.relieving_date) + 1)
+			)
+
+		leave_days, awaiting_days = get_vacation_days(self.employee, window_start, window_end, skip_dates)
+		self.custom_leave_salary_days = leave_days
+		self.custom_awaiting_rejoining_days = awaiting_days
+		if leave_days or awaiting_days:
+			self.payment_days = max(flt(self.payment_days) - leave_days - awaiting_days, 0)
+
 	def calculate_lwp_or_ppl_based_on_leave_application(
 		self, holidays, working_days_list, daily_wages_fraction_for_half_day
 	):

@@ -17,6 +17,10 @@
 #
 # The paid part keeps any holidays that follow its last paid day, so the
 # unpaid part starts on the next working day.
+#
+# Leave Salary (wps/leave_salary.py): approving a Leave Type with "Leave
+# Salary" ticked also creates its Leave Salary document (cancelled along with
+# it), and only HR can set the Actual Rejoining Date.
 
 import math
 
@@ -30,6 +34,13 @@ from hrms.hr.doctype.leave_application.leave_application import (
 	get_number_of_leave_days,
 )
 
+from misk_real_estate.wps.leave_salary import (
+	cancel_leave_salary,
+	create_leave_salary,
+	is_hr_user,
+	is_leave_salary_type,
+)
+
 SPLIT_FIELDS = (
 	"requested_to_date",
 	"paid_leave_days",
@@ -40,6 +51,28 @@ SPLIT_FIELDS = (
 
 
 class CustomLeaveApplication(LeaveApplication):
+	def validate(self):
+		super().validate()
+		self.validate_actual_rejoining_date()
+
+	def before_update_after_submit(self):
+		self.validate_actual_rejoining_date()
+
+	def validate_actual_rejoining_date(self):
+		before = self.get_doc_before_save()
+		previous = before.get("custom_actual_rejoining_date") if before else None
+		if getdate(self.custom_actual_rejoining_date or None) == getdate(previous or None):
+			return
+
+		if not is_hr_user():
+			frappe.throw(_("Only HR can set the Actual Rejoining Date"), frappe.PermissionError)
+		if not self.custom_actual_rejoining_date:
+			return
+		if self.docstatus != 1 or self.status != "Approved":
+			frappe.throw(_("Actual Rejoining Date can only be set on an approved Leave Application"))
+		if getdate(self.custom_actual_rejoining_date) <= getdate(self.from_date):
+			frappe.throw(_("Actual Rejoining Date must be after the leave start date"))
+
 	def validate_balance_leaves(self):
 		split = self.get_paid_unpaid_split()
 		if not split:
@@ -151,6 +184,8 @@ class CustomLeaveApplication(LeaveApplication):
 		super().on_submit()
 		if self.get("unpaid_leave_days") and self.get("unpaid_from_date"):
 			self.create_unpaid_leave_application()
+		if self.status == "Approved" and is_leave_salary_type(self.leave_type):
+			self.custom_leave_salary = create_leave_salary(self).name
 
 	def create_unpaid_leave_application(self):
 		unpaid = frappe.get_doc(
@@ -183,6 +218,7 @@ class CustomLeaveApplication(LeaveApplication):
 		)
 
 	def on_cancel(self):
+		cancel_leave_salary(self.name)
 		if self.get("unpaid_leave_application"):
 			unpaid = frappe.get_doc("Leave Application", self.get("unpaid_leave_application"))
 			if unpaid.docstatus == 1:
