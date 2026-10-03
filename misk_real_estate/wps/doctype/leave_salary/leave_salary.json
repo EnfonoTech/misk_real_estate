@@ -1,0 +1,236 @@
+{
+ "actions": [],
+ "autoname": "LS-.YYYY.-.#####",
+ "creation": "2026-10-03 12:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "is_submittable": 1,
+ "module": "WPS",
+ "name": "Leave Salary",
+ "field_order": [
+  "employee",
+  "employee_name",
+  "company",
+  "column_break_emp",
+  "posting_date",
+  "payroll_date",
+  "leave_section",
+  "leave_application",
+  "leave_type",
+  "column_break_leave",
+  "from_date",
+  "to_date",
+  "calculation_section",
+  "monthly_gross",
+  "eligible_days",
+  "column_break_calc",
+  "amount",
+  "salary_component",
+  "additional_salary",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "employee",
+   "fieldtype": "Link",
+   "label": "Employee",
+   "options": "Employee",
+   "reqd": 1,
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "employee_name",
+   "fieldtype": "Data",
+   "label": "Employee Name",
+   "fetch_from": "employee.employee_name",
+   "read_only": 1,
+   "in_list_view": 1
+  },
+  {
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "fetch_from": "employee.company",
+   "read_only": 1,
+   "reqd": 1,
+   "in_standard_filter": 1
+  },
+  {
+   "fieldname": "column_break_emp",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "label": "Posting Date",
+   "default": "Today",
+   "reqd": 1
+  },
+  {
+   "fieldname": "payroll_date",
+   "fieldtype": "Date",
+   "label": "Payroll Date",
+   "reqd": 1,
+   "in_list_view": 1,
+   "description": "The Salary Slip covering this date pays the Leave Salary. Defaults to the leave start date, or the day after the last submitted Salary Slip if that month is already paid."
+  },
+  {
+   "fieldname": "leave_section",
+   "fieldtype": "Section Break",
+   "label": "Leave"
+  },
+  {
+   "fieldname": "leave_application",
+   "fieldtype": "Link",
+   "label": "Leave Application",
+   "options": "Leave Application",
+   "reqd": 1,
+   "search_index": 1
+  },
+  {
+   "fieldname": "leave_type",
+   "fieldtype": "Link",
+   "label": "Leave Type",
+   "options": "Leave Type",
+   "fetch_from": "leave_application.leave_type",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_leave",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "from_date",
+   "fieldtype": "Date",
+   "label": "Leave From",
+   "fetch_from": "leave_application.from_date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "to_date",
+   "fieldtype": "Date",
+   "label": "Leave To",
+   "fetch_from": "leave_application.to_date",
+   "read_only": 1
+  },
+  {
+   "fieldname": "calculation_section",
+   "fieldtype": "Section Break",
+   "label": "Calculation"
+  },
+  {
+   "fieldname": "monthly_gross",
+   "fieldtype": "Currency",
+   "label": "Gross Salary (Monthly)",
+   "options": "Company:company:default_currency",
+   "description": "Full-month gross from the employee's last submitted Salary Slip (structure earnings only), or from the Salary Structure if there is none yet."
+  },
+  {
+   "fieldname": "eligible_days",
+   "fieldtype": "Float",
+   "label": "Eligible Leave Days",
+   "reqd": 1,
+   "description": "Defaults to the paid leave days of the Leave Application."
+  },
+  {
+   "fieldname": "column_break_calc",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "label": "Leave Salary Amount",
+   "options": "Company:company:default_currency",
+   "read_only": 1,
+   "in_list_view": 1,
+   "bold": 1,
+   "description": "Gross Salary \u00f7 30 \u00d7 Eligible Leave Days"
+  },
+  {
+   "fieldname": "salary_component",
+   "fieldtype": "Link",
+   "label": "Salary Component",
+   "options": "Salary Component",
+   "default": "Leave Salary",
+   "reqd": 1
+  },
+  {
+   "fieldname": "additional_salary",
+   "fieldtype": "Link",
+   "label": "Additional Salary",
+   "options": "Additional Salary",
+   "read_only": 1,
+   "no_copy": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "options": "Leave Salary",
+   "read_only": 1,
+   "no_copy": 1,
+   "print_hide": 1
+  }
+ ],
+ "links": [],
+ "modified": "2026-10-03 12:00:00",
+ "modified_by": "Administrator",
+ "owner": "Administrator",
+ "naming_rule": "Expression (old style)",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1,
+ "title_field": "employee_name",
+ "show_title_field_in_link": 0,
+ "permissions": [
+  {
+   "role": "System Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR Manager",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "delete": 1,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  },
+  {
+   "role": "HR User",
+   "read": 1,
+   "write": 1,
+   "create": 1,
+   "submit": 1,
+   "cancel": 1,
+   "amend": 1,
+   "delete": 0,
+   "report": 1,
+   "export": 1,
+   "print": 1,
+   "email": 1,
+   "share": 1
+  }
+ ]
+}
