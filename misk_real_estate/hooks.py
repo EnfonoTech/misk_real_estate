@@ -89,7 +89,7 @@ fixtures = [
     {
         "dt": "Custom Field",
         "filters": [
-            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Attendance", "Shift Assignment", "Salary Slip", "Payroll Entry", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead", "Leave Application"]],
+            ["dt", "in", ["Payment Entry", "Sales Invoice", "Customer", "Supplier", "Employee", "Attendance", "Shift Assignment", "Salary Slip", "Payroll Entry", "Item", "Item Group", "Quotation", "Quotation Item", "Price List", "Lead", "Leave Application", "Leave Type"]],
             # Excludes fields that belong to OTHER installed apps/core regional
             # setup on a shared doctype (e.g. Sales Invoice) — the dt filter
             # above can't tell those apart on its own. cms_ipc_ref
@@ -181,6 +181,7 @@ doctype_js = {
     "Payment Entry":  "real_estate/custom/payment_entry.js",
     "Attendance":     "wps/custom/attendance.js",
     "Salary Slip":    "wps/custom/salary_slip.js",
+    "Leave Application": "wps/custom/leave_application.js",
 }
 
 doctype_list_js = {

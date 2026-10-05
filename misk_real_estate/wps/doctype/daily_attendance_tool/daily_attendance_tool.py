@@ -11,6 +11,7 @@ from misk_real_estate.wps.attendance_hooks import (
     get_shift_assignment,
     get_shift_hours,
 )
+from misk_real_estate.wps.leave_salary import get_employees_awaiting_rejoining
 
 
 class DailyAttendanceTool(Document):
@@ -109,6 +110,10 @@ def get_employees(company, attendance_date, employee_category=None, project=None
     if shift:
         assigned = set(get_employees_assigned_to_shift(shift, attendance_date))
         employees = [e for e in employees if e.name in assigned]
+
+    # back from a Leave Salary vacation but HR hasn't confirmed rejoining yet
+    awaiting = get_employees_awaiting_rejoining(attendance_date)
+    employees = [e for e in employees if e.name not in awaiting]
 
     rows = []
     for emp in employees:

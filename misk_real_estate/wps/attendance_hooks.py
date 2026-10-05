@@ -1,10 +1,15 @@
 # apps/misk_real_estate/misk_real_estate/wps/attendance_hooks.py
 
 import frappe
+from frappe import _
 from frappe.query_builder.functions import Sum
+
+from misk_real_estate.wps.leave_salary import get_awaiting_rejoining_application
 
 
 def validate(doc, method=None):
+    validate_rejoined(doc)
+
     if doc.project and doc.shift:
         return
 
@@ -15,6 +20,24 @@ def validate(doc, method=None):
         doc.project = details.project
     if not doc.shift:
         doc.shift = details.shift_type
+
+
+def validate_rejoined(doc):
+    """An employee back from a Leave Salary vacation can only be marked
+    working from the Actual Rejoining Date HR enters on the Leave Application
+    (wps/leave_salary.py)."""
+    if doc.status not in ("Present", "Half Day", "Work From Home"):
+        return
+
+    leave_application = get_awaiting_rejoining_application(doc.employee, doc.attendance_date)
+    if leave_application:
+        frappe.throw(
+            _("{0} has not rejoined from leave {1} yet. HR must set the Actual Rejoining Date on it before attendance can be marked.").format(
+                frappe.bold(doc.employee_name or doc.employee),
+                frappe.get_desk_link("Leave Application", leave_application),
+            ),
+            title=_("Awaiting Rejoining"),
+        )
 
 
 @frappe.whitelist()
