@@ -3,7 +3,7 @@
 // Cancelled, Substituted). Actions appear in the "Actions" menu once rows selected.
 
 frappe.listview_settings["PDC Entry"] = {
-	add_fields: ["bounce_reason", "bounce_reason_color"],
+	add_fields: ["bounce_reason", "bounce_reason_color", "payment_entry", "cleared_amount"],
 
 	onload(listview) {
 		const M = "misk_real_estate.pdc_management.doctype.pdc_entry.pdc_entry";
@@ -98,11 +98,21 @@ frappe.listview_settings["PDC Entry"] = {
 	},
 
 	get_indicator(doc) {
+		// A cancelled cheque the customer settled another way (cash/transfer via
+		// Record Manual Payment) carries the Payment Entry that collected it.
+		// Without this it reads as plain grey "Cancelled", identical to a cheque
+		// where nothing was ever received — the money shows in the GL but the
+		// list gives no way to tell the two apart. Filter targets the same
+		// payment_entry field, so clicking the pill lists exactly these.
+		if (doc.status === "Cancelled" && doc.payment_entry) {
+			return [__("Cancelled — Paid"), "blue", "status,=,Cancelled|payment_entry,is,set"];
+		}
 		const map = {
 			"Pending": "gray",
 			"Sent to Bank": "purple",
 			"In Batch": "blue",
 			"Deposited": "orange",
+			"Partially Cleared": "light-blue",
 			"Cleared": "green",
 			"Bounced": "red",
 			"Substituted": "yellow",

@@ -32,6 +32,10 @@ def get_columns():
         {"label": _("Received"),        "fieldname": "received",       "fieldtype": "Currency", "width": 110},
         {"label": _("Balance"),         "fieldname": "balance",        "fieldtype": "Currency", "width": 110},
         {"label": _("Status"),          "fieldname": "status",         "fieldtype": "Data",     "width": 110},
+        # How the money actually arrived, in one filterable word. Status alone
+        # can't say it: a cheque the customer cancelled and then settled by
+        # transfer is "Cancelled", exactly like one where nothing was received.
+        {"label": _("Settlement"),      "fieldname": "settlement",     "fieldtype": "Data",     "width": 150},
         {"label": _("Booking"),         "fieldname": "booking",        "fieldtype": "Link",     "options": "Property Booking", "width": 140},
         {"label": _("Batch"),           "fieldname": "batch",          "fieldtype": "Link",     "options": "PDC Batch", "width": 130},
         {"label": _("Deposited Date"),  "fieldname": "deposited_date", "fieldtype": "Date",     "width": 120},
@@ -135,12 +139,43 @@ def _attach_payments(rows):
                 _payment_label(c.clearance_date, c.amount, c.mode_of_payment, c.payment_entry)
                 for c in parts
             )
-        elif row.status == "Cleared" and row.payment_entry:
+        elif row.payment_entry:
+            # Any status, not just Cleared — a cancelled cheque settled through
+            # Record Manual Payment has its Payment Entry here too, and that is
+            # the only place the mode and amount of that settlement show up.
+            pe = frappe.db.get_value(
+                "Payment Entry", row.payment_entry,
+                ["posting_date", "paid_amount", "mode_of_payment"], as_dict=True,
+            ) or frappe._dict()
             row.payments = _payment_label(
-                row.cleared_date, row.amount, row.mode_of_payment, row.payment_entry
+                pe.posting_date or row.cleared_date,
+                pe.paid_amount if pe.paid_amount is not None else row.amount,
+                pe.mode_of_payment or row.mode_of_payment,
+                row.payment_entry,
             )
         else:
             row.payments = ""
+
+        row.settlement = _settlement(row)
+
+
+def _settlement(row):
+    """One-word answer to "did this cheque actually bring money in, and how?".
+
+    Deliberately derived rather than stored: the cheque already knows, through
+    its own status and whether a Payment Entry is attached, so there is nothing
+    extra to maintain and nothing to backfill on the thousands of cheques that
+    settled normally."""
+    if row.status == "Cleared":
+        return _("Cheque Cleared")
+    if row.status == "Partially Cleared":
+        return _("Part Received")
+    if row.payment_entry:
+        mode = frappe.db.get_value("Payment Entry", row.payment_entry, "mode_of_payment")
+        return _("Paid by {0}").format(mode) if mode else _("Paid — Other Mode")
+    if row.status in ("Cancelled", "Returned", "Bounced", "Substituted"):
+        return _("Not Received")
+    return _("Awaiting")
 
 
 def _payment_label(date, amount, mode, payment_entry):
