@@ -27,13 +27,25 @@ misk.voucher.setup = function (doctype, opts) {
 		},
 
 		refresh(frm) {
-			const company = frm.doc.company || "";
-
+			// Every filter below reads frm.doc.company INSIDE its callback, on
+			// purpose. set_query callbacks are re-evaluated each time the link
+			// field is opened, so this tracks whatever company is on the form
+			// right now. Hoisting it into a `const company` out here instead
+			// would snapshot the value as at the last refresh — which on a new
+			// document is the session default from onload — and every picker
+			// would go on filtering by that even after the user picks a
+			// different company.
 			frm.set_query(control_field, () => ({
-				filters: { account_type: control_account_type, is_group: 0, company },
+				filters: {
+					account_type: control_account_type,
+					is_group: 0,
+					company: frm.doc.company || "",
+				},
 			}));
-			frm.set_query("cost_center", () => ({ filters: { company, is_group: 0 } }));
-			frm.set_query("project", () => ({ filters: { company } }));
+			frm.set_query("cost_center", () => ({
+				filters: { company: frm.doc.company || "", is_group: 0 },
+			}));
+			frm.set_query("project", () => ({ filters: { company: frm.doc.company || "" } }));
 
 			// Receivable/Payable accounts are excluded deliberately: ERPNext's
 			// Journal Entry hard-throws on an AR/AP line with no party, and
@@ -41,19 +53,39 @@ misk.voucher.setup = function (doctype, opts) {
 			// confusing error at submit time.
 			frm.set_query("account", "lines", () => ({
 				filters: [
-					["company", "=", company],
+					["company", "=", frm.doc.company || ""],
 					["is_group", "=", 0],
 					["account_type", "not in", ["Receivable", "Payable"]],
 				],
 			}));
-			frm.set_query("cost_center", "lines", () => ({ filters: { company, is_group: 0 } }));
-			frm.set_query("project", "lines", () => ({ filters: { company } }));
+			frm.set_query("cost_center", "lines", () => ({
+				filters: { company: frm.doc.company || "", is_group: 0 },
+			}));
+			frm.set_query("project", "lines", () => ({
+				filters: { company: frm.doc.company || "" },
+			}));
 
 			if (frm.doc.journal_entry) {
 				frm.add_custom_button(__("Journal Entry"), () => {
 					frappe.set_route("Form", "Journal Entry", frm.doc.journal_entry);
 				}, __("View"));
 			}
+		},
+
+		// Changing company invalidates every company-scoped selection already
+		// made. Clearing them beats carrying a stale cross-company account to
+		// submit, where it surfaces as "Account X does not belong to Company Y"
+		// from deep inside ERPNext's GL Entry validation. Nothing to clear on a
+		// new document, so this is a no-op for the onload default.
+		company(frm) {
+			["cost_center", "project", control_field].forEach((field) => {
+				if (frm.doc[field]) frm.set_value(field, "");
+			});
+			(frm.doc.lines || []).forEach((row) => {
+				["account", "cost_center", "project"].forEach((field) => {
+					if (row[field]) frappe.model.set_value(row.doctype, row.name, field, "");
+				});
+			});
 		},
 
 		// Header Cost Center/Project are the default for every line — push
