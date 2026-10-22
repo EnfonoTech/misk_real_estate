@@ -26,6 +26,11 @@ frappe.ui.form.on("Property Booking", {
 			filters: { party_type: "Customer", party: frm.doc.customer || "" },
 		}));
 
+		// Tax template — scoped to the booking's company
+		frm.set_query("taxes_and_charges", () => ({
+			filters: { company: frm.doc.company || "" },
+		}));
+
 		// Project / Cost Center — scoped to the booking's company, header + per-unit
 		frm.set_query("project", () => ({ filters: { company: frm.doc.company || "" } }));
 		frm.set_query("cost_center", () => ({ filters: { company: frm.doc.company || "", is_group: 0 } }));

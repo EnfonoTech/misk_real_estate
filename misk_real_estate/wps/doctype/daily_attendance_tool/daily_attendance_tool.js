@@ -13,6 +13,13 @@ frappe.ui.form.on("Daily Attendance Tool", {
 		frm.set_query("employee", "employees", () => ({
 			filters: { company: frm.doc.company || "" },
 		}));
+		// Project is company-scoped too — header and per-row. frm.doc.company is
+		// read inside the callback so it tracks the form, not whatever was set
+		// when refresh last ran.
+		frm.set_query("project", () => ({ filters: { company: frm.doc.company || "" } }));
+		frm.set_query("project", "employees", () => ({
+			filters: { company: frm.doc.company || "" },
+		}));
 
 		if (frm.doc.docstatus !== 0) return;
 

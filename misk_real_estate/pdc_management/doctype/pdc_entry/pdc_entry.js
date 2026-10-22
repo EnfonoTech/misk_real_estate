@@ -22,6 +22,25 @@ frappe.ui.form.on("PDC Entry", {
 			const row = locals[cdt][cdn] || {};
 			return { filters: row.building ? { item_group: row.building } : {} };
 		});
+
+		// Customer Bank Account — this cheque's customer only, same as Property
+		// Booking does it. Company alone would be far too wide: a bank account
+		// belongs to a party, not just a company.
+		frm.set_query("customer_bank_account", () => ({
+			filters: { party_type: "Customer", party: frm.doc.customer || "" },
+		}));
+
+		// Batch and the substitute cheque are company-scoped. A cheque can never
+		// be substituted by itself, so the current document is excluded.
+		frm.set_query("batch", () => ({ filters: { company: frm.doc.company || "" } }));
+		frm.set_query("substituted_by", () => ({
+			filters: { company: frm.doc.company || "", name: ["!=", frm.doc.name || ""] },
+		}));
+
+		// NOTE: `customer` is deliberately NOT filtered by company. Customer.company
+		// is a custom field that is not reliably populated — 11 of 61 customers on
+		// misk have it NULL — so a company filter would silently hide them from the
+		// picker. Revisit once that field is backfilled.
 	},
 
 	customer(frm) {

@@ -5,6 +5,12 @@ frappe.ui.form.on("Reservation", {
 		frm.set_query("quotation", () => ({
 			filters: { docstatus: 1 },
 		}));
+		// Tax template — scoped to the reservation's company. Registered once in
+		// setup, but the callback reads frm.doc.company live, so it keeps up when
+		// company changes (the quotation handler below can rewrite it).
+		frm.set_query("taxes_and_charges", () => ({
+			filters: { company: frm.doc.company || "" },
+		}));
 	},
 
 	onload(frm) {
